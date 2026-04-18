@@ -32,6 +32,23 @@
         .score-label { font-size: clamp(0.9rem, 3vw, 1.2rem); font-weight: 400; color: #fff; letter-spacing: 0.2em; text-transform: uppercase; margin: 10px 0 6px; }
         .score-sub { font-size: 0.65rem; color: #7D7D7D; letter-spacing: 0.2em; text-transform: uppercase; }
 
+        /* 기업소개 */
+        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #313131; }
+        .profile-item { background: #202020; padding: 10px 12px; }
+        .profile-item .p-label { font-size: 0.58rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 4px; }
+        .profile-item .p-val { font-size: 0.82rem; color: #e2e8f0; font-weight: 500; word-break: break-all; }
+        .profile-item .p-val a { color: #FFC000; text-decoration: none; font-size: 0.75rem; }
+        .profile-item .p-val a:hover { text-decoration: underline; }
+        .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #313131; margin-top: 1px; }
+        .metric-item { background: #181818; padding: 12px 8px; text-align: center; }
+        .metric-item .m-label { font-size: 0.58rem; color: #555; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 5px; }
+        .metric-item .m-val { font-size: 1.05rem; font-weight: 700; color: #FFC000; }
+        .metric-item .m-val.neutral { color: #969696; }
+        .market-bar { display: flex; gap: 1px; background: #313131; margin-top: 1px; }
+        .market-bar-item { flex: 1; background: #202020; padding: 8px 10px; text-align: center; }
+        .market-bar-item .mb-label { font-size: 0.58rem; color: #555; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 3px; }
+        .market-bar-item .mb-val { font-size: 0.82rem; font-weight: 700; color: #fff; }
+
         /* MA 배열 */
         .ma-badge { padding: 5px 14px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; display: inline-block; border: 1px solid; }
         .bullish { border-color: #FFC000; color: #FFC000; background: rgba(255,192,0,0.08); }
@@ -138,6 +155,86 @@
     <div class="row g-0" style="gap:0;">
         <!-- 왼쪽 패널 -->
         <div class="col-lg-4" style="padding-right: 1px;">
+
+            <!-- 기업소개 -->
+            <div class="section-card">
+                <div class="section-title">기업소개</div>
+                <div class="profile-grid">
+                    <div class="profile-item">
+                        <div class="p-label">대표자</div>
+                        <div class="p-val">{{ company_info.get('ceo', 'N/A') }}</div>
+                    </div>
+                    <div class="profile-item">
+                        <div class="p-label">시장</div>
+                        <div class="p-val">{{ market_profile.market_type }}</div>
+                    </div>
+                    <div class="profile-item">
+                        <div class="p-label">업종</div>
+                        <div class="p-val">{{ company_info.get('industry', 'N/A') }}</div>
+                    </div>
+                    <div class="profile-item">
+                        <div class="p-label">결산</div>
+                        <div class="p-val">{{ company_info.get('fiscal_month', 'N/A') }}</div>
+                    </div>
+                    <div class="profile-item">
+                        <div class="p-label">설립일</div>
+                        {% set fd = company_info.get('founded', '') %}
+                        <div class="p-val">{% if fd|length == 8 %}{{ fd[:4] }}.{{ fd[4:6] }}.{{ fd[6:] }}{% else %}N/A{% endif %}</div>
+                    </div>
+                    <div class="profile-item">
+                        <div class="p-label">홈페이지</div>
+                        <div class="p-val">
+                            {% if company_info.get('website') %}
+                            <a href="{{ company_info.website }}" target="_blank">바로가기 →</a>
+                            {% else %}N/A{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 시장 지표 -->
+                <div class="market-bar">
+                    <div class="market-bar-item">
+                        <div class="mb-label">시가총액</div>
+                        <div class="mb-val">{{ market_profile.market_cap }}</div>
+                    </div>
+                    <div class="market-bar-item">
+                        <div class="mb-label">52주 최고</div>
+                        <div class="mb-val" style="color:#FFC000;">{{ market_profile.w52_high }}원</div>
+                    </div>
+                    <div class="market-bar-item">
+                        <div class="mb-label">52주 최저</div>
+                        <div class="mb-val" style="color:#29ABE2;">{{ market_profile.w52_low }}원</div>
+                    </div>
+                </div>
+
+                <!-- 밸류에이션 & 재무 -->
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <div class="m-label">PER</div>
+                        <div class="m-val {% if fundamental.per == 'N/A' %}neutral{% endif %}">{{ fundamental.per }}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="m-label">Fwd PER</div>
+                        <div class="m-val {% if fundamental.forward_per == 'N/A' %}neutral{% endif %}">{{ fundamental.forward_per }}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="m-label">PBR</div>
+                        <div class="m-val {% if fundamental.pbr == 'N/A' %}neutral{% endif %}">{{ fundamental.pbr }}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="m-label">ROE (%)</div>
+                        <div class="m-val {% if fundamental.roe == 'N/A' %}neutral{% endif %}">{{ fundamental.roe }}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="m-label">영업이익률 (%)</div>
+                        <div class="m-val {% if fundamental.op_margin == 'N/A' %}neutral{% endif %}">{{ fundamental.op_margin }}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="m-label">부채비율 (%)</div>
+                        <div class="m-val {% if fundamental.debt_ratio == 'N/A' %}neutral{% endif %}">{{ fundamental.debt_ratio }}</div>
+                    </div>
+                </div>
+            </div>
 
             <!-- 종합 점수 -->
             {% set buy_color = rec_color in ['danger','warning'] %}

@@ -6,7 +6,8 @@ from analysis.fundamental import get_fundamental
 from analysis.news import search_naver_news, analyze_news
 from analysis.signal import calc_score, get_recommendation, get_ai_analysis
 from analysis.charts import make_main_chart, make_supply_zone_chart, make_investor_chart, make_ma_chart
-from analysis.dart import get_disclosures
+from analysis.dart import get_disclosures, get_company_info
+from analysis.fundamental import get_market_profile
 from dotenv import load_dotenv
 import os
 
@@ -58,7 +59,18 @@ def analyze():
     try:
         fundamental = get_fundamental(ticker)
     except Exception:
-        fundamental = {'per': 'N/A', 'forward_per': 'N/A', 'pbr': 'N/A', 'operating_profit': []}
+        fundamental = {'per': 'N/A', 'forward_per': 'N/A', 'pbr': 'N/A', 'operating_profit': [],
+                       'roe': 'N/A', 'op_margin': 'N/A', 'debt_ratio': 'N/A', 'revenue': []}
+
+    # 기업 프로필
+    try:
+        company_info = get_company_info(ticker)
+    except Exception:
+        company_info = {}
+    try:
+        market_profile = get_market_profile(ticker)
+    except Exception:
+        market_profile = {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
 
     # 뉴스
     try:
@@ -100,6 +112,8 @@ def analyze():
 
     return render_template('result.html',
         disclosures=disclosures,
+        company_info=company_info,
+        market_profile=market_profile,
         name=name, ticker=ticker, current_price=f"{current_price:,}",
         ma_chart=ma_chart, score_pct=score_pct,
         months=months,

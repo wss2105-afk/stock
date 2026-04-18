@@ -57,6 +57,34 @@ _PBLNTF_LABELS = {
 _IMPORTANT_TYPES = {'B', 'C', 'D', 'I'}  # 중요 공시 유형
 
 
+def get_company_info(ticker):
+    """DART에서 기업 기본정보 조회"""
+    if not DART_API_KEY:
+        return {}
+    corp_code = get_corp_code(ticker)
+    if not corp_code:
+        return {}
+    try:
+        resp = requests.get(
+            "https://opendart.fss.or.kr/api/company.json",
+            params={'crtfc_key': DART_API_KEY, 'corp_code': corp_code},
+            timeout=10
+        )
+        data = resp.json()
+        if data.get('status') != '000':
+            return {}
+        return {
+            'ceo': data.get('ceo_nm', 'N/A'),
+            'industry': data.get('induty_code', 'N/A'),
+            'founded': data.get('est_dt', ''),
+            'fiscal_month': data.get('acc_mt', 'N/A') + '월',
+            'website': data.get('hm_url', ''),
+            'address': data.get('adres', ''),
+        }
+    except Exception:
+        return {}
+
+
 def get_disclosures(ticker, days=60):
     """최근 공시 목록 반환"""
     if not DART_API_KEY:
