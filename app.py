@@ -10,9 +10,40 @@ from analysis.dart import get_disclosures, get_company_info
 from analysis.fundamental import get_market_profile
 from dotenv import load_dotenv
 import os
+import json
+import threading
+from datetime import datetime
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
 app = Flask(__name__)
+
+_TICKER_PATH = os.path.join(os.path.dirname(__file__), 'data', 'krx_tickers.json')
+_LAST_UPDATE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ticker_last_update.txt')
+
+
+def _auto_update_tickers():
+    """매월 1일 종목 DB 자동 갱신"""
+    today = datetime.today()
+    if today.day != 1:
+        return
+    last = ''
+    if os.path.exists(_LAST_UPDATE_PATH):
+        with open(_LAST_UPDATE_PATH) as f:
+            last = f.read().strip()
+    this_month = today.strftime('%Y-%m')
+    if last == this_month:
+        return
+    try:
+        from update_tickers import update
+        update()
+        with open(_LAST_UPDATE_PATH, 'w') as f:
+            f.write(this_month)
+        print(f'[{this_month}] 종목 DB 자동 갱신 완료')
+    except Exception as e:
+        print(f'종목 DB 갱신 오류: {e}')
+
+
+threading.Thread(target=_auto_update_tickers, daemon=True).start()
 
 
 @app.route('/')
