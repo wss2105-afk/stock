@@ -40,6 +40,23 @@ def _calc_joint_buying(investor_df, days=20, threshold=15):
     return joint_days, joint_days > threshold
 
 
+def _calc_buying_surge_star(investor_df, recent_days=10, past_days=20):
+    """최근 10거래일 기관+외인 매수세가 직전 20거래일 대비 2배 이상 증가 여부"""
+    if investor_df.empty or len(investor_df) < recent_days + past_days:
+        return False
+    foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
+    inst_col = next((c for c in investor_df.columns if '기관' in c
+                     and '금융' not in c and '연기금' not in c), None)
+    if not foreign_col or not inst_col:
+        return False
+    combined = investor_df[foreign_col] + investor_df[inst_col]
+    recent = combined.tail(recent_days)
+    past = combined.iloc[-(recent_days + past_days):-recent_days]
+    recent_avg = recent[recent > 0].sum() / recent_days
+    past_avg = past[past > 0].sum() / past_days
+    return past_avg > 0 and recent_avg >= past_avg * 2
+
+
 def _calc_volume_surge(investor_df, days=20, surge_ratio=1.5):
     """최근 수급량이 평시 대비 surge_ratio배 이상인지 확인"""
     if investor_df.empty:
@@ -88,14 +105,17 @@ def _analyze_one(name, ticker, months=6):
             foreign_streak = _count_consecutive_buying(investor_df, '외인')
         inst_streak = _count_consecutive_buying(investor_df, '기관')
 
-        # 외인+기관 동시매수 20일 중 15일 초과 여부
-        joint_days, joint_star = _calc_joint_buying(investor_df, days=20, threshold=15)
+        # 외인+기관 동시매수 20일 중 10일 초과 여부 (절반 이상)
+        joint_days, joint_star = _calc_joint_buying(investor_df, days=20, threshold=10)
 
         # 수급량 급증 여부
         volume_surge = _calc_volume_surge(investor_df, days=20, surge_ratio=1.5)
 
+        # 최근 10거래일 매수세 2배 급증 여부
+        buying_surge_star = _calc_buying_surge_star(investor_df)
+
         # 연속 매수 보너스 점수 (정렬 우선순위용)
-        streak_bonus = (foreign_streak * 2) + (inst_streak * 1.5) + (10 if joint_star else 0)
+        streak_bonus = (foreign_streak * 2) + (inst_streak * 1.5) + (10 if joint_star else 0) + (8 if buying_surge_star else 0)
 
         return {
             'name': name,
@@ -108,6 +128,7 @@ def _analyze_one(name, ticker, months=6):
             'joint_days': joint_days,
             'joint_star': joint_star,
             'volume_surge': volume_surge,
+            'buying_surge_star': buying_surge_star,
             'recommendation': recommendation,
             'rec_color': rec_color,
             'price': f"{current_price:,}",

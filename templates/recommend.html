@@ -55,7 +55,8 @@
     <div class="gold-line"></div>
     <div class="page-sub">229개 종목 자동 스캔 · 외인·기관 연속수급 우선 정렬 · 클릭 시 상세 분석</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px;">
-        <span style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#FFC000;">★</span> 외인+기관 동시매수 20일 중 15일 초과</span>
+        <span style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#FFC000;">★</span> 외인+기관 동시매수 20일 중 절반 이상</span>
+        <span style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#FF6B35;">★</span> 최근 10거래일 매수세 지난달 대비 2배↑</span>
         <span style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#29ABE2;border:1px solid #29ABE2;padding:0 4px;">수급급증</span> 최근 수급량 평시 대비 1.5배↑</span>
     </div>
 
@@ -66,6 +67,7 @@
             <div class="stock-name">
                 {{ s.name }}
                 {% if s.joint_star %}<span style="color:#FFC000;font-size:1.1rem;" title="외인+기관 동시매수 20일 중 {{ s.joint_days }}일">★</span>{% endif %}
+                {% if s.buying_surge_star %}<span style="color:#FF6B35;font-size:1.1rem;" title="최근 10거래일 기관+외인 매수세 지난달 대비 2배 이상 증가">★</span>{% endif %}
                 {% if s.volume_surge %}<span style="color:#29ABE2;font-size:0.7rem;border:1px solid #29ABE2;padding:1px 6px;margin-left:4px;letter-spacing:0.1em;">수급급증</span>{% endif %}
             </div>
             <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }}
