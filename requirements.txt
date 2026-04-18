@@ -1,0 +1,12 @@
+flask==3.0.3
+pykrx==1.0.47
+pandas==2.2.2
+ta==0.11.0
+plotly==5.22.0
+anthropic==0.34.2
+requests==2.32.3
+beautifulsoup4==4.12.3
+python-dotenv==1.0.1
+gunicorn==22.0.0
+matplotlib==3.9.2
+lxml==5.2.2

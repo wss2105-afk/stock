@@ -1,6 +1,6 @@
 # 환경변수 (API 키 등 절대 올리면 안 됨)
 .env
-*.txt
+sk-ant-*.txt
 
 # Python 캐시
 __pycache__/
