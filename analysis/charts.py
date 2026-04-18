@@ -8,7 +8,7 @@ def make_main_chart(df, name):
     """캔들차트 + 이동평균선 + 볼린저밴드"""
     fig = make_subplots(rows=5, cols=1, shared_xaxes=True,
                         row_heights=[0.40, 0.15, 0.18, 0.13, 0.14],
-                        subplot_titles=[f'{name} 주가', 'RSI', 'MACD', 'MFI', '볼린저밴드 %B'],
+                        subplot_titles=[f'{name} 주가', 'RSI', 'MACD', 'MFI', 'Bollinger Band %B'],
                         vertical_spacing=0.04)
 
     # 캔들차트
@@ -18,12 +18,14 @@ def make_main_chart(df, name):
         increasing_line_color='#e74c3c', decreasing_line_color='#3498db'
     ), row=1, col=1)
 
-    # 볼린저밴드
-    fig.add_trace(go.Scatter(x=df.index, y=df['bb_upper'], name='BB상단',
-                             line=dict(color='rgba(150,150,150,0.5)', dash='dash'), showlegend=False), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df.index, y=df['bb_lower'], name='BB하단',
-                             fill='tonexty', fillcolor='rgba(200,200,200,0.1)',
-                             line=dict(color='rgba(150,150,150,0.5)', dash='dash'), showlegend=False), row=1, col=1)
+    # Bollinger Bands
+    fig.add_trace(go.Scatter(x=df.index, y=df['bb_upper'], name='BB Upper',
+                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2), showlegend=False), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df['bb_lower'], name='BB Lower',
+                             fill='tonexty', fillcolor='rgba(100,180,255,0.07)',
+                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2), showlegend=False), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df['bb_mid'], name='BB Mid',
+                             line=dict(color='rgba(100,180,255,0.4)', dash='dot', width=1.0), showlegend=False), row=1, col=1)
 
     # 이동평균선
     colors = {'ma5': '#e74c3c', 'ma20': '#f39c12', 'ma60': '#2ecc71', 'ma115': '#9b59b6'}
@@ -53,14 +55,14 @@ def make_main_chart(df, name):
     fig.add_hline(y=80, line_color='red', line_dash='dash', row=4, col=1)
     fig.add_hline(y=20, line_color='blue', line_dash='dash', row=4, col=1)
 
-    # 볼린저밴드 %B
+    # Bollinger Band %B
     bb_pct = df['bb_pct'] * 100
-    bb_colors = ['#e74c3c' if v > 90 else '#3498db' if v < 10 else '#f39c12' for v in bb_pct.fillna(50)]
+    bb_colors = ['#ff4d4d' if v > 90 else '#64b4ff' if v < 10 else '#a0a0c0' for v in bb_pct.fillna(50)]
     fig.add_trace(go.Bar(x=df.index, y=bb_pct, name='BB %B',
                          marker_color=bb_colors, showlegend=False), row=5, col=1)
-    fig.add_hline(y=100, line_color='red', line_dash='dash', row=5, col=1)
-    fig.add_hline(y=0, line_color='blue', line_dash='dash', row=5, col=1)
-    fig.add_hline(y=50, line_color='gray', line_dash='dot', row=5, col=1)
+    fig.add_hline(y=100, line_color='#ff4d4d', line_dash='dash', line_width=1, row=5, col=1)
+    fig.add_hline(y=0,   line_color='#64b4ff', line_dash='dash', line_width=1, row=5, col=1)
+    fig.add_hline(y=50,  line_color='#555566', line_dash='dot',  line_width=1, row=5, col=1)
 
     fig.update_layout(height=950, template='plotly_white',
                       xaxis_rangeslider_visible=False,
