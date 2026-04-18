@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>추천 종목</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #0f1117; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
+        .topbar { background: #1a1a2e; padding: 14px 24px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #2d3748; }
+        .topbar a { color: #a0aec0; text-decoration: none; font-size: 0.9rem; }
+        .topbar a:hover { color: white; }
+        .main { max-width: 1000px; margin: 0 auto; padding: 30px 20px; }
+        .page-title { font-size: 1.8rem; font-weight: 800; color: #f6e05e; margin-bottom: 8px; }
+        .page-sub { color: #a0aec0; font-size: 0.9rem; margin-bottom: 30px; }
+        .stock-card { background: #1a1a2e; border-radius: 14px; padding: 20px 24px; margin-bottom: 16px;
+                      border: 1px solid #2d3748; display: flex; align-items: center; gap: 20px;
+                      text-decoration: none; color: inherit; transition: border-color 0.2s; }
+        .stock-card:hover { border-color: #e74c3c; color: inherit; }
+        .rank { font-size: 1.5rem; font-weight: 900; color: #4a5568; width: 36px; text-align: center; }
+        .rank.top { color: #e74c3c; }
+        .stock-info { flex: 1; }
+        .stock-name { font-size: 1.1rem; font-weight: 700; color: white; }
+        .stock-ticker { font-size: 0.8rem; color: #718096; }
+        .stock-price { font-size: 1rem; font-weight: 700; color: #f6e05e; margin-left: auto; }
+        .score-badge { font-size: 1.4rem; font-weight: 900; width: 52px; text-align: center; }
+        .rec-badge { padding: 4px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
+        .bg-danger { background: rgba(231,76,60,0.2) !important; color: #e74c3c; }
+        .bg-warning { background: rgba(243,156,18,0.2) !important; color: #f39c12; }
+        .bg-secondary { background: rgba(113,128,150,0.2) !important; color: #a0aec0; }
+        .bg-info { background: rgba(66,153,225,0.2) !important; color: #63b3ed; }
+        .bg-primary { background: rgba(102,126,234,0.2) !important; color: #667eea; }
+        .bg-dark { background: rgba(26,26,46,0.5) !important; color: #718096; }
+        .reasons { font-size: 0.78rem; color: #718096; margin-top: 6px; }
+        .ma-info { font-size: 0.8rem; color: #a0aec0; }
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <a href="/">← 홈으로</a>
+    <span style="color:#4a5568">|</span>
+    <span style="color:white; font-weight:700;">추천 종목 TOP 10</span>
+</div>
+<div class="main">
+    <div class="page-title">📈 추천 종목 TOP 10</div>
+    <div class="page-sub">229개 주요 종목을 점수 기반으로 스캔한 결과입니다. 종목을 클릭하면 상세 분석을 볼 수 있어요.</div>
+
+    {% for s in results %}
+    <a class="stock-card" href="/analyze" onclick="event.preventDefault(); analyzeStock('{{ s.ticker }}', '{{ s.name }}')">
+        <div class="rank {% if loop.index <= 3 %}top{% endif %}">{{ loop.index }}</div>
+        <div class="stock-info">
+            <div class="stock-name">{{ s.name }}</div>
+            <div class="stock-ticker">{{ s.ticker }}</div>
+            <div class="ma-info">{{ s.ma_label }} · RSI {{ s.rsi }}</div>
+            <div class="reasons">{{ s.reasons | join(' / ') }}</div>
+        </div>
+        <div class="stock-price">{{ s.price }}원</div>
+        <div class="score-badge {% if s.score >= 7 %}text-danger{% elif s.score >= 4 %}text-warning{% elif s.score >= 1 %}text-secondary{% else %}text-info{% endif %}">
+            {{ s.score }}점
+        </div>
+        <span class="rec-badge bg-{{ s.rec_color }}">{{ s.recommendation }}</span>
+    </a>
+    {% endfor %}
+</div>
+
+<form id="analyzeForm" method="POST" action="/analyze" style="display:none;">
+    <input type="hidden" name="query" id="formQuery">
+    <input type="hidden" name="months" value="6">
+</form>
+<script>
+function analyzeStock(ticker, name) {
+    document.getElementById('formQuery').value = ticker;
+    document.getElementById('analyzeForm').submit();
+}
+</script>
+</body>
+</html>

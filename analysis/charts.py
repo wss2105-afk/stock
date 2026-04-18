@@ -1,0 +1,148 @@
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.utils
+import json
+
+
+def make_main_chart(df, name):
+    """캔들차트 + 이동평균선 + 볼린저밴드"""
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True,
+                        row_heights=[0.45, 0.2, 0.2, 0.15],
+                        subplot_titles=[f'{name} 주가', 'RSI', 'MACD', 'MFI'],
+                        vertical_spacing=0.04)
+
+    # 캔들차트
+    fig.add_trace(go.Candlestick(
+        x=df.index, open=df['open'], high=df['high'],
+        low=df['low'], close=df['close'], name='주가',
+        increasing_line_color='#e74c3c', decreasing_line_color='#3498db'
+    ), row=1, col=1)
+
+    # 볼린저밴드
+    fig.add_trace(go.Scatter(x=df.index, y=df['bb_upper'], name='BB상단',
+                             line=dict(color='rgba(150,150,150,0.5)', dash='dash'), showlegend=False), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df['bb_lower'], name='BB하단',
+                             fill='tonexty', fillcolor='rgba(200,200,200,0.1)',
+                             line=dict(color='rgba(150,150,150,0.5)', dash='dash'), showlegend=False), row=1, col=1)
+
+    # 이동평균선
+    colors = {'ma5': '#e74c3c', 'ma20': '#f39c12', 'ma60': '#2ecc71', 'ma115': '#9b59b6'}
+    labels = {'ma5': '5일', 'ma20': '20일', 'ma60': '60일', 'ma115': '115일'}
+    for col, color in colors.items():
+        fig.add_trace(go.Scatter(x=df.index, y=df[col], name=labels[col],
+                                 line=dict(color=color, width=1.2)), row=1, col=1)
+
+    # RSI
+    fig.add_trace(go.Scatter(x=df.index, y=df['rsi'], name='RSI',
+                             line=dict(color='#8e44ad', width=1.5)), row=2, col=1)
+    fig.add_hline(y=70, line_color='red', line_dash='dash', row=2, col=1)
+    fig.add_hline(y=30, line_color='blue', line_dash='dash', row=2, col=1)
+
+    # MACD
+    colors_hist = ['#e74c3c' if v >= 0 else '#3498db' for v in df['macd_hist'].fillna(0)]
+    fig.add_trace(go.Bar(x=df.index, y=df['macd_hist'], name='MACD Hist',
+                         marker_color=colors_hist, showlegend=False), row=3, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df['macd'], name='MACD',
+                             line=dict(color='#e74c3c', width=1.2)), row=3, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df['macd_signal'], name='Signal',
+                             line=dict(color='#3498db', width=1.2)), row=3, col=1)
+
+    # MFI
+    fig.add_trace(go.Scatter(x=df.index, y=df['mfi'], name='MFI',
+                             line=dict(color='#16a085', width=1.5)), row=4, col=1)
+    fig.add_hline(y=80, line_color='red', line_dash='dash', row=4, col=1)
+    fig.add_hline(y=20, line_color='blue', line_dash='dash', row=4, col=1)
+
+    fig.update_layout(height=800, template='plotly_white',
+                      xaxis_rangeslider_visible=False,
+                      legend=dict(orientation='h', y=1.02),
+                      margin=dict(l=40, r=20, t=60, b=20))
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+
+def make_ma_chart(df, name):
+    """이동평균선 배열 전용 차트"""
+    fig = go.Figure()
+
+    fig.add_trace(go.Candlestick(
+        x=df.index, open=df['open'], high=df['high'],
+        low=df['low'], close=df['close'], name='주가',
+        increasing_line_color='#e74c3c', decreasing_line_color='#3498db',
+        showlegend=False
+    ))
+
+    ma_styles = [
+        ('ma5',  '#e74c3c', '5일'),
+        ('ma20', '#f39c12', '20일'),
+        ('ma60', '#2ecc71', '60일'),
+        ('ma115','#9b59b6', '115일'),
+    ]
+    for col, color, label in ma_styles:
+        if col in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[col], name=label,
+                line=dict(color=color, width=1.5)
+            ))
+
+    fig.update_layout(
+        height=280, template='plotly_dark',
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=30, r=10, t=10, b=20),
+        legend=dict(orientation='h', y=1.08, font=dict(size=11)),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+    )
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+
+def make_supply_zone_chart(zone_df, current_price):
+    """매물대 차트"""
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=zone_df['volume'], y=zone_df['price_mid'],
+        orientation='h', name='매물대',
+        marker_color=['#e74c3c' if p >= current_price * 0.98 and p <= current_price * 1.02
+                      else '#3498db' for p in zone_df['price_mid']]
+    ))
+    fig.add_hline(y=current_price, line_color='#f39c12', line_width=2,
+                  annotation_text=f'현재가 {current_price:,}원')
+    fig.update_layout(title='매물대 분포', height=400, template='plotly_white',
+                      xaxis_title='거래량', yaxis_title='가격',
+                      margin=dict(l=40, r=20, t=40, b=20))
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+
+def make_investor_chart(investor_df):
+    """수급 차트"""
+    if investor_df.empty:
+        return None
+
+    fig = go.Figure()
+    cols_map = {}
+    for col in investor_df.columns:
+        if '외국인' in col or '외인' in col:
+            cols_map['외국인'] = col
+        elif '연기금' in col:
+            cols_map['연기금'] = col
+        elif '금융투자' in col:
+            cols_map['금융투자'] = col
+        elif '기관' in col and '연기금' not in col and '금융' not in col:
+            cols_map['기관합계'] = col
+        elif '개인' in col:
+            cols_map['개인'] = col
+
+    colors_map = {
+        '외국인': '#e74c3c', '기관합계': '#3498db',
+        '연기금': '#2ecc71', '금융투자': '#9b59b6', '개인': '#f39c12'
+    }
+
+    for label, col in cols_map.items():
+        vals = investor_df[col]
+        bar_colors = ['#e74c3c' if v > 0 else '#3498db' for v in vals]
+        fig.add_trace(go.Bar(x=investor_df.index, y=vals,
+                             name=label, marker_color=bar_colors,
+                             visible=True if label == '외국인' else 'legendonly'))
+
+    fig.update_layout(title='투자자별 순매수 현황', height=350,
+                      template='plotly_white', barmode='group',
+                      margin=dict(l=40, r=20, t=40, b=20))
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
