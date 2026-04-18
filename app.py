@@ -6,6 +6,7 @@ from analysis.fundamental import get_fundamental
 from analysis.news import search_naver_news, analyze_news
 from analysis.signal import calc_score, get_recommendation, get_ai_analysis
 from analysis.charts import make_main_chart, make_supply_zone_chart, make_investor_chart, make_ma_chart
+from analysis.dart import get_disclosures
 from dotenv import load_dotenv
 import os
 
@@ -73,6 +74,12 @@ def analyze():
     recommendation, rec_color = get_recommendation(score)
     score_pct = max(0, min(100, round((score + 14) / 28 * 100)))
 
+    # DART 공시
+    try:
+        disclosures = get_disclosures(ticker, days=60)
+    except Exception:
+        disclosures = []
+
     # AI 분석
     try:
         ai_comment = get_ai_analysis(name, score, reasons, signals, fundamental, news_result)
@@ -92,6 +99,7 @@ def analyze():
         investor_chart = None
 
     return render_template('result.html',
+        disclosures=disclosures,
         name=name, ticker=ticker, current_price=f"{current_price:,}",
         ma_chart=ma_chart, score_pct=score_pct,
         months=months,

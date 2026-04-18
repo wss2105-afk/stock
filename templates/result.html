@@ -78,6 +78,15 @@
         /* 영업이익 */
         .profit-item { background: #181818; padding: 6px 12px; font-size: 0.85rem; font-weight: 700; color: #FFC000; border-left: 2px solid #FFC000; }
 
+        /* 공시 */
+        .dart-item { border-bottom: 1px solid #181818; padding: 10px 0; display: flex; align-items: flex-start; gap: 10px; }
+        .dart-badge { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.08em; padding: 2px 7px; border: 1px solid; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+        .dart-imp { border-color: #FFC000; color: #FFC000; }
+        .dart-nor { border-color: #313131; color: #555; }
+        .dart-title a { color: #e2e8f0; text-decoration: none; font-size: 0.85rem; line-height: 1.4; }
+        .dart-title a:hover { color: #FFC000; }
+        .dart-meta { font-size: 0.68rem; color: #555; margin-top: 3px; letter-spacing: 0.08em; }
+
         /* 뉴스 */
         .news-stat { display: flex; gap: 1px; flex-wrap: wrap; background: #313131; margin-bottom: 16px; }
         .news-stat-item { background: #202020; padding: 12px 10px; text-align: center; flex: 1; min-width: 55px; }
@@ -287,6 +296,24 @@
                         <div id="investorChart" style="min-height:350px;"></div>
                     </div>
                 </div>
+            </div>
+
+            <!-- DART 공시 -->
+            <div class="section-card">
+                <div class="section-title">DART 공시 <span style="color:#555;">최근 60일</span></div>
+                {% if disclosures %}
+                {% for d in disclosures %}
+                <div class="dart-item">
+                    <span class="dart-badge {% if d.important %}dart-imp{% else %}dart-nor{% endif %}">{{ d.type }}</span>
+                    <div>
+                        <div class="dart-title"><a href="{{ d.url }}" target="_blank">{{ d.title }}</a></div>
+                        <div class="dart-meta">{{ d.date[:4] }}.{{ d.date[4:6] }}.{{ d.date[6:] }} · {{ d.submitter }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div style="color:#555;font-size:0.78rem;letter-spacing:0.1em;">최근 60일 공시 없음</div>
+                {% endif %}
             </div>
 
             <!-- 뉴스 -->
