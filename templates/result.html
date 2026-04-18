@@ -149,10 +149,59 @@
         .tag-sell { border-color: #29ABE2; color: #29ABE2; }
         .tag-neutral { border-color: #555; color: #969696; }
 
-        @media (max-width: 576px) {
-            .main { padding: 12px 8px; }
-            .topbar { padding: 10px 12px; gap: 8px; }
-            .score-card { padding: 20px 12px; }
+        @media (max-width: 767px) {
+            /* 전체 */
+            .main { padding: 8px 6px; }
+
+            /* 상단바 */
+            .topbar { padding: 10px 12px; gap: 6px; flex-wrap: wrap; }
+            .stock-name { font-size: 0.95rem; }
+            .stock-price { margin-left: 0; font-size: 1rem; }
+            .stock-period { display: none; }
+
+            /* 점수 카드 */
+            .score-card { padding: 18px 12px; }
+            .score-num { font-size: 3.2rem; }
+
+            /* 섹션 카드 */
+            .section-card { padding: 14px 12px; }
+
+            /* 기업소개 그리드: 2열 유지, 폰트 축소 */
+            .profile-item .p-val { font-size: 0.78rem; }
+            .market-bar-item .mb-val { font-size: 0.78rem; }
+            .metric-item .m-val { font-size: 0.9rem; }
+            .metric-item .m-label { font-size: 0.55rem; }
+
+            /* MA 배열 뱃지 */
+            .ma-badge { font-size: 0.68rem; padding: 4px 10px; }
+
+            /* 오실레이터 */
+            .osc-val { font-size: 0.95rem; }
+            .osc-badge { font-size: 0.55rem; padding: 2px 6px; }
+
+            /* 차트 */
+            #mainChart { min-height: 0 !important; }
+            #supplyChart, #investorChart { min-height: 0 !important; }
+
+            /* 뉴스 */
+            .news-item a { font-size: 0.82rem; }
+
+            /* AI 박스 */
+            .ai-box { padding: 14px; font-size: 0.83rem; }
+
+            /* 펀더멘털 */
+            .fund-item .val { font-size: 1rem; }
+
+            /* 신호 근거 */
+            .reason-item { font-size: 0.78rem; }
+
+            /* DART 공시 */
+            .dart-title a { font-size: 0.8rem; }
+        }
+
+        @media (max-width: 400px) {
+            .metric-grid { grid-template-columns: repeat(2, 1fr); }
+            .profile-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -464,19 +513,19 @@
 
             <!-- 메인 차트 -->
             <div class="chart-container">
-                <div id="mainChart" style="min-height:800px;"></div>
+                <div id="mainChart"></div>
             </div>
 
             <!-- 매물대 + 수급 -->
             <div class="row g-0" style="gap:0;">
                 <div class="col-md-5" style="padding-right:1px;">
                     <div class="chart-container">
-                        <div id="supplyChart" style="min-height:400px;"></div>
+                        <div id="supplyChart"></div>
                     </div>
                 </div>
                 <div class="col-md-7">
                     <div class="chart-container">
-                        <div id="investorChart" style="min-height:350px;"></div>
+                        <div id="investorChart"></div>
                     </div>
                 </div>
             </div>
@@ -571,21 +620,26 @@
     document.getElementById('descModal').addEventListener('click', function(e) { if (e.target === this) closeDesc(); });
 
     const isMobile = window.innerWidth < 768;
+    const isSmall = window.innerWidth < 480;
     const darkLayout = { paper_bgcolor: '#000', plot_bgcolor: '#000', font: { color: '#969696', size: isMobile ? 9 : 10 }, xaxis: { gridcolor: '#181818', linecolor: '#202020' }, yaxis: { gridcolor: '#181818', linecolor: '#202020' } };
 
     const mainData = {{ main_chart|safe }};
     Plotly.newPlot('mainChart', mainData.data, {
         ...mainData.layout, ...darkLayout,
-        height: isMobile ? 500 : 800,
+        height: isSmall ? 420 : isMobile ? 550 : 950,
         legend: { orientation: 'h', y: 1.02, font: { size: isMobile ? 9 : 10 }, bgcolor: 'rgba(0,0,0,0)' },
         margin: isMobile ? {l:40,r:8,t:40,b:20} : {l:40,r:20,t:60,b:20}
     }, {responsive: true});
 
     {% if supply_chart %}
     const supplyData = {{ supply_chart|safe }};
-    Plotly.newPlot('supplyChart', supplyData.data, { ...supplyData.layout, ...darkLayout }, {responsive: true});
+    Plotly.newPlot('supplyChart', supplyData.data, {
+        ...supplyData.layout, ...darkLayout,
+        height: isMobile ? 280 : 400,
+        margin: isMobile ? {l:50,r:8,t:30,b:20} : {l:40,r:20,t:40,b:20}
+    }, {responsive: true});
     {% else %}
-    document.getElementById('supplyChart').innerHTML = '<p style="color:#555;text-align:center;padding:40px;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;">매물대 데이터 없음</p>';
+    document.getElementById('supplyChart').innerHTML = '<p style="color:#555;text-align:center;padding:30px;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;">매물대 데이터 없음</p>';
     {% endif %}
 
     {% if investor_chart %}
