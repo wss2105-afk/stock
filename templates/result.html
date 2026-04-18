@@ -67,18 +67,32 @@
         .signal-sell { color: #29ABE2; }
         .signal-neutral { color: #969696; }
 
-        /* 타이밍 섹션 */
-        .timing-row { display: flex; flex-direction: column; gap: 1px; background: #313131; margin-bottom: 1px; }
-        .timing-item { display: flex; align-items: center; justify-content: space-between; background: #202020; padding: 10px 14px; font-size: 0.85rem; }
-        .timing-name { color: #969696; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; flex: 1; }
-        .timing-val { color: #fff; font-weight: 700; margin: 0 12px; font-size: 0.9rem; }
-        .timing-badge { padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid; }
+        /* 오실레이터 */
+        .osc-row { display: flex; flex-direction: column; gap: 2px; }
+        .osc-item { background: #181818; padding: 12px 14px; border-left: 2px solid #2a2a2a; transition: border-color 0.2s; }
+        .osc-item.sig-buy  { border-left-color: #FFC000; }
+        .osc-item.sig-sell { border-left-color: #29ABE2; }
+        .osc-item.sig-neu  { border-left-color: #333; }
+        .osc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .osc-name { font-size: 0.65rem; color: #7D7D7D; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; }
+        .osc-name:hover { color: #FFC000; }
+        .osc-right { display: flex; align-items: center; gap: 10px; }
+        .osc-val  { font-size: 1.05rem; font-weight: 700; }
+        .osc-badge { padding: 2px 8px; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid; }
+        .b-buy  { border-color: #FFC000; color: #FFC000; }
+        .b-sell { border-color: #29ABE2; color: #29ABE2; }
+        .b-neu  { border-color: #333; color: #555; }
+        /* 게이지 바 */
+        .osc-bar-track { height: 4px; background: #2a2a2a; border-radius: 2px; position: relative; overflow: visible; }
+        .osc-bar-fill  { height: 100%; border-radius: 2px; position: absolute; top: 0; left: 0; }
+        .osc-bar-marker { width: 8px; height: 8px; border-radius: 50%; position: absolute; top: -2px; transform: translateX(-50%); border: 1.5px solid #000; }
+        /* 타이밍 결과 */
+        .timing-result { padding: 14px 16px; text-align: center; border: 1px solid; margin-top: 2px; }
+        .timing-result .t-label { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; }
+        .timing-result .t-sub { font-size: 0.62rem; opacity: 0.6; margin-top: 5px; letter-spacing: 0.1em; }
         .t-buy  { border-color: #FFC000; color: #FFC000; }
         .t-sell { border-color: #29ABE2; color: #29ABE2; }
         .t-neu  { border-color: #444; color: #555; }
-        .timing-result { padding: 16px; text-align: center; border: 1px solid; }
-        .timing-result .t-label { font-size: 1rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; }
-        .timing-result .t-sub { font-size: 0.65rem; opacity: 0.7; margin-top: 6px; letter-spacing: 0.1em; }
 
         /* 이유 */
         .reason-item { padding: 8px 14px; margin-bottom: 1px; font-size: 0.82rem; background: #181818; border-left: 2px solid #333; color: #969696; }
@@ -270,76 +284,148 @@
             {% elif timing_score < 0 %}{% set t_label = "강한 매도 타이밍" %}{% set t_color = "#29ABE2" %}
             {% else %}{% set t_label = "관망 · 중립" %}{% set t_color = "#555" %}{% endif %}
 
-            <div class="section-card">
-                <div class="section-title">오실레이터 타이밍</div>
-                <div class="timing-row">
-                    <div class="timing-item">
-                        <span class="timing-name">RSI</span><span class="timing-val">{{ rsi_v }}</span>
-                        {% if rsi_v < 30 %}<span class="timing-badge t-buy">강한 매수</span>
-                        {% elif rsi_v < 40 %}<span class="timing-badge t-buy">매수</span>
-                        {% elif rsi_v > 70 %}<span class="timing-badge t-sell">강한 매도</span>
-                        {% elif rsi_v > 60 %}<span class="timing-badge t-sell">매도</span>
-                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
-                    </div>
-                    <div class="timing-item">
-                        <span class="timing-name">MACD</span><span class="timing-val">{{ macd_s }}</span>
-                        {% if macd_s == 'golden' %}<span class="timing-badge t-buy">골든크로스</span>
-                        {% elif macd_s == 'dead' %}<span class="timing-badge t-sell">데드크로스</span>
-                        {% elif macd_h > 0 %}<span class="timing-badge t-buy">상승</span>
-                        {% elif macd_h < 0 %}<span class="timing-badge t-sell">하락</span>
-                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
-                    </div>
-                    <div class="timing-item">
-                        <span class="timing-name">Stochastic</span><span class="timing-val">{{ sk }}</span>
-                        {% if sk < 20 %}<span class="timing-badge t-buy">과매도</span>
-                        {% elif sk > 80 %}<span class="timing-badge t-sell">과매수</span>
-                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
-                    </div>
-                    <div class="timing-item">
-                        <span class="timing-name">볼린저 %B</span><span class="timing-val">{{ bb }}</span>
-                        {% if bb < 0.1 %}<span class="timing-badge t-buy">하단</span>
-                        {% elif bb > 0.9 %}<span class="timing-badge t-sell">상단</span>
-                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
-                    </div>
-                    <div class="timing-item">
-                        <span class="timing-name">MFI</span><span class="timing-val">{{ mfi_v }}</span>
-                        {% if mfi_v < 20 %}<span class="timing-badge t-buy">과매도</span>
-                        {% elif mfi_v > 80 %}<span class="timing-badge t-sell">과매수</span>
-                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
-                    </div>
-                </div>
-                <div class="timing-result" style="border-color:{{ t_color }};">
-                    <div class="t-label" style="color:{{ t_color }};">{{ t_label }}</div>
-                    <div class="t-sub" style="color:{{ t_color }};">매수 {{ buy_count }}점 · 매도 {{ sell_count }}점 · 합산 {{ timing_score }}점</div>
-                </div>
-            </div>
-
             <!-- 오실레이터 -->
             <div class="section-card">
-                <div class="section-title">오실레이터 <span style="color:#555;font-size:0.6rem;">클릭 시 설명</span></div>
-                <div class="indicator-grid">
-                    <div class="indicator-item" onclick="showDesc('rsi')">
-                        <div class="label">RSI ⓘ</div>
-                        <div class="value {% if signals.rsi.signal == 'oversold' %}signal-buy{% elif signals.rsi.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.rsi.value }}</div>
-                        <div style="font-size:0.62rem;color:#555;margin-top:4px;letter-spacing:0.1em;">{% if signals.rsi.signal == 'oversold' %}과매도{% elif signals.rsi.signal == 'overbought' %}과매수{% else %}중립{% endif %}</div>
+                <div class="section-title">오실레이터 <span style="color:#444;font-size:0.6rem;">· 이름 클릭 시 설명</span></div>
+                <div class="osc-row">
+
+                    <!-- RSI -->
+                    {% set rsi_pct = [0, [100, rsi_v] | min] | max %}
+                    {% set rsi_cls = 'sig-buy' if rsi_v < 40 else 'sig-sell' if rsi_v > 60 else 'sig-neu' %}
+                    {% set rsi_color = '#FFC000' if rsi_v < 40 else '#29ABE2' if rsi_v > 60 else '#555' %}
+                    <div class="osc-item {{ rsi_cls }}">
+                        <div class="osc-top">
+                            <span class="osc-name" onclick="showDesc('rsi')">RSI (14) ⓘ</span>
+                            <div class="osc-right">
+                                <span class="osc-val" style="color:{{ rsi_color }};">{{ rsi_v }}</span>
+                                {% if rsi_v < 30 %}<span class="osc-badge b-buy">강한 매수</span>
+                                {% elif rsi_v < 40 %}<span class="osc-badge b-buy">매수</span>
+                                {% elif rsi_v > 70 %}<span class="osc-badge b-sell">강한 매도</span>
+                                {% elif rsi_v > 60 %}<span class="osc-badge b-sell">매도</span>
+                                {% else %}<span class="osc-badge b-neu">중립</span>{% endif %}
+                            </div>
+                        </div>
+                        <div class="osc-bar-track">
+                            <div class="osc-bar-fill" style="width:30%;background:rgba(255,192,0,0.25);"></div>
+                            <div class="osc-bar-fill" style="left:70%;width:30%;background:rgba(41,171,226,0.25);"></div>
+                            <div class="osc-bar-marker" style="left:{{ rsi_pct }}%;background:{{ rsi_color }};"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-top:5px;">
+                            <span style="font-size:0.55rem;color:#444;">0 과매도</span>
+                            <span style="font-size:0.55rem;color:#444;">30</span>
+                            <span style="font-size:0.55rem;color:#444;">70</span>
+                            <span style="font-size:0.55rem;color:#444;">과매수 100</span>
+                        </div>
                     </div>
-                    <div class="indicator-item" onclick="showDesc('macd')">
-                        <div class="label">MACD ⓘ</div>
-                        <div class="value {% if signals.macd.signal == 'golden' %}signal-buy{% elif signals.macd.signal == 'dead' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.macd.value }}</div>
-                        <div style="font-size:0.62rem;color:#555;margin-top:4px;letter-spacing:0.1em;">{% if signals.macd.signal == 'golden' %}골든{% elif signals.macd.signal == 'dead' %}데드{% else %}중립{% endif %}</div>
+
+                    <!-- MACD -->
+                    {% set macd_cls = 'sig-buy' if macd_s == 'golden' or macd_h > 0 else 'sig-sell' if macd_s == 'dead' or macd_h < 0 else 'sig-neu' %}
+                    {% set macd_color = '#FFC000' if macd_cls == 'sig-buy' else '#29ABE2' if macd_cls == 'sig-sell' else '#555' %}
+                    <div class="osc-item {{ macd_cls }}">
+                        <div class="osc-top">
+                            <span class="osc-name" onclick="showDesc('macd')">MACD (12/26/9) ⓘ</span>
+                            <div class="osc-right">
+                                <span class="osc-val" style="color:{{ macd_color }};">{{ signals.macd.value }}</span>
+                                {% if macd_s == 'golden' %}<span class="osc-badge b-buy">골든크로스</span>
+                                {% elif macd_s == 'dead' %}<span class="osc-badge b-sell">데드크로스</span>
+                                {% elif macd_h > 0 %}<span class="osc-badge b-buy">상승 모멘텀</span>
+                                {% elif macd_h < 0 %}<span class="osc-badge b-sell">하락 모멘텀</span>
+                                {% else %}<span class="osc-badge b-neu">중립</span>{% endif %}
+                            </div>
+                        </div>
+                        <div style="font-size:0.65rem;color:#555;margin-top:2px;">
+                            Hist <span style="color:{{ '#FFC000' if macd_h > 0 else '#29ABE2' }};">{{ signals.macd.hist }}</span>
+                            &nbsp;·&nbsp; Signal 대비 <span style="color:{{ macd_color }};">{{ macd_s }}</span>
+                        </div>
                     </div>
-                    <div class="indicator-item" onclick="showDesc('stoch')">
-                        <div class="label">Stoch ⓘ</div>
-                        <div class="value {% if signals.stoch.signal == 'oversold' %}signal-buy{% elif signals.stoch.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.stoch.k }}</div>
+
+                    <!-- Stochastic -->
+                    {% set sk_pct = [0, [100, sk] | min] | max %}
+                    {% set sk_cls = 'sig-buy' if sk < 20 else 'sig-sell' if sk > 80 else 'sig-neu' %}
+                    {% set sk_color = '#FFC000' if sk < 20 else '#29ABE2' if sk > 80 else '#555' %}
+                    <div class="osc-item {{ sk_cls }}">
+                        <div class="osc-top">
+                            <span class="osc-name" onclick="showDesc('stoch')">Stochastic (14/3) ⓘ</span>
+                            <div class="osc-right">
+                                <span class="osc-val" style="color:{{ sk_color }};">{{ sk }}</span>
+                                {% if sk < 20 %}<span class="osc-badge b-buy">과매도</span>
+                                {% elif sk > 80 %}<span class="osc-badge b-sell">과매수</span>
+                                {% else %}<span class="osc-badge b-neu">중립</span>{% endif %}
+                            </div>
+                        </div>
+                        <div class="osc-bar-track">
+                            <div class="osc-bar-fill" style="width:20%;background:rgba(255,192,0,0.25);"></div>
+                            <div class="osc-bar-fill" style="left:80%;width:20%;background:rgba(41,171,226,0.25);"></div>
+                            <div class="osc-bar-marker" style="left:{{ sk_pct }}%;background:{{ sk_color }};"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-top:5px;">
+                            <span style="font-size:0.55rem;color:#444;">0</span>
+                            <span style="font-size:0.55rem;color:#444;">20</span>
+                            <span style="font-size:0.55rem;color:#444;">D: {{ signals.stoch.d }}</span>
+                            <span style="font-size:0.55rem;color:#444;">80</span>
+                            <span style="font-size:0.55rem;color:#444;">100</span>
+                        </div>
                     </div>
-                    <div class="indicator-item" onclick="showDesc('bb')">
-                        <div class="label">BB %B ⓘ</div>
-                        <div class="value {% if signals.bb.signal == 'oversold' %}signal-buy{% elif signals.bb.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.bb.pct }}</div>
+
+                    <!-- Bollinger Band %B -->
+                    {% set bb_pct_bar = [0, [100, bb * 100] | min] | max %}
+                    {% set bb_cls = 'sig-buy' if bb < 0.1 else 'sig-sell' if bb > 0.9 else 'sig-neu' %}
+                    {% set bb_color = '#FFC000' if bb < 0.1 else '#29ABE2' if bb > 0.9 else '#555' %}
+                    <div class="osc-item {{ bb_cls }}">
+                        <div class="osc-top">
+                            <span class="osc-name" onclick="showDesc('bb')">Bollinger %B (20/2) ⓘ</span>
+                            <div class="osc-right">
+                                <span class="osc-val" style="color:{{ bb_color }};">{{ bb }}</span>
+                                {% if bb < 0.1 %}<span class="osc-badge b-buy">하단 이탈</span>
+                                {% elif bb > 0.9 %}<span class="osc-badge b-sell">상단 돌파</span>
+                                {% else %}<span class="osc-badge b-neu">밴드 내</span>{% endif %}
+                            </div>
+                        </div>
+                        <div class="osc-bar-track">
+                            <div class="osc-bar-fill" style="width:10%;background:rgba(255,192,0,0.25);"></div>
+                            <div class="osc-bar-fill" style="left:90%;width:10%;background:rgba(41,171,226,0.25);"></div>
+                            <div class="osc-bar-marker" style="left:{{ bb_pct_bar }}%;background:{{ bb_color }};"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-top:5px;">
+                            <span style="font-size:0.55rem;color:#444;">0 하단</span>
+                            <span style="font-size:0.55rem;color:#555;">Mid: {{ signals.bb.mid | int | string | replace(',','') }}원</span>
+                            <span style="font-size:0.55rem;color:#444;">상단 1</span>
+                        </div>
                     </div>
-                    <div class="indicator-item" onclick="showDesc('mfi')">
-                        <div class="label">MFI ⓘ</div>
-                        <div class="value {% if signals.mfi.signal == 'oversold' %}signal-buy{% elif signals.mfi.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.mfi.value }}</div>
+
+                    <!-- MFI -->
+                    {% set mfi_pct = [0, [100, mfi_v] | min] | max %}
+                    {% set mfi_cls = 'sig-buy' if mfi_v < 20 else 'sig-sell' if mfi_v > 80 else 'sig-neu' %}
+                    {% set mfi_color = '#FFC000' if mfi_v < 20 else '#29ABE2' if mfi_v > 80 else '#555' %}
+                    <div class="osc-item {{ mfi_cls }}">
+                        <div class="osc-top">
+                            <span class="osc-name" onclick="showDesc('mfi')">MFI (14) ⓘ</span>
+                            <div class="osc-right">
+                                <span class="osc-val" style="color:{{ mfi_color }};">{{ mfi_v }}</span>
+                                {% if mfi_v < 20 %}<span class="osc-badge b-buy">과매도</span>
+                                {% elif mfi_v > 80 %}<span class="osc-badge b-sell">과매수</span>
+                                {% else %}<span class="osc-badge b-neu">중립</span>{% endif %}
+                            </div>
+                        </div>
+                        <div class="osc-bar-track">
+                            <div class="osc-bar-fill" style="width:20%;background:rgba(255,192,0,0.25);"></div>
+                            <div class="osc-bar-fill" style="left:80%;width:20%;background:rgba(41,171,226,0.25);"></div>
+                            <div class="osc-bar-marker" style="left:{{ mfi_pct }}%;background:{{ mfi_color }};"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-top:5px;">
+                            <span style="font-size:0.55rem;color:#444;">0 과매도</span>
+                            <span style="font-size:0.55rem;color:#444;">20</span>
+                            <span style="font-size:0.55rem;color:#444;">80</span>
+                            <span style="font-size:0.55rem;color:#444;">과매수 100</span>
+                        </div>
                     </div>
+
+                </div>
+
+                <!-- 종합 결과 -->
+                <div class="timing-result" style="border-color:{{ t_color }};">
+                    <div class="t-label" style="color:{{ t_color }};">{{ t_label }}</div>
+                    <div class="t-sub" style="color:{{ t_color }};">매수 신호 {{ buy_count }}점 · 매도 신호 {{ sell_count }}점 · 합산 {{ timing_score }}점</div>
                 </div>
             </div>
 
