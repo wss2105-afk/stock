@@ -6,9 +6,9 @@ import json
 
 def make_main_chart(df, name):
     """캔들차트 + 이동평균선 + 볼린저밴드"""
-    fig = make_subplots(rows=4, cols=1, shared_xaxes=True,
-                        row_heights=[0.45, 0.2, 0.2, 0.15],
-                        subplot_titles=[f'{name} 주가', 'RSI', 'MACD', 'MFI'],
+    fig = make_subplots(rows=5, cols=1, shared_xaxes=True,
+                        row_heights=[0.40, 0.15, 0.18, 0.13, 0.14],
+                        subplot_titles=[f'{name} 주가', 'RSI', 'MACD', 'MFI', '볼린저밴드 %B'],
                         vertical_spacing=0.04)
 
     # 캔들차트
@@ -53,7 +53,16 @@ def make_main_chart(df, name):
     fig.add_hline(y=80, line_color='red', line_dash='dash', row=4, col=1)
     fig.add_hline(y=20, line_color='blue', line_dash='dash', row=4, col=1)
 
-    fig.update_layout(height=800, template='plotly_white',
+    # 볼린저밴드 %B
+    bb_pct = df['bb_pct'] * 100
+    bb_colors = ['#e74c3c' if v > 90 else '#3498db' if v < 10 else '#f39c12' for v in bb_pct.fillna(50)]
+    fig.add_trace(go.Bar(x=df.index, y=bb_pct, name='BB %B',
+                         marker_color=bb_colors, showlegend=False), row=5, col=1)
+    fig.add_hline(y=100, line_color='red', line_dash='dash', row=5, col=1)
+    fig.add_hline(y=0, line_color='blue', line_dash='dash', row=5, col=1)
+    fig.add_hline(y=50, line_color='gray', line_dash='dot', row=5, col=1)
+
+    fig.update_layout(height=950, template='plotly_white',
                       xaxis_rangeslider_visible=False,
                       legend=dict(orientation='h', y=1.02),
                       margin=dict(l=40, r=20, t=60, b=20))
