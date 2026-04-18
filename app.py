@@ -51,8 +51,10 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/analyze', methods=['POST'])
+@app.route('/analyze', methods=['GET', 'POST'])
 def analyze():
+    if request.method == 'GET':
+        return render_template('index.html')
     query = request.form.get('query', '').strip()
     months = int(request.form.get('months', 3))
 
