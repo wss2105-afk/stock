@@ -17,25 +17,39 @@ def search_naver_news(query, days=30):
     try:
         for page in range(1, 4):
             url = (f"https://search.naver.com/search.naver?where=news&query={query}"
-                   f"&sort=1&ds=&de=&nso=so:dd,p:{days}d&start={(page-1)*10+1}")
-            res = requests.get(url, headers=HEADERS, timeout=5)
+                   f"&sort=1&nso=so:dd,p:{days}d&start={(page-1)*10+1}")
+            res = requests.get(url, headers=HEADERS, timeout=8)
             soup = BeautifulSoup(res.text, 'html.parser')
 
-            items = soup.select('div.news_area')
-            if not items:
+            title_links = soup.find_all('a', {'data-heatmap-target': '.tit'})
+            if not title_links:
                 break
 
-            for item in items:
-                title_el = item.select_one('a.news_tit')
-                press_el = item.select_one('a.press')
-                date_el = item.select_one('span.info')
+            for a in title_links:
+                title = a.get_text(strip=True)
+                href = a.get('href', '')
 
-                if title_el:
+                # 상위 컨테이너에서 언론사·날짜 추출
+                container = a
+                press, date = '', ''
+                for _ in range(8):
+                    container = container.parent
+                    text_parts = [s.strip() for s in container.get_text(separator='|').split('|') if s.strip()]
+                    for t in text_parts:
+                        if any(k in t for k in ['분 전', '시간 전', '일 전', '어제']) and not date:
+                            date = t
+                        if (not press and len(t) < 15 and t not in title
+                                and not any(k in t for k in ['저장', '바로', '전', 'Keep'])):
+                            press = t
+                    if date:
+                        break
+
+                if title:
                     articles.append({
-                        'title': title_el.text.strip(),
-                        'press': press_el.text.strip() if press_el else '',
-                        'date': date_el.text.strip() if date_el else '',
-                        'url': title_el['href']
+                        'title': title,
+                        'press': press,
+                        'date': date,
+                        'url': href
                     })
     except Exception as e:
         print(f"뉴스 검색 오류: {e}")

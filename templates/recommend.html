@@ -6,60 +6,82 @@
     <title>추천 종목</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background: #0f1117; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
-        .topbar { background: #1a1a2e; padding: 14px 24px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #2d3748; }
-        .topbar a { color: #a0aec0; text-decoration: none; font-size: 0.9rem; }
-        .topbar a:hover { color: white; }
-        .main { max-width: 1000px; margin: 0 auto; padding: 30px 20px; }
-        .page-title { font-size: 1.8rem; font-weight: 800; color: #f6e05e; margin-bottom: 8px; }
-        .page-sub { color: #a0aec0; font-size: 0.9rem; margin-bottom: 30px; }
-        .stock-card { background: #1a1a2e; border-radius: 14px; padding: 20px 24px; margin-bottom: 16px;
-                      border: 1px solid #2d3748; display: flex; align-items: center; gap: 20px;
-                      text-decoration: none; color: inherit; transition: border-color 0.2s; }
-        .stock-card:hover { border-color: #e74c3c; color: inherit; }
-        .rank { font-size: 1.5rem; font-weight: 900; color: #4a5568; width: 36px; text-align: center; }
-        .rank.top { color: #e74c3c; }
-        .stock-info { flex: 1; }
-        .stock-name { font-size: 1.1rem; font-weight: 700; color: white; }
-        .stock-ticker { font-size: 0.8rem; color: #718096; }
-        .stock-price { font-size: 1rem; font-weight: 700; color: #f6e05e; margin-left: auto; }
-        .score-badge { font-size: 1.4rem; font-weight: 900; width: 52px; text-align: center; }
-        .rec-badge { padding: 4px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
-        .bg-danger { background: rgba(231,76,60,0.2) !important; color: #e74c3c; }
-        .bg-warning { background: rgba(243,156,18,0.2) !important; color: #f39c12; }
-        .bg-secondary { background: rgba(113,128,150,0.2) !important; color: #a0aec0; }
-        .bg-info { background: rgba(66,153,225,0.2) !important; color: #63b3ed; }
-        .bg-primary { background: rgba(102,126,234,0.2) !important; color: #667eea; }
-        .bg-dark { background: rgba(26,26,46,0.5) !important; color: #718096; }
-        .reasons { font-size: 0.78rem; color: #718096; margin-top: 6px; }
-        .ma-info { font-size: 0.8rem; color: #a0aec0; }
+        * { box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
+        .topbar { background: #000; border-bottom: 1px solid #202020; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
+        .topbar a { color: #7D7D7D; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .topbar a:hover { color: #FFC000; }
+        .topbar-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #fff; }
+        .main { max-width: 900px; margin: 0 auto; padding: 32px 16px; }
+        .page-title { font-size: clamp(1.8rem, 6vw, 3rem); font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; color: #fff; margin-bottom: 4px; }
+        .page-sub { font-size: 0.7rem; color: #7D7D7D; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 32px; }
+        .gold-line { width: 40px; height: 2px; background: #FFC000; margin-bottom: 24px; }
+
+        .stock-card { display: flex; align-items: center; gap: 16px; padding: 18px 20px; background: #202020; margin-bottom: 1px; text-decoration: none; color: inherit; transition: background 0.15s; cursor: pointer; border: none; }
+        .stock-card:hover { background: #2a2a2a; }
+        .rank { font-size: clamp(1.2rem, 4vw, 1.8rem); font-weight: 900; color: #313131; width: 40px; text-align: center; flex-shrink: 0; }
+        .rank.gold { color: #FFC000; }
+        .rank.silver { color: #969696; }
+        .rank.bronze { color: #917300; }
+        .stock-info { flex: 1; min-width: 0; }
+        .stock-name { font-size: clamp(0.9rem, 2.5vw, 1.05rem); font-weight: 400; color: #fff; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stock-meta { font-size: 0.68rem; color: #555; letter-spacing: 0.12em; margin-top: 3px; }
+        .stock-reasons { font-size: 0.68rem; color: #7D7D7D; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stock-price { font-size: clamp(0.85rem, 2vw, 1rem); font-weight: 700; color: #fff; white-space: nowrap; margin-left: 8px; flex-shrink: 0; }
+        .score-box { display: flex; flex-direction: column; align-items: center; width: 56px; flex-shrink: 0; }
+        .score-num { font-size: clamp(1.2rem, 3.5vw, 1.6rem); font-weight: 900; color: #FFC000; line-height: 1; }
+        .score-label { font-size: 0.55rem; color: #7D7D7D; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+        .rec-badge { padding: 4px 10px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid; white-space: nowrap; flex-shrink: 0; }
+        .badge-buy { border-color: #FFC000; color: #FFC000; }
+        .badge-mbuy { border-color: #917300; color: #917300; }
+        .badge-neu { border-color: #444; color: #555; }
+        .badge-sell { border-color: #29ABE2; color: #29ABE2; }
+
+        @media (max-width: 576px) {
+            .topbar { padding: 10px 12px; }
+            .main { padding: 20px 10px; }
+            .stock-card { padding: 14px 12px; gap: 10px; }
+            .stock-reasons { display: none; }
+        }
     </style>
 </head>
 <body>
 <div class="topbar">
-    <a href="/">← 홈으로</a>
-    <span style="color:#4a5568">|</span>
-    <span style="color:white; font-weight:700;">추천 종목 TOP 10</span>
+    <a href="/">← BACK</a>
+    <span class="topbar-title">추천 종목 분석</span>
 </div>
 <div class="main">
-    <div class="page-title">📈 추천 종목 TOP 10</div>
-    <div class="page-sub">229개 주요 종목을 점수 기반으로 스캔한 결과입니다. 종목을 클릭하면 상세 분석을 볼 수 있어요.</div>
+    <div class="page-title">추천 종목<br>TOP {{ results|length }}</div>
+    <div class="gold-line"></div>
+    <div class="page-sub">229개 종목 자동 스캔 · 외인·기관 연속수급 우선 정렬 · 클릭 시 상세 분석</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px;">
+        <span style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#FFC000;">★</span> 외인+기관 동시매수 20일 중 15일 초과</span>
+        <span style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#29ABE2;border:1px solid #29ABE2;padding:0 4px;">수급급증</span> 최근 수급량 평시 대비 1.5배↑</span>
+    </div>
 
     {% for s in results %}
-    <a class="stock-card" href="/analyze" onclick="event.preventDefault(); analyzeStock('{{ s.ticker }}', '{{ s.name }}')">
-        <div class="rank {% if loop.index <= 3 %}top{% endif %}">{{ loop.index }}</div>
+    <div class="stock-card" onclick="analyzeStock('{{ s.ticker }}')">
+        <div class="rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">{{ loop.index }}</div>
         <div class="stock-info">
-            <div class="stock-name">{{ s.name }}</div>
-            <div class="stock-ticker">{{ s.ticker }}</div>
-            <div class="ma-info">{{ s.ma_label }} · RSI {{ s.rsi }}</div>
-            <div class="reasons">{{ s.reasons | join(' / ') }}</div>
+            <div class="stock-name">
+                {{ s.name }}
+                {% if s.joint_star %}<span style="color:#FFC000;font-size:1.1rem;" title="외인+기관 동시매수 20일 중 {{ s.joint_days }}일">★</span>{% endif %}
+                {% if s.volume_surge %}<span style="color:#29ABE2;font-size:0.7rem;border:1px solid #29ABE2;padding:1px 6px;margin-left:4px;letter-spacing:0.1em;">수급급증</span>{% endif %}
+            </div>
+            <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }}
+                {% if s.foreign_streak >= 3 %} · <span style="color:#FFC000;">외인 {{ s.foreign_streak }}일↑</span>{% endif %}
+                {% if s.inst_streak >= 3 %} · <span style="color:#29ABE2;">기관 {{ s.inst_streak }}일↑</span>{% endif %}
+                {% if s.joint_star %} · <span style="color:#FFC000;">동시매수 {{ s.joint_days }}/20일</span>{% endif %}
+            </div>
+            <div class="stock-reasons">{{ s.reasons | join(' / ') }}</div>
         </div>
         <div class="stock-price">{{ s.price }}원</div>
-        <div class="score-badge {% if s.score >= 7 %}text-danger{% elif s.score >= 4 %}text-warning{% elif s.score >= 1 %}text-secondary{% else %}text-info{% endif %}">
-            {{ s.score }}점
+        <div class="score-box">
+            <div class="score-num">{{ s.score_pct if s.score_pct is defined else ((s.score + 14) / 28 * 100) | round | int }}</div>
+            <div class="score-label">점</div>
         </div>
-        <span class="rec-badge bg-{{ s.rec_color }}">{{ s.recommendation }}</span>
-    </a>
+        <span class="rec-badge {% if s.rec_color == 'danger' %}badge-buy{% elif s.rec_color == 'warning' %}badge-mbuy{% elif s.rec_color in ['info','primary'] %}badge-sell{% else %}badge-neu{% endif %}">{{ s.recommendation }}</span>
+    </div>
     {% endfor %}
 </div>
 
@@ -68,7 +90,7 @@
     <input type="hidden" name="months" value="6">
 </form>
 <script>
-function analyzeStock(ticker, name) {
+function analyzeStock(ticker) {
     document.getElementById('formQuery').value = ticker;
     document.getElementById('analyzeForm').submit();
 }

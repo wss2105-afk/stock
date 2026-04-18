@@ -7,150 +7,250 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
-        body { background: #0f1117; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
-        .topbar { background: #1a1a2e; padding: 14px 24px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #2d3748; }
-        .topbar a { color: #a0aec0; text-decoration: none; font-size: 0.9rem; }
-        .topbar a:hover { color: white; }
-        .stock-name { font-size: 1.5rem; font-weight: 800; color: white; }
-        .stock-price { font-size: 1.3rem; font-weight: 700; color: #f6e05e; }
-        .main { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        * { box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; }
 
-        /* 타이밍 추천 카드 */
-        .recommend-card { border-radius: 16px; padding: 28px; margin-bottom: 24px; text-align: center; }
-        .recommend-score { font-size: 3.5rem; font-weight: 900; }
-        .recommend-label { font-size: 1.6rem; font-weight: 700; margin: 8px 0; }
-        .recommend-sub { font-size: 0.9rem; opacity: 0.8; }
+        /* TOPBAR */
+        .topbar { background: #000; border-bottom: 1px solid #202020; padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; position: sticky; top: 0; z-index: 50; }
+        .topbar a { color: #7D7D7D; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .topbar a:hover { color: #FFC000; }
+        .stock-name { font-size: clamp(1rem, 3vw, 1.4rem); font-weight: 400; color: #fff; letter-spacing: 0.08em; text-transform: uppercase; }
+        .stock-ticker { color: #7D7D7D; font-size: 0.8rem; letter-spacing: 0.15em; }
+        .stock-price { font-size: clamp(1rem, 2.5vw, 1.3rem); font-weight: 700; color: #FFC000; margin-left: auto; letter-spacing: 0.05em; }
+        .stock-period { font-size: 0.7rem; letter-spacing: 0.15em; color: #7D7D7D; text-transform: uppercase; }
 
-        .section-card { background: #1a1a2e; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #2d3748; }
-        .section-title { font-size: 1.1rem; font-weight: 700; color: #f6e05e; border-bottom: 1px solid #2d3748; padding-bottom: 10px; margin-bottom: 16px; }
+        .main { max-width: 1400px; margin: 0 auto; padding: 20px 16px; }
+
+        /* SECTION CARD */
+        .section-card { background: #202020; padding: 20px; margin-bottom: 1px; border: none; }
+        .section-title { font-size: 0.7rem; font-weight: 700; color: #FFC000; letter-spacing: 0.3em; text-transform: uppercase; border-bottom: 1px solid #313131; padding-bottom: 10px; margin-bottom: 16px; }
+
+        /* SCORE CARD */
+        .score-card { background: #202020; padding: 28px 20px; margin-bottom: 1px; text-align: center; position: relative; overflow: hidden; }
+        .score-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,192,0,0.06) 0%, transparent 60%); pointer-events: none; }
+        .score-num { font-size: clamp(3rem, 10vw, 5rem); font-weight: 900; color: #FFC000; line-height: 1; letter-spacing: -0.02em; }
+        .score-label { font-size: clamp(0.9rem, 3vw, 1.2rem); font-weight: 400; color: #fff; letter-spacing: 0.2em; text-transform: uppercase; margin: 10px 0 6px; }
+        .score-sub { font-size: 0.65rem; color: #7D7D7D; letter-spacing: 0.2em; text-transform: uppercase; }
 
         /* MA 배열 */
-        .ma-badge { padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 0.95rem; display: inline-block; }
-        .bullish { background: rgba(231,76,60,0.2); color: #e74c3c; }
-        .mild_bullish { background: rgba(243,156,18,0.2); color: #f39c12; }
-        .neutral { background: rgba(160,174,192,0.2); color: #a0aec0; }
-        .mild_bearish { background: rgba(52,152,219,0.2); color: #3498db; }
-        .bearish { background: rgba(52,73,94,0.2); color: #7f8c8d; }
+        .ma-badge { padding: 5px 14px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; display: inline-block; border: 1px solid; }
+        .bullish { border-color: #FFC000; color: #FFC000; background: rgba(255,192,0,0.08); }
+        .mild_bullish { border-color: #f39c12; color: #f39c12; background: rgba(243,156,18,0.08); }
+        .neutral { border-color: #555; color: #969696; background: transparent; }
+        .mild_bearish { border-color: #29ABE2; color: #29ABE2; background: rgba(41,171,226,0.08); }
+        .bearish { border-color: #555; color: #555; background: transparent; }
 
         /* 지표 그리드 */
-        .indicator-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-        .indicator-item { background: #0f1117; border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #2d3748; }
-        .indicator-item .label { font-size: 0.8rem; color: #a0aec0; margin-bottom: 4px; }
+        .indicator-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1px; background: #313131; }
+        .indicator-item { background: #202020; padding: 14px 10px; text-align: center; cursor: pointer; transition: background 0.15s; }
+        .indicator-item:hover { background: #2a2a2a; }
+        .indicator-item .label { font-size: 0.62rem; color: #7D7D7D; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 6px; }
         .indicator-item .value { font-size: 1.3rem; font-weight: 700; }
-        .signal-buy { color: #e74c3c; }
-        .signal-sell { color: #3498db; }
-        .signal-neutral { color: #a0aec0; }
+        .signal-buy { color: #FFC000; }
+        .signal-sell { color: #29ABE2; }
+        .signal-neutral { color: #969696; }
 
-        /* 이유 목록 */
-        .reason-item { padding: 8px 14px; border-radius: 8px; margin-bottom: 6px; font-size: 0.9rem;
-                       background: rgba(255,255,255,0.04); border-left: 3px solid #4a5568; }
-        .reason-item.pos { border-left-color: #e74c3c; }
-        .reason-item.neg { border-left-color: #3498db; }
+        /* 타이밍 섹션 */
+        .timing-row { display: flex; flex-direction: column; gap: 1px; background: #313131; margin-bottom: 1px; }
+        .timing-item { display: flex; align-items: center; justify-content: space-between; background: #202020; padding: 10px 14px; font-size: 0.85rem; }
+        .timing-name { color: #969696; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; flex: 1; }
+        .timing-val { color: #fff; font-weight: 700; margin: 0 12px; font-size: 0.9rem; }
+        .timing-badge { padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid; }
+        .t-buy  { border-color: #FFC000; color: #FFC000; }
+        .t-sell { border-color: #29ABE2; color: #29ABE2; }
+        .t-neu  { border-color: #444; color: #555; }
+        .timing-result { padding: 16px; text-align: center; border: 1px solid; }
+        .timing-result .t-label { font-size: 1rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; }
+        .timing-result .t-sub { font-size: 0.65rem; opacity: 0.7; margin-top: 6px; letter-spacing: 0.1em; }
+
+        /* 이유 */
+        .reason-item { padding: 8px 14px; margin-bottom: 1px; font-size: 0.82rem; background: #181818; border-left: 2px solid #333; color: #969696; }
+        .reason-item.pos { border-left-color: #FFC000; color: #fff; }
+        .reason-item.neg { border-left-color: #29ABE2; color: #fff; }
 
         /* 펀더멘털 */
-        .fund-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .fund-item { background: #0f1117; border-radius: 10px; padding: 16px; text-align: center; border: 1px solid #2d3748; }
-        .fund-item .label { font-size: 0.8rem; color: #a0aec0; }
-        .fund-item .val { font-size: 1.4rem; font-weight: 700; color: #f6e05e; margin-top: 4px; }
+        .fund-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #313131; }
+        .fund-item { background: #202020; padding: 14px 8px; text-align: center; cursor: pointer; transition: background 0.15s; }
+        .fund-item:hover { background: #2a2a2a; }
+        .fund-item .label { font-size: 0.6rem; color: #7D7D7D; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 6px; }
+        .fund-item .val { font-size: clamp(1rem, 2.5vw, 1.3rem); font-weight: 700; color: #FFC000; }
+
+        /* 영업이익 */
+        .profit-item { background: #181818; padding: 6px 12px; font-size: 0.85rem; font-weight: 700; color: #FFC000; border-left: 2px solid #FFC000; }
 
         /* 뉴스 */
-        .news-stat { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
-        .news-stat-item { background: #0f1117; border-radius: 8px; padding: 10px 18px; text-align: center; flex: 1; min-width: 80px; }
-        .news-stat-item .n { font-size: 1.6rem; font-weight: 800; }
-        .news-stat-item .l { font-size: 0.75rem; color: #a0aec0; }
-        .news-item { border-bottom: 1px solid #2d3748; padding: 10px 0; font-size: 0.88rem; }
-        .news-item a { color: #cbd5e0; text-decoration: none; }
-        .news-item a:hover { color: #f6e05e; }
-        .news-press { font-size: 0.75rem; color: #718096; margin-top: 3px; }
+        .news-stat { display: flex; gap: 1px; flex-wrap: wrap; background: #313131; margin-bottom: 16px; }
+        .news-stat-item { background: #202020; padding: 12px 10px; text-align: center; flex: 1; min-width: 55px; }
+        .news-stat-item .n { font-size: 1.4rem; font-weight: 700; }
+        .news-stat-item .l { font-size: 0.6rem; color: #7D7D7D; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 2px; }
+        .keyword-tag { display: inline-block; padding: 3px 10px; font-size: 0.72rem; letter-spacing: 0.08em; background: #181818; border: 1px solid #313131; margin: 2px; color: #969696; }
+        .keyword-cnt { color: #FFC000; }
+        .news-item { border-bottom: 1px solid #181818; padding: 10px 0; }
+        .news-item a { color: #e2e8f0; text-decoration: none; font-size: 0.85rem; line-height: 1.4; }
+        .news-item a:hover { color: #FFC000; }
+        .news-press { font-size: 0.68rem; color: #555; margin-top: 4px; letter-spacing: 0.08em; }
 
         /* AI 분석 */
-        .ai-box { background: linear-gradient(135deg, #1a1a3e, #0f2027); border: 1px solid #4a5568;
-                  border-radius: 12px; padding: 20px; white-space: pre-wrap; line-height: 1.7; font-size: 0.95rem; }
+        .ai-box { background: #181818; border-left: 2px solid #FFC000; padding: 20px; white-space: pre-wrap; line-height: 1.8; font-size: 0.88rem; color: #e2e8f0; }
 
-        .chart-container { background: #1a1a2e; border-radius: 12px; padding: 8px; margin-bottom: 20px; border: 1px solid #2d3748; }
+        /* 차트 컨테이너 */
+        .chart-container { background: #000; margin-bottom: 1px; overflow: hidden; }
+
+        /* 설명 모달 */
+        #descModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; }
+        .desc-box { background: #202020; border: 1px solid #FFC000; padding: 28px; max-width: 480px; width: 90%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .desc-title { font-size: 0.85rem; font-weight: 700; color: #FFC000; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 14px; }
+        .desc-body { font-size: 0.88rem; color: #e2e8f0; line-height: 1.8; }
+        .desc-body strong { color: #FFC000; }
+        .desc-close { position: absolute; top: 14px; right: 16px; background: none; border: none; color: #7D7D7D; font-size: 1.2rem; cursor: pointer; }
+        .desc-close:hover { color: #FFC000; }
+        .desc-tag { display: inline-block; padding: 3px 10px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid; margin-right: 6px; margin-bottom: 10px; }
+        .tag-buy { border-color: #FFC000; color: #FFC000; }
+        .tag-sell { border-color: #29ABE2; color: #29ABE2; }
+        .tag-neutral { border-color: #555; color: #969696; }
+
+        @media (max-width: 576px) {
+            .main { padding: 12px 8px; }
+            .topbar { padding: 10px 12px; gap: 8px; }
+            .score-card { padding: 20px 12px; }
+        }
     </style>
 </head>
 <body>
+
 <div class="topbar">
-    <a href="/">← 검색으로</a>
-    <span class="stock-name">{{ name }} <span style="color:#718096;font-size:1rem;">{{ ticker }}</span></span>
+    <a href="/">← BACK</a>
+    <span class="stock-name">{{ name }} <span class="stock-ticker">{{ ticker }}</span></span>
     <span class="stock-price">{{ current_price }}원</span>
-    <span style="color:#718096;font-size:0.85rem;">최근 {{ months }}개월</span>
+    <span class="stock-period">{{ months }}개월</span>
 </div>
 
 <div class="main">
-    <div class="row">
-        <!-- 왼쪽: 타이밍 추천 + 신호 -->
-        <div class="col-lg-4">
+    <div class="row g-0" style="gap:0;">
+        <!-- 왼쪽 패널 -->
+        <div class="col-lg-4" style="padding-right: 1px;">
 
-            <!-- 타이밍 추천 -->
-            {% set colors = {'danger':'#e74c3c','warning':'#f39c12','secondary':'#718096','info':'#3498db','primary':'#2980b9','dark':'#2c3e50'} %}
-            <div class="recommend-card" style="background: linear-gradient(135deg, {{ colors[rec_color] }}22, {{ colors[rec_color] }}44); border: 2px solid {{ colors[rec_color] }};">
-                <div class="recommend-score" style="color:{{ colors[rec_color] }};">{{ score }}점</div>
-                <div class="recommend-label" style="color:{{ colors[rec_color] }};">{{ recommendation }}</div>
-                <div class="recommend-sub">종합 신호 점수 (만점 +14점)</div>
+            <!-- 종합 점수 -->
+            {% set buy_color = rec_color in ['danger','warning'] %}
+            <div class="score-card">
+                <div class="score-num">{{ score_pct }}</div>
+                <div style="font-size:0.6rem;color:#7D7D7D;letter-spacing:0.2em;text-transform:uppercase;margin-top:4px;">/ 100점 만점</div>
+                <div class="score-label">{{ recommendation }}</div>
+                <div class="score-sub">종합 신호 점수</div>
             </div>
 
             <!-- 이동평균 배열 -->
             <div class="section-card">
-                <div class="section-title">📐 이동평균선 배열</div>
-                <div class="mb-3"><span class="ma-badge {{ ma_type }}">{{ ma_label }}</span></div>
-                <div id="maChart"></div>
+                <div class="section-title">이동평균선 배열</div>
+                <div style="margin-bottom:12px;"><span class="ma-badge {{ ma_type }}">{{ ma_label }}</span></div>
+                <img src="{{ ma_chart }}" style="width:100%;">
+            </div>
+
+            <!-- 매수/매도 타이밍 -->
+            {% set rsi_v = signals.rsi.value %}
+            {% set macd_s = signals.macd.signal %}
+            {% set macd_h = signals.macd.hist %}
+            {% set sk = signals.stoch.k %}
+            {% set bb = signals.bb.pct %}
+            {% set mfi_v = signals.mfi.value %}
+            {% set buy_count = 0 %}{% set sell_count = 0 %}
+            {% if rsi_v < 30 %}{% set buy_count = buy_count + 2 %}{% elif rsi_v < 40 %}{% set buy_count = buy_count + 1 %}{% elif rsi_v > 70 %}{% set sell_count = sell_count + 2 %}{% elif rsi_v > 60 %}{% set sell_count = sell_count + 1 %}{% endif %}
+            {% if macd_s == 'golden' %}{% set buy_count = buy_count + 2 %}{% elif macd_s == 'dead' %}{% set sell_count = sell_count + 2 %}{% elif macd_h > 0 %}{% set buy_count = buy_count + 1 %}{% elif macd_h < 0 %}{% set sell_count = sell_count + 1 %}{% endif %}
+            {% if sk < 20 %}{% set buy_count = buy_count + 1 %}{% elif sk > 80 %}{% set sell_count = sell_count + 1 %}{% endif %}
+            {% if bb < 0.1 %}{% set buy_count = buy_count + 1 %}{% elif bb > 0.9 %}{% set sell_count = sell_count + 1 %}{% endif %}
+            {% if mfi_v < 20 %}{% set buy_count = buy_count + 1 %}{% elif mfi_v > 80 %}{% set sell_count = sell_count + 1 %}{% endif %}
+            {% set timing_score = buy_count - sell_count %}
+            {% if timing_score > 0 %}{% set t_label = "강한 매수 타이밍" %}{% set t_color = "#FFC000" %}
+            {% elif timing_score < 0 %}{% set t_label = "강한 매도 타이밍" %}{% set t_color = "#29ABE2" %}
+            {% else %}{% set t_label = "관망 · 중립" %}{% set t_color = "#555" %}{% endif %}
+
+            <div class="section-card">
+                <div class="section-title">오실레이터 타이밍</div>
+                <div class="timing-row">
+                    <div class="timing-item">
+                        <span class="timing-name">RSI</span><span class="timing-val">{{ rsi_v }}</span>
+                        {% if rsi_v < 30 %}<span class="timing-badge t-buy">강한 매수</span>
+                        {% elif rsi_v < 40 %}<span class="timing-badge t-buy">매수</span>
+                        {% elif rsi_v > 70 %}<span class="timing-badge t-sell">강한 매도</span>
+                        {% elif rsi_v > 60 %}<span class="timing-badge t-sell">매도</span>
+                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
+                    </div>
+                    <div class="timing-item">
+                        <span class="timing-name">MACD</span><span class="timing-val">{{ macd_s }}</span>
+                        {% if macd_s == 'golden' %}<span class="timing-badge t-buy">골든크로스</span>
+                        {% elif macd_s == 'dead' %}<span class="timing-badge t-sell">데드크로스</span>
+                        {% elif macd_h > 0 %}<span class="timing-badge t-buy">상승</span>
+                        {% elif macd_h < 0 %}<span class="timing-badge t-sell">하락</span>
+                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
+                    </div>
+                    <div class="timing-item">
+                        <span class="timing-name">Stochastic</span><span class="timing-val">{{ sk }}</span>
+                        {% if sk < 20 %}<span class="timing-badge t-buy">과매도</span>
+                        {% elif sk > 80 %}<span class="timing-badge t-sell">과매수</span>
+                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
+                    </div>
+                    <div class="timing-item">
+                        <span class="timing-name">볼린저 %B</span><span class="timing-val">{{ bb }}</span>
+                        {% if bb < 0.1 %}<span class="timing-badge t-buy">하단</span>
+                        {% elif bb > 0.9 %}<span class="timing-badge t-sell">상단</span>
+                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
+                    </div>
+                    <div class="timing-item">
+                        <span class="timing-name">MFI</span><span class="timing-val">{{ mfi_v }}</span>
+                        {% if mfi_v < 20 %}<span class="timing-badge t-buy">과매도</span>
+                        {% elif mfi_v > 80 %}<span class="timing-badge t-sell">과매수</span>
+                        {% else %}<span class="timing-badge t-neu">중립</span>{% endif %}
+                    </div>
+                </div>
+                <div class="timing-result" style="border-color:{{ t_color }};">
+                    <div class="t-label" style="color:{{ t_color }};">{{ t_label }}</div>
+                    <div class="t-sub" style="color:{{ t_color }};">매수 {{ buy_count }}점 · 매도 {{ sell_count }}점 · 합산 {{ timing_score }}점</div>
+                </div>
             </div>
 
             <!-- 오실레이터 -->
             <div class="section-card">
-                <div class="section-title">📊 오실레이터</div>
+                <div class="section-title">오실레이터 <span style="color:#555;font-size:0.6rem;">클릭 시 설명</span></div>
                 <div class="indicator-grid">
-                    <div class="indicator-item">
-                        <div class="label">RSI</div>
-                        <div class="value {% if signals.rsi.signal == 'oversold' %}signal-buy{% elif signals.rsi.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">
-                            {{ signals.rsi.value }}
-                        </div>
-                        <div style="font-size:0.75rem;color:#718096;">{% if signals.rsi.signal == 'oversold' %}과매도{% elif signals.rsi.signal == 'overbought' %}과매수{% else %}중립{% endif %}</div>
+                    <div class="indicator-item" onclick="showDesc('rsi')">
+                        <div class="label">RSI ⓘ</div>
+                        <div class="value {% if signals.rsi.signal == 'oversold' %}signal-buy{% elif signals.rsi.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.rsi.value }}</div>
+                        <div style="font-size:0.62rem;color:#555;margin-top:4px;letter-spacing:0.1em;">{% if signals.rsi.signal == 'oversold' %}과매도{% elif signals.rsi.signal == 'overbought' %}과매수{% else %}중립{% endif %}</div>
                     </div>
-                    <div class="indicator-item">
-                        <div class="label">MACD</div>
-                        <div class="value {% if signals.macd.signal == 'golden' %}signal-buy{% elif signals.macd.signal == 'dead' %}signal-sell{% else %}signal-neutral{% endif %}">
-                            {{ signals.macd.value }}
-                        </div>
-                        <div style="font-size:0.75rem;color:#718096;">{% if signals.macd.signal == 'golden' %}골든크로스{% elif signals.macd.signal == 'dead' %}데드크로스{% else %}중립{% endif %}</div>
+                    <div class="indicator-item" onclick="showDesc('macd')">
+                        <div class="label">MACD ⓘ</div>
+                        <div class="value {% if signals.macd.signal == 'golden' %}signal-buy{% elif signals.macd.signal == 'dead' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.macd.value }}</div>
+                        <div style="font-size:0.62rem;color:#555;margin-top:4px;letter-spacing:0.1em;">{% if signals.macd.signal == 'golden' %}골든{% elif signals.macd.signal == 'dead' %}데드{% else %}중립{% endif %}</div>
                     </div>
-                    <div class="indicator-item">
-                        <div class="label">Stochastic K</div>
-                        <div class="value {% if signals.stoch.signal == 'oversold' %}signal-buy{% elif signals.stoch.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">
-                            {{ signals.stoch.k }}
-                        </div>
+                    <div class="indicator-item" onclick="showDesc('stoch')">
+                        <div class="label">Stoch ⓘ</div>
+                        <div class="value {% if signals.stoch.signal == 'oversold' %}signal-buy{% elif signals.stoch.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.stoch.k }}</div>
                     </div>
-                    <div class="indicator-item">
-                        <div class="label">볼린저 %B</div>
-                        <div class="value {% if signals.bb.signal == 'oversold' %}signal-buy{% elif signals.bb.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">
-                            {{ signals.bb.pct }}
-                        </div>
+                    <div class="indicator-item" onclick="showDesc('bb')">
+                        <div class="label">BB %B ⓘ</div>
+                        <div class="value {% if signals.bb.signal == 'oversold' %}signal-buy{% elif signals.bb.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.bb.pct }}</div>
                     </div>
-                    <div class="indicator-item">
-                        <div class="label">MFI</div>
-                        <div class="value {% if signals.mfi.signal == 'oversold' %}signal-buy{% elif signals.mfi.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">
-                            {{ signals.mfi.value }}
-                        </div>
+                    <div class="indicator-item" onclick="showDesc('mfi')">
+                        <div class="label">MFI ⓘ</div>
+                        <div class="value {% if signals.mfi.signal == 'oversold' %}signal-buy{% elif signals.mfi.signal == 'overbought' %}signal-sell{% else %}signal-neutral{% endif %}">{{ signals.mfi.value }}</div>
                     </div>
                 </div>
             </div>
 
             <!-- 펀더멘털 -->
             <div class="section-card">
-                <div class="section-title">💹 펀더멘털</div>
+                <div class="section-title">펀더멘털 <span style="color:#555;font-size:0.6rem;">클릭 시 설명</span></div>
                 <div class="fund-grid">
-                    <div class="fund-item"><div class="label">PER</div><div class="val">{{ fundamental.per }}</div></div>
-                    <div class="fund-item"><div class="label">Forward PER</div><div class="val">{{ fundamental.forward_per }}</div></div>
-                    <div class="fund-item"><div class="label">PBR</div><div class="val">{{ fundamental.pbr }}</div></div>
+                    <div class="fund-item" onclick="showDesc('per')"><div class="label">PER ⓘ</div><div class="val">{{ fundamental.per }}</div></div>
+                    <div class="fund-item" onclick="showDesc('fper')"><div class="label">Fwd PER ⓘ</div><div class="val">{{ fundamental.forward_per }}</div></div>
+                    <div class="fund-item" onclick="showDesc('pbr')"><div class="label">PBR ⓘ</div><div class="val">{{ fundamental.pbr }}</div></div>
                 </div>
                 {% if fundamental.operating_profit %}
-                <div style="margin-top:14px;">
-                    <div style="font-size:0.8rem;color:#a0aec0;margin-bottom:6px;">영업이익 추이 (억원)</div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <div style="margin-top:12px;">
+                    <div style="font-size:0.6rem;color:#7D7D7D;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:8px;">영업이익 추이 (억원)</div>
+                    <div style="display:flex;gap:1px;flex-wrap:wrap;background:#313131;">
                         {% for val in fundamental.operating_profit %}
-                        <div style="background:#0f1117;border-radius:8px;padding:6px 12px;font-size:0.9rem;font-weight:700;color:#f6e05e;">{{ val }}</div>
+                        <div class="profit-item">{{ val }}</div>
                         {% endfor %}
                     </div>
                 </div>
@@ -159,7 +259,7 @@
 
             <!-- 신호 근거 -->
             <div class="section-card">
-                <div class="section-title">📋 신호 근거</div>
+                <div class="section-title">신호 근거</div>
                 {% for r in reasons %}
                 <div class="reason-item {% if '+' in r %}pos{% elif '-' in r %}neg{% endif %}">{{ r }}</div>
                 {% endfor %}
@@ -167,44 +267,43 @@
 
         </div>
 
-        <!-- 오른쪽: 차트 + 뉴스 + AI -->
+        <!-- 오른쪽 패널 -->
         <div class="col-lg-8">
 
             <!-- 메인 차트 -->
             <div class="chart-container">
-                <div id="mainChart"></div>
+                <div id="mainChart" style="min-height:800px;"></div>
             </div>
 
             <!-- 매물대 + 수급 -->
-            <div class="row">
-                <div class="col-md-5">
+            <div class="row g-0" style="gap:0;">
+                <div class="col-md-5" style="padding-right:1px;">
                     <div class="chart-container">
-                        <div id="supplyChart"></div>
+                        <div id="supplyChart" style="min-height:400px;"></div>
                     </div>
                 </div>
                 <div class="col-md-7">
                     <div class="chart-container">
-                        <div id="investorChart"></div>
+                        <div id="investorChart" style="min-height:350px;"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- 뉴스 분석 -->
+            <!-- 뉴스 -->
             <div class="section-card">
-                <div class="section-title">📰 뉴스 분석 (최근 30일)</div>
+                <div class="section-title">뉴스 분석 <span style="color:#555;">최근 30일</span></div>
                 <div class="news-stat">
                     <div class="news-stat-item"><div class="n">{{ news.total }}</div><div class="l">전체</div></div>
-                    <div class="news-stat-item"><div class="n" style="color:#e74c3c;">{{ news.positive }}</div><div class="l">긍정</div></div>
-                    <div class="news-stat-item"><div class="n" style="color:#3498db;">{{ news.negative }}</div><div class="l">부정</div></div>
-                    <div class="news-stat-item"><div class="n" style="color:#a0aec0;">{{ news.neutral }}</div><div class="l">중립</div></div>
-                    <div class="news-stat-item"><div class="n" style="color:#f6e05e;">{{ news.exclusive_count }}</div><div class="l">단독/독점</div></div>
-                    <div class="news-stat-item"><div class="n" style="color:{% if news.sentiment_score > 0 %}#e74c3c{% elif news.sentiment_score < 0 %}#3498db{% else %}#a0aec0{% endif %};">{{ news.sentiment_score }}</div><div class="l">감성점수</div></div>
+                    <div class="news-stat-item"><div class="n" style="color:#FFC000;">{{ news.positive }}</div><div class="l">긍정</div></div>
+                    <div class="news-stat-item"><div class="n" style="color:#29ABE2;">{{ news.negative }}</div><div class="l">부정</div></div>
+                    <div class="news-stat-item"><div class="n" style="color:#555;">{{ news.neutral }}</div><div class="l">중립</div></div>
+                    <div class="news-stat-item"><div class="n" style="color:#FFC000;">{{ news.exclusive_count }}</div><div class="l">단독</div></div>
+                    <div class="news-stat-item"><div class="n" style="color:{% if news.sentiment_score > 0 %}#FFC000{% elif news.sentiment_score < 0 %}#29ABE2{% else %}#555{% endif %};">{{ news.sentiment_score }}</div><div class="l">감성</div></div>
                 </div>
                 {% if news.top_keywords %}
-                <div style="margin-bottom:12px;">
-                    <span style="font-size:0.8rem;color:#718096;">주요 키워드: </span>
+                <div style="margin-bottom:14px;">
                     {% for kw, cnt in news.top_keywords %}
-                    <span style="background:#2d3748;border-radius:12px;padding:2px 10px;font-size:0.8rem;margin:2px;display:inline-block;">{{ kw }} <span style="color:#f6e05e;">{{ cnt }}</span></span>
+                    <span class="keyword-tag">{{ kw }} <span class="keyword-cnt">{{ cnt }}</span></span>
                     {% endfor %}
                 </div>
                 {% endif %}
@@ -220,7 +319,7 @@
 
             <!-- AI 분석 -->
             <div class="section-card">
-                <div class="section-title">🤖 AI 종합 분석</div>
+                <div class="section-title">AI 종합 분석</div>
                 <div class="ai-box">{{ ai_comment }}</div>
             </div>
 
@@ -228,39 +327,60 @@
     </div>
 </div>
 
+<!-- 설명 모달 -->
+<div id="descModal">
+    <div class="desc-box">
+        <button class="desc-close" onclick="closeDesc()">✕</button>
+        <div class="desc-title" id="descTitle"></div>
+        <div id="descTags"></div>
+        <div class="desc-body" id="descBody"></div>
+    </div>
+</div>
+
 <script>
-    const maData = {{ ma_chart|safe }};
-    Plotly.newPlot('maChart', maData.data, {
-        ...maData.layout,
-        paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-        font: { color: '#e2e8f0' }
-    }, {responsive: true});
+    const DESC = {
+        rsi: { title: 'RSI — 상대강도지수', tags: ['<span class="desc-tag tag-buy">30 이하 → 매수</span>','<span class="desc-tag tag-sell">70 이상 → 매도</span>'], body: `RSI는 주가가 얼마나 빠르게 올랐는지/내렸는지를 0~100으로 나타내요.<br><br><strong>30 이하</strong>: 과매도 → 반등 가능성 ↑<br><strong>70 이상</strong>: 과매수 → 조정 가능성 ↑<br><strong>40~60</strong>: 중립 구간<br><br><strong>⚠</strong> 강한 추세에서는 70 이상이 오래 지속될 수 있어요.` },
+        macd: { title: 'MACD — 이동평균 수렴확산', tags: ['<span class="desc-tag tag-buy">골든크로스 → 매수</span>','<span class="desc-tag tag-sell">데드크로스 → 매도</span>'], body: `단기/장기 이동평균의 차이로 추세 전환을 포착해요.<br><br><strong>골든크로스</strong>: MACD가 시그널선 위로 돌파 → 매수<br><strong>데드크로스</strong>: MACD가 시그널선 아래로 돌파 → 매도<br><strong>히스토그램 양전환</strong>: 상승 모멘텀 증가<br><br><strong>⚠</strong> 횡보 구간에서는 신호 신뢰도가 낮아요.` },
+        stoch: { title: 'Stochastic — 스토캐스틱', tags: ['<span class="desc-tag tag-buy">20 이하 → 과매도</span>','<span class="desc-tag tag-sell">80 이상 → 과매수</span>'], body: `현재 주가가 최근 가격 범위에서 어느 위치인지 보여줘요.<br><br><strong>20 이하</strong>: 과매도 → 반등 가능성 ↑<br><strong>80 이상</strong>: 과매수 → 조정 가능성 ↑<br><br><strong>⚠</strong> 노이즈가 많아 RSI와 함께 보는 게 좋아요.` },
+        bb: { title: '볼린저밴드 %B', tags: ['<span class="desc-tag tag-buy">0.1 이하 → 하단</span>','<span class="desc-tag tag-sell">0.9 이상 → 상단</span>'], body: `주가가 볼린저밴드 내 어느 위치인지 0~1로 나타내요.<br><br><strong>0</strong>: 밴드 하단 → 반등 가능성<br><strong>1</strong>: 밴드 상단 → 조정 가능성<br><strong>0.5</strong>: 20일 이동평균선<br><br><strong>⚠</strong> 강한 추세에서는 상단/하단을 계속 터치해요.` },
+        mfi: { title: 'MFI — 자금흐름지수', tags: ['<span class="desc-tag tag-buy">20 이하 → 매수</span>','<span class="desc-tag tag-sell">80 이상 → 매도</span>'], body: `RSI에 거래량을 반영한 지표예요. 돈의 흐름을 나타내요.<br><br><strong>20 이하</strong>: 자금 유출, 과매도 → 반등 가능성<br><strong>80 이상</strong>: 자금 과잉 유입 → 조정 가능성<br><br><strong>⚠</strong> 거래량이 적은 소형주에서는 신뢰도가 낮아요.` },
+        per: { title: 'PER — 주가수익비율', tags: ['<span class="desc-tag tag-buy">낮을수록 저평가</span>','<span class="desc-tag tag-sell">높을수록 고평가</span>'], body: `주가가 연간 순이익의 몇 배인지를 나타내요.<br><br><strong>낮은 PER</strong>: 이익 대비 주가 저렴 (저평가)<br><strong>높은 PER</strong>: 성장 기대 or 고평가<br><br>같은 업종끼리 비교하는 게 중요해요.<br><br><strong>⚠</strong> 적자 기업은 N/A로 표시돼요.` },
+        fper: { title: 'Forward PER — 선행 PER', tags: ['<span class="desc-tag tag-neutral">미래 실적 기반</span>'], body: `내년 예상 순이익 기준 PER이에요.<br><br>Forward PER < 현재 PER → 이익 성장 기대<br>Forward PER > 현재 PER → 이익 감소 예상<br><br><strong>⚠</strong> 애널리스트 추정치라 실제와 다를 수 있어요.` },
+        pbr: { title: 'PBR — 주가순자산비율', tags: ['<span class="desc-tag tag-buy">1 이하 → 저평가</span>'], body: `주가가 순자산(자산-부채)의 몇 배인지 나타내요.<br><br><strong>1 이하</strong>: 장부가치보다 주가가 낮음 → 저평가<br><strong>1~3</strong>: 일반적인 범위<br><strong>3 이상</strong>: 성장 기대 or 고평가<br><br><strong>⚠</strong> IT·바이오는 PBR이 높아도 정상이에요.` }
+    };
+
+    function showDesc(key) {
+        const d = DESC[key];
+        if (!d) return;
+        document.getElementById('descTitle').innerHTML = d.title;
+        document.getElementById('descTags').innerHTML = d.tags.join('');
+        document.getElementById('descBody').innerHTML = d.body;
+        document.getElementById('descModal').style.display = 'block';
+    }
+    function closeDesc() { document.getElementById('descModal').style.display = 'none'; }
+    document.getElementById('descModal').addEventListener('click', function(e) { if (e.target === this) closeDesc(); });
+
+    const isMobile = window.innerWidth < 768;
+    const darkLayout = { paper_bgcolor: '#000', plot_bgcolor: '#000', font: { color: '#969696', size: isMobile ? 9 : 10 }, xaxis: { gridcolor: '#181818', linecolor: '#202020' }, yaxis: { gridcolor: '#181818', linecolor: '#202020' } };
 
     const mainData = {{ main_chart|safe }};
     Plotly.newPlot('mainChart', mainData.data, {
-        ...mainData.layout,
-        paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-        font: { color: '#e2e8f0' }
+        ...mainData.layout, ...darkLayout,
+        height: isMobile ? 500 : 800,
+        legend: { orientation: 'h', y: 1.02, font: { size: isMobile ? 9 : 10 }, bgcolor: 'rgba(0,0,0,0)' },
+        margin: isMobile ? {l:40,r:8,t:40,b:20} : {l:40,r:20,t:60,b:20}
     }, {responsive: true});
 
     {% if supply_chart %}
     const supplyData = {{ supply_chart|safe }};
-    Plotly.newPlot('supplyChart', supplyData.data, {
-        ...supplyData.layout,
-        paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-        font: { color: '#e2e8f0' }
-    }, {responsive: true});
+    Plotly.newPlot('supplyChart', supplyData.data, { ...supplyData.layout, ...darkLayout }, {responsive: true});
     {% else %}
-    document.getElementById('supplyChart').innerHTML = '<p style="color:#718096;text-align:center;padding:40px;">매물대 데이터 없음</p>';
+    document.getElementById('supplyChart').innerHTML = '<p style="color:#555;text-align:center;padding:40px;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;">매물대 데이터 없음</p>';
     {% endif %}
 
     {% if investor_chart %}
     const investorData = {{ investor_chart|safe }};
-    Plotly.newPlot('investorChart', investorData.data, {
-        ...investorData.layout,
-        paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-        font: { color: '#e2e8f0' }
-    }, {responsive: true});
+    Plotly.newPlot('investorChart', investorData.data, { ...investorData.layout, ...darkLayout }, {responsive: true});
     {% endif %}
 </script>
 </body>

@@ -61,37 +61,49 @@ def make_main_chart(df, name):
 
 
 def make_ma_chart(df, name):
-    """이동평균선 배열 전용 차트"""
-    fig = go.Figure()
+    """이동평균선 배열 전용 차트 (base64 이미지)"""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    import io, base64
 
-    fig.add_trace(go.Candlestick(
-        x=df.index, open=df['open'], high=df['high'],
-        low=df['low'], close=df['close'], name='주가',
-        increasing_line_color='#e74c3c', decreasing_line_color='#3498db',
-        showlegend=False
-    ))
+    fig, ax = plt.subplots(figsize=(6, 3.2))
+    fig.patch.set_facecolor('#0f1117')
+    ax.set_facecolor('#0f1117')
 
+    # 주가 점선
+    ax.plot(df.index, df['close'], color='#ffffff', linewidth=1.0,
+            linestyle='dotted', alpha=0.6, label='주가')
+
+    # 이동평균선
     ma_styles = [
-        ('ma5',  '#e74c3c', '5일'),
-        ('ma20', '#f39c12', '20일'),
-        ('ma60', '#2ecc71', '60일'),
-        ('ma115','#9b59b6', '115일'),
+        ('ma5',   '#ff4757', '5일'),
+        ('ma20',  '#ffd32a', '20일'),
+        ('ma60',  '#2ed573', '60일'),
+        ('ma115', '#a29bfe', '115일'),
     ]
     for col, color, label in ma_styles:
-        if col in df.columns:
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df[col], name=label,
-                line=dict(color=color, width=1.5)
-            ))
+        if col in df.columns and df[col].notna().any():
+            ax.plot(df.index, df[col], color=color, linewidth=1.8, label=label)
 
-    fig.update_layout(
-        height=280, template='plotly_dark',
-        xaxis_rangeslider_visible=False,
-        margin=dict(l=30, r=10, t=10, b=20),
-        legend=dict(orientation='h', y=1.08, font=dict(size=11)),
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-    )
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    plt.xticks(rotation=30, color='#a0aec0', fontsize=7)
+    plt.yticks(color='#a0aec0', fontsize=7)
+    ax.tick_params(colors='#4a5568')
+    for spine in ax.spines.values():
+        spine.set_edgecolor('#2d3748')
+
+    ax.legend(loc='upper left', fontsize=8, facecolor='#1a1a2e',
+              labelcolor='white', edgecolor='#4a5568', ncol=5)
+    plt.tight_layout(pad=0.5)
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=120, facecolor='#0f1117')
+    plt.close(fig)
+    buf.seek(0)
+    return 'data:image/png;base64,' + base64.b64encode(buf.read()).decode()
 
 
 def make_supply_zone_chart(zone_df, current_price):

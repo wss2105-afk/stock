@@ -9,6 +9,52 @@ from analysis.signal import calc_score, get_recommendation
 _TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
 
 
+def _count_consecutive_buying(investor_df, col_keyword, days=5):
+    """외인 또는 기관의 연속 순매수 일수 계산"""
+    if investor_df.empty:
+        return 0
+    cols = [c for c in investor_df.columns if col_keyword in c]
+    if not cols:
+        return 0
+    series = investor_df[cols[0]].tail(days)
+    count = 0
+    for v in reversed(series.values):
+        if v > 0:
+            count += 1
+        else:
+            break
+    return count
+
+
+def _calc_joint_buying(investor_df, days=20, threshold=15):
+    """외인+기관 동시 순매수 일수 계산 (최근 days일 중 threshold일 초과 여부)"""
+    if investor_df.empty:
+        return 0, False
+    foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
+    inst_col = next((c for c in investor_df.columns if '기관' in c
+                     and '금융' not in c and '연기금' not in c), None)
+    if not foreign_col or not inst_col:
+        return 0, False
+    recent = investor_df.tail(days)
+    joint_days = int(((recent[foreign_col] > 0) & (recent[inst_col] > 0)).sum())
+    return joint_days, joint_days > threshold
+
+
+def _calc_volume_surge(investor_df, days=20, surge_ratio=1.5):
+    """최근 수급량이 평시 대비 surge_ratio배 이상인지 확인"""
+    if investor_df.empty:
+        return False
+    foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
+    if not foreign_col:
+        return False
+    series = investor_df[foreign_col].abs()
+    if len(series) < days * 2:
+        return False
+    recent_avg = series.tail(days).mean()
+    past_avg = series.iloc[-(days * 2):-days].mean()
+    return past_avg > 0 and recent_avg >= past_avg * surge_ratio
+
+
 def _analyze_one(name, ticker, months=6):
     try:
         ohlcv = get_ohlcv(ticker, months)
@@ -32,13 +78,36 @@ def _analyze_one(name, ticker, months=6):
                            'exclusive_count': 0, 'articles': []}
 
         score, reasons = calc_score(ma_status, signals, investor_df, news_result)
+        score_pct = max(0, min(100, round((score + 14) / 28 * 100)))
         recommendation, rec_color = get_recommendation(score)
         current_price = int(df['close'].iloc[-1])
+
+        # 외인·기관 연속 매수 일수
+        foreign_streak = _count_consecutive_buying(investor_df, '외국인')
+        if foreign_streak == 0:
+            foreign_streak = _count_consecutive_buying(investor_df, '외인')
+        inst_streak = _count_consecutive_buying(investor_df, '기관')
+
+        # 외인+기관 동시매수 20일 중 15일 초과 여부
+        joint_days, joint_star = _calc_joint_buying(investor_df, days=20, threshold=15)
+
+        # 수급량 급증 여부
+        volume_surge = _calc_volume_surge(investor_df, days=20, surge_ratio=1.5)
+
+        # 연속 매수 보너스 점수 (정렬 우선순위용)
+        streak_bonus = (foreign_streak * 2) + (inst_streak * 1.5) + (10 if joint_star else 0)
 
         return {
             'name': name,
             'ticker': ticker,
             'score': score,
+            'score_pct': score_pct,
+            'streak_bonus': streak_bonus,
+            'foreign_streak': foreign_streak,
+            'inst_streak': inst_streak,
+            'joint_days': joint_days,
+            'joint_star': joint_star,
+            'volume_surge': volume_surge,
             'recommendation': recommendation,
             'rec_color': rec_color,
             'price': f"{current_price:,}",
@@ -51,7 +120,7 @@ def _analyze_one(name, ticker, months=6):
         return None
 
 
-def scan_top_stocks(top_n=10, months=6, max_workers=8):
+def scan_top_stocks(top_n=20, months=6, max_workers=8):
     with open(_TICKER_DB_PATH, encoding='utf-8') as f:
         tickers = json.load(f)
 
@@ -64,5 +133,6 @@ def scan_top_stocks(top_n=10, months=6, max_workers=8):
             if result:
                 results.append(result)
 
-    results.sort(key=lambda x: x['score'], reverse=True)
+    # 외인·기관 연속 매수 우선, 그 다음 종합 점수
+    results.sort(key=lambda x: (x['streak_bonus'], x['score']), reverse=True)
     return results[:top_n]

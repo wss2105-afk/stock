@@ -71,6 +71,7 @@ def analyze():
     # 신호 계산
     score, reasons = calc_score(ma_status, signals, investor_df, news_result)
     recommendation, rec_color = get_recommendation(score)
+    score_pct = max(0, min(100, round((score + 14) / 28 * 100)))
 
     # AI 분석
     try:
@@ -92,7 +93,7 @@ def analyze():
 
     return render_template('result.html',
         name=name, ticker=ticker, current_price=f"{current_price:,}",
-        ma_chart=ma_chart,
+        ma_chart=ma_chart, score_pct=score_pct,
         months=months,
         ma_label=ma_status[0], ma_type=ma_status[1],
         signals=signals,
@@ -109,7 +110,7 @@ def analyze():
 
 @app.route('/recommend')
 def recommend():
-    results = scan_top_stocks(top_n=10, months=6)
+    results = scan_top_stocks(top_n=20, months=6)
     return render_template('recommend.html', results=results)
 
 
