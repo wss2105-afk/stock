@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ name }} 기업소개</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; }
+        .topbar { background: #000; border-bottom: 1px solid #202020; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
+        .topbar a { color: #7D7D7D; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .topbar a:hover { color: #FFC000; }
+        .main { max-width: 680px; margin: 0 auto; padding: 40px 16px; }
+
+        .company-name { font-size: clamp(1.6rem, 5vw, 2.4rem); font-weight: 400; letter-spacing: 0.04em; color: #fff; margin-bottom: 4px; }
+        .company-ticker { font-size: 0.75rem; color: #555; letter-spacing: 0.2em; margin-bottom: 32px; }
+        .gold-line { width: 40px; height: 2px; background: #FFC000; margin-bottom: 28px; }
+
+        .notice-box { background: #181818; border-left: 2px solid #FFC000; padding: 14px 16px; margin-bottom: 28px; font-size: 0.8rem; color: #7D7D7D; line-height: 1.7; }
+        .notice-box strong { color: #FFC000; }
+
+        .section-card { background: #202020; padding: 20px; margin-bottom: 1px; }
+        .section-title { font-size: 0.65rem; font-weight: 700; color: #FFC000; letter-spacing: 0.3em; text-transform: uppercase; border-bottom: 1px solid #313131; padding-bottom: 8px; margin-bottom: 16px; }
+
+        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #313131; }
+        .profile-item { background: #202020; padding: 10px 12px; }
+        .p-label { font-size: 0.58rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 4px; }
+        .p-val { font-size: 0.82rem; color: #e2e8f0; font-weight: 500; }
+        .p-val a { color: #FFC000; text-decoration: none; font-size: 0.75rem; }
+        .p-val a:hover { text-decoration: underline; }
+
+        .market-bar { display: flex; gap: 1px; background: #313131; margin-top: 1px; }
+        .market-bar-item { flex: 1; background: #202020; padding: 10px; text-align: center; }
+        .mb-label { font-size: 0.58rem; color: #555; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 3px; }
+        .mb-val { font-size: 0.88rem; font-weight: 700; color: #fff; }
+
+        .ai-box { font-size: 0.87rem; color: #c8d0dc; line-height: 1.9; white-space: pre-wrap; min-height: 80px; }
+        .loading-text { color: #555; font-size: 0.78rem; letter-spacing: 0.15em; }
+
+        .full-btn { display: block; text-align: center; padding: 14px; background: #FFC000; color: #000; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; text-decoration: none; margin-top: 2px; transition: opacity 0.15s; }
+        .full-btn:hover { opacity: 0.85; color: #000; }
+        .full-btn-sub { font-size: 0.62rem; font-weight: 400; opacity: 0.7; margin-left: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <a href="/">← BACK</a>
+</div>
+
+<div class="main">
+    <div class="company-name">{{ name }}</div>
+    <div class="company-ticker">{{ ticker }}</div>
+    <div class="gold-line"></div>
+
+    <div class="notice-box">
+        <strong>분석 데이터 수집 중</strong> — 이 종목은 주가 데이터가 아직 충분하지 않아 전체 기술적 분석을 제공하기 어렵습니다.<br>
+        기업 기본 정보와 AI 사업 소개를 먼저 확인하세요.
+    </div>
+
+    <!-- 기업 기본 정보 -->
+    <div class="section-card">
+        <div class="section-title">기업 기본 정보</div>
+        <div class="profile-grid">
+            <div class="profile-item">
+                <div class="p-label">대표자</div>
+                <div class="p-val">{{ company_info.get('ceo', 'N/A') }}</div>
+            </div>
+            <div class="profile-item">
+                <div class="p-label">시장</div>
+                <div class="p-val">{{ market_profile.market_type }}</div>
+            </div>
+            <div class="profile-item">
+                <div class="p-label">업종</div>
+                <div class="p-val">{{ company_info.get('industry', 'N/A') }}</div>
+            </div>
+            <div class="profile-item">
+                <div class="p-label">결산월</div>
+                <div class="p-val">{{ company_info.get('fiscal_month', 'N/A') }}</div>
+            </div>
+            <div class="profile-item">
+                <div class="p-label">설립일</div>
+                {% set fd = company_info.get('founded', '') %}
+                <div class="p-val">{% if fd|length == 8 %}{{ fd[:4] }}.{{ fd[4:6] }}.{{ fd[6:] }}{% else %}N/A{% endif %}</div>
+            </div>
+            <div class="profile-item">
+                <div class="p-label">홈페이지</div>
+                <div class="p-val">
+                    {% if company_info.get('website') %}
+                    <a href="{{ company_info.website }}" target="_blank">바로가기 →</a>
+                    {% else %}N/A{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="market-bar">
+            <div class="market-bar-item">
+                <div class="mb-label">시가총액</div>
+                <div class="mb-val">{{ market_profile.market_cap }}</div>
+            </div>
+            <div class="market-bar-item">
+                <div class="mb-label">52주 최고</div>
+                <div class="mb-val" style="color:#FFC000;">{{ market_profile.w52_high }}원</div>
+            </div>
+            <div class="market-bar-item">
+                <div class="mb-label">52주 최저</div>
+                <div class="mb-val" style="color:#29ABE2;">{{ market_profile.w52_low }}원</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 사업 소개 -->
+    <div class="section-card">
+        <div class="section-title">AI 사업 소개</div>
+        <div class="ai-box" id="aiDesc">
+            <span class="loading-text">불러오는 중...</span>
+        </div>
+    </div>
+
+    <!-- 전체 분석 시도 버튼 -->
+    <a href="/analyze" onclick="document.getElementById('analyzeForm').submit();return false;" class="full-btn">
+        전체 분석 다시 시도
+        <span class="full-btn-sub">주가 데이터 재조회</span>
+    </a>
+</div>
+
+<form id="analyzeForm" method="POST" action="/analyze">
+    <input type="hidden" name="query" value="{{ ticker }}">
+    <input type="hidden" name="months" value="12">
+</form>
+
+<script>
+fetch(`/api/company-desc?ticker={{ ticker }}&name={{ name }}&industry={{ company_info.get('industry', '') }}`)
+    .then(r => r.json())
+    .then(d => {
+        document.getElementById('aiDesc').textContent = d.desc || d.error || '설명을 불러올 수 없습니다.';
+    })
+    .catch(() => {
+        document.getElementById('aiDesc').textContent = '불러오기 실패. 잠시 후 다시 시도해 주세요.';
+    });
+</script>
+</body>
+</html>

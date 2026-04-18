@@ -6,65 +6,32 @@ import json
 
 def make_main_chart(df, name):
     """캔들차트 + 이동평균선 + 볼린저밴드"""
-    fig = make_subplots(rows=5, cols=1, shared_xaxes=True,
-                        row_heights=[0.40, 0.15, 0.18, 0.13, 0.14],
-                        subplot_titles=[f'{name} 주가', 'RSI', 'MACD', 'MFI', 'Bollinger Band %B'],
-                        vertical_spacing=0.04)
+    fig = go.Figure()
 
     # 캔들차트
     fig.add_trace(go.Candlestick(
         x=df.index, open=df['open'], high=df['high'],
         low=df['low'], close=df['close'], name='주가',
         increasing_line_color='#e74c3c', decreasing_line_color='#3498db'
-    ), row=1, col=1)
+    ))
 
     # Bollinger Bands
     fig.add_trace(go.Scatter(x=df.index, y=df['bb_upper'], name='BB Upper',
-                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2), showlegend=False), row=1, col=1)
+                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2), showlegend=False))
     fig.add_trace(go.Scatter(x=df.index, y=df['bb_lower'], name='BB Lower',
                              fill='tonexty', fillcolor='rgba(100,180,255,0.07)',
-                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2), showlegend=False), row=1, col=1)
+                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2), showlegend=False))
     fig.add_trace(go.Scatter(x=df.index, y=df['bb_mid'], name='BB Mid',
-                             line=dict(color='rgba(100,180,255,0.4)', dash='dot', width=1.0), showlegend=False), row=1, col=1)
+                             line=dict(color='rgba(100,180,255,0.4)', dash='dot', width=1.0), showlegend=False))
 
-    # 이동평균선
-    colors = {'ma5': '#e74c3c', 'ma20': '#f39c12', 'ma60': '#2ecc71', 'ma115': '#9b59b6'}
-    labels = {'ma5': '5일', 'ma20': '20일', 'ma60': '60일', 'ma115': '115일'}
+    # 이동평균선 (5일, 20일만)
+    colors = {'ma5': '#e74c3c', 'ma20': '#f39c12'}
+    labels = {'ma5': '5일', 'ma20': '20일'}
     for col, color in colors.items():
         fig.add_trace(go.Scatter(x=df.index, y=df[col], name=labels[col],
-                                 line=dict(color=color, width=1.2)), row=1, col=1)
+                                 line=dict(color=color, width=1.2)))
 
-    # RSI
-    fig.add_trace(go.Scatter(x=df.index, y=df['rsi'], name='RSI',
-                             line=dict(color='#8e44ad', width=1.5)), row=2, col=1)
-    fig.add_hline(y=70, line_color='red', line_dash='dash', row=2, col=1)
-    fig.add_hline(y=30, line_color='blue', line_dash='dash', row=2, col=1)
-
-    # MACD
-    colors_hist = ['#e74c3c' if v >= 0 else '#3498db' for v in df['macd_hist'].fillna(0)]
-    fig.add_trace(go.Bar(x=df.index, y=df['macd_hist'], name='MACD Hist',
-                         marker_color=colors_hist, showlegend=False), row=3, col=1)
-    fig.add_trace(go.Scatter(x=df.index, y=df['macd'], name='MACD',
-                             line=dict(color='#e74c3c', width=1.2)), row=3, col=1)
-    fig.add_trace(go.Scatter(x=df.index, y=df['macd_signal'], name='Signal',
-                             line=dict(color='#3498db', width=1.2)), row=3, col=1)
-
-    # MFI
-    fig.add_trace(go.Scatter(x=df.index, y=df['mfi'], name='MFI',
-                             line=dict(color='#16a085', width=1.5)), row=4, col=1)
-    fig.add_hline(y=80, line_color='red', line_dash='dash', row=4, col=1)
-    fig.add_hline(y=20, line_color='blue', line_dash='dash', row=4, col=1)
-
-    # Bollinger Band %B
-    bb_pct = df['bb_pct'] * 100
-    bb_colors = ['#ff4d4d' if v > 90 else '#64b4ff' if v < 10 else '#a0a0c0' for v in bb_pct.fillna(50)]
-    fig.add_trace(go.Bar(x=df.index, y=bb_pct, name='BB %B',
-                         marker_color=bb_colors, showlegend=False), row=5, col=1)
-    fig.add_hline(y=100, line_color='#ff4d4d', line_dash='dash', line_width=1, row=5, col=1)
-    fig.add_hline(y=0,   line_color='#64b4ff', line_dash='dash', line_width=1, row=5, col=1)
-    fig.add_hline(y=50,  line_color='#555566', line_dash='dot',  line_width=1, row=5, col=1)
-
-    fig.update_layout(height=950, template='plotly_white',
+    fig.update_layout(height=550, template='plotly_white',
                       xaxis_rangeslider_visible=False,
                       legend=dict(orientation='h', y=1.02),
                       margin=dict(l=40, r=20, t=60, b=20))
@@ -72,49 +39,86 @@ def make_main_chart(df, name):
 
 
 def make_ma_chart(df, name):
-    """이동평균선 배열 전용 차트 (base64 이미지)"""
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    import matplotlib.dates as mdates
-    import io, base64
+    """이동평균선 배열 차트 (Plotly 인터랙티브)"""
+    import pandas as pd
 
-    fig, ax = plt.subplots(figsize=(6, 3.2))
-    fig.patch.set_facecolor('#0f1117')
-    ax.set_facecolor('#0f1117')
+    display_df = df.tail(120) if len(df) > 120 else df
+    last = df.iloc[-1]
+    cur = last['close']
 
-    # 주가 점선
-    ax.plot(df.index, df['close'], color='#ffffff', linewidth=1.0,
-            linestyle='dotted', alpha=0.6, label='주가')
-
-    # 이동평균선
-    ma_styles = [
+    ma_cfg = [
         ('ma5',   '#ff4757', '5일'),
         ('ma20',  '#ffd32a', '20일'),
         ('ma60',  '#2ed573', '60일'),
-        ('ma115', '#a29bfe', '115일'),
+        ('ma120', '#a29bfe', '120일'),
     ]
-    for col, color, label in ma_styles:
-        if col in df.columns and df[col].notna().any():
-            ax.plot(df.index, df[col], color=color, linewidth=1.8, label=label)
 
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
-    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-    plt.xticks(rotation=30, color='#a0aec0', fontsize=7)
-    plt.yticks(color='#a0aec0', fontsize=7)
-    ax.tick_params(colors='#4a5568')
-    for spine in ax.spines.values():
-        spine.set_edgecolor('#2d3748')
+    fig = go.Figure()
 
-    ax.legend(loc='upper left', fontsize=8, facecolor='#1a1a2e',
-              labelcolor='white', edgecolor='#4a5568', ncol=5)
-    plt.tight_layout(pad=0.5)
+    # 주가 캔들 대신 종가 라인 (얇게)
+    fig.add_trace(go.Scatter(
+        x=display_df.index,
+        y=display_df['close'],
+        name='종가',
+        line=dict(color='rgba(255,255,255,0.3)', width=1.0),
+        hovertemplate='%{x|%m/%d} 종가: %{y:,.0f}원<extra></extra>'
+    ))
 
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=120, facecolor='#0f1117')
-    plt.close(fig)
-    buf.seek(0)
-    return 'data:image/png;base64,' + base64.b64encode(buf.read()).decode()
+    # 이동평균선
+    for col, color, label in ma_cfg:
+        if col not in display_df.columns:
+            continue
+        series = display_df[col].dropna()
+        if series.empty:
+            continue
+        ma_val = last[col]
+        if pd.isna(ma_val):
+            fig.add_trace(go.Scatter(
+                x=series.index, y=series,
+                name=f'{label}선 (데이터 부족)',
+                line=dict(color=color, width=2.0, dash='dot'),
+                hovertemplate=f'{label}선: %{{y:,.0f}}원<extra></extra>'
+            ))
+            continue
+        diff_pct = (cur - ma_val) / ma_val * 100
+        sign = '+' if diff_pct >= 0 else ''
+        fig.add_trace(go.Scatter(
+            x=display_df.index, y=display_df[col],
+            name=f'{label}선  {sign}{diff_pct:.1f}%',
+            line=dict(color=color, width=2.2),
+            hovertemplate=f'{label}선: %{{y:,.0f}}원<extra></extra>'
+        ))
+        # 우측 끝 현재값 주석
+        fig.add_annotation(
+            x=display_df.index[-1], y=ma_val,
+            text=f'{int(ma_val):,}',
+            showarrow=False,
+            font=dict(size=9, color=color),
+            xanchor='left', xshift=8, yanchor='middle'
+        )
+
+    # 현재가 수평선
+    fig.add_hline(
+        y=cur,
+        line=dict(color='#FFC000', width=1.5, dash='dot'),
+        annotation_text=f'현재 {int(cur):,}원',
+        annotation_font=dict(color='#FFC000', size=10),
+        annotation_position='top left'
+    )
+
+    fig.update_layout(
+        height=380,
+        xaxis_rangeslider_visible=False,
+        hovermode='x unified',
+        legend=dict(
+            orientation='h', y=-0.18, x=0,
+            font=dict(size=10),
+            bgcolor='rgba(0,0,0,0)',
+        ),
+        margin=dict(l=50, r=70, t=20, b=60),
+    )
+
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
 def make_supply_zone_chart(zone_df, current_price):

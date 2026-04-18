@@ -12,7 +12,7 @@ def calc_indicators(df):
     df['ma5'] = close.rolling(5).mean()
     df['ma20'] = close.rolling(20).mean()
     df['ma60'] = close.rolling(60).mean()
-    df['ma115'] = close.rolling(115).mean()
+    df['ma120'] = close.rolling(120).mean()
 
     # RSI
     df['rsi'] = ta.momentum.RSIIndicator(close, window=14).rsi()
@@ -43,16 +43,24 @@ def calc_indicators(df):
 
 def get_ma_arrangement(df):
     last = df.iloc[-1]
-    ma5, ma20, ma60, ma115 = last['ma5'], last['ma20'], last['ma60'], last['ma115']
+    ma5, ma20, ma60, ma120 = last['ma5'], last['ma20'], last['ma60'], last['ma120']
 
-    if pd.isna(ma115):
+    if pd.isna(ma60):
         return "데이터 부족", "neutral"
 
-    if ma5 > ma20 > ma60 > ma115:
-        return "정배열 (강한 상승추세)", "bullish"
-    elif ma5 < ma20 < ma60 < ma115:
+    has_120 = not pd.isna(ma120)
+
+    if has_120:
+        if ma5 > ma20 > ma60 > ma120:
+            return "완전 정배열 (강한 상승추세)", "bullish"
+        elif ma5 < ma20 < ma60 < ma120:
+            return "완전 역배열 (강한 하락추세)", "bearish"
+
+    if ma5 > ma20 > ma60:
+        return "정배열 (상승추세)", "bullish"
+    elif ma5 < ma20 < ma60:
         return "역배열 (하락추세)", "bearish"
-    elif ma5 > ma20 and ma20 > ma60:
+    elif ma5 > ma20 and ma60 > (ma120 if has_120 else ma60):
         return "단기 정배열 (상승 전환 중)", "mild_bullish"
     elif ma5 < ma20 and ma20 < ma60:
         return "단기 역배열 (하락 전환 중)", "mild_bearish"

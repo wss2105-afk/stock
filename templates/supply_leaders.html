@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>수급 주도 종목</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
+
+        .topbar { background: #000; border-bottom: 1px solid #202020; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
+        .topbar a { color: #7D7D7D; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .topbar a:hover { color: #FFC000; }
+        .topbar-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #fff; }
+
+        .main { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+        .page-title { font-size: clamp(1.8rem, 6vw, 2.8rem); font-weight: 400; letter-spacing: 0.03em; text-transform: uppercase; color: #fff; margin-bottom: 4px; }
+        .page-sub { font-size: 0.68rem; color: #7D7D7D; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 28px; line-height: 1.8; }
+        .gold-line { width: 40px; height: 2px; background: #FFC000; margin-bottom: 20px; }
+
+        /* 조건 뱃지 설명 */
+        .cond-legend { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+        .cond-tag { padding: 4px 12px; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; border: 1px solid; }
+        .tag-a { border-color: #FFC000; color: #FFC000; }
+        .tag-b-f { border-color: #2ecc71; color: #2ecc71; }
+        .tag-b-i { border-color: #29ABE2; color: #29ABE2; }
+
+        /* 탭 */
+        .tab-bar { display: flex; gap: 1px; background: #202020; margin-bottom: 1px; }
+        .tab-btn { flex: 1; padding: 10px 12px; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: #555; background: #181818; border: none; cursor: pointer; transition: color 0.15s, background 0.15s; text-align: center; }
+        .tab-btn.active { color: #FFC000; background: #202020; border-bottom: 2px solid #FFC000; }
+        .tab-btn:hover { color: #fff; }
+
+        /* 카드 */
+        .stock-card { display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: #202020; margin-bottom: 1px; cursor: pointer; transition: background 0.15s; }
+        .stock-card:hover { background: #2a2a2a; }
+        .stock-info { flex: 1; min-width: 0; }
+        .stock-name { font-size: 0.98rem; font-weight: 400; color: #fff; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stock-ticker { font-size: 0.65rem; color: #555; letter-spacing: 0.12em; margin-top: 2px; }
+
+        .badge-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+        .s-badge { padding: 2px 8px; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid; white-space: nowrap; }
+        .b-a  { border-color: #FFC000; color: #FFC000; }
+        .b-bf { border-color: #2ecc71; color: #2ecc71; }
+        .b-bi { border-color: #29ABE2; color: #29ABE2; }
+
+        .stat-col { display: flex; flex-direction: column; align-items: center; min-width: 56px; flex-shrink: 0; }
+        .stat-num { font-size: 1.3rem; font-weight: 700; line-height: 1; }
+        .stat-lbl { font-size: 0.55rem; color: #555; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 3px; }
+
+        .streak-col { display: flex; flex-direction: column; gap: 3px; min-width: 90px; flex-shrink: 0; }
+        .streak-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.68rem; }
+        .streak-label { color: #555; letter-spacing: 0.08em; }
+        .streak-val { font-weight: 700; }
+        .c-gold { color: #FFC000; }
+        .c-blue { color: #29ABE2; }
+        .c-green { color: #2ecc71; }
+
+        .price-col { font-size: 0.9rem; font-weight: 700; color: #fff; white-space: nowrap; flex-shrink: 0; min-width: 70px; text-align: right; }
+
+        .empty-msg { padding: 60px 20px; text-align: center; color: #555; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; }
+
+        .count-label { font-size: 0.65rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; }
+
+        @media (max-width: 576px) {
+            .topbar { padding: 10px 12px; }
+            .main { padding: 16px 8px; }
+            .stock-card { padding: 12px 10px; gap: 8px; }
+            .streak-col { display: none; }
+            .stat-num { font-size: 1.05rem; }
+            .stock-name { font-size: 0.88rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <a href="/">← BACK</a>
+    <span class="topbar-title">수급 주도 종목</span>
+</div>
+
+<div class="main">
+    <div class="page-title">수급 주도<br>종목 스캔</div>
+    <div class="gold-line"></div>
+    <div class="page-sub">
+        외인+기관 동시 3거래일↑ 연속 매수 &nbsp;·&nbsp; 외인 또는 기관 10거래일 중 7일↑ 순매수<br>
+        총 {{ results|length }}개 종목 해당 · 클릭 시 상세 분석
+    </div>
+
+    <div class="cond-legend">
+        <span class="cond-tag tag-a">A — 외인+기관 동시 연속 3일↑</span>
+        <span class="cond-tag tag-b-f">B-외 — 외인 10일 중 7일↑ 매수</span>
+        <span class="cond-tag tag-b-i">B-기 — 기관 10일 중 7일↑ 매수</span>
+    </div>
+
+    <!-- 탭 -->
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="filterTab('all', this)">전체 <span id="cnt-all"></span></button>
+        <button class="tab-btn" onclick="filterTab('a', this)">A조건 <span id="cnt-a"></span></button>
+        <button class="tab-btn" onclick="filterTab('bf', this)">B-외인 <span id="cnt-bf"></span></button>
+        <button class="tab-btn" onclick="filterTab('bi', this)">B-기관 <span id="cnt-bi"></span></button>
+    </div>
+
+    <div id="stockList">
+        {% for s in results %}
+        <div class="stock-card"
+             data-meets-a="{{ 'true' if s.meets_a else 'false' }}"
+             data-meets-bf="{{ 'true' if s.foreign_days >= 7 else 'false' }}"
+             data-meets-bi="{{ 'true' if s.inst_days >= 7 else 'false' }}"
+             onclick="analyzeStock('{{ s.ticker }}')">
+
+            <div class="stock-info">
+                <div class="stock-name">{{ s.name }}</div>
+                <div class="stock-ticker">{{ s.ticker }}</div>
+                <div class="badge-row">
+                    {% if s.meets_a %}<span class="s-badge b-a">A · 동시 {{ s.joint_streak }}일 연속</span>{% endif %}
+                    {% if s.foreign_days >= 7 %}<span class="s-badge b-bf">B-외 · {{ s.foreign_days }}/10일</span>{% endif %}
+                    {% if s.inst_days >= 7 %}<span class="s-badge b-bi">B-기 · {{ s.inst_days }}/10일</span>{% endif %}
+                </div>
+            </div>
+
+            <!-- 연속 매수 현황 -->
+            <div class="streak-col">
+                <div class="streak-row">
+                    <span class="streak-label">외인 연속</span>
+                    <span class="streak-val {% if s.foreign_streak >= 3 %}c-gold{% else %}c-blue{% endif %}">{{ s.foreign_streak }}일</span>
+                </div>
+                <div class="streak-row">
+                    <span class="streak-label">기관 연속</span>
+                    <span class="streak-val {% if s.inst_streak >= 3 %}c-gold{% else %}c-blue{% endif %}">{{ s.inst_streak }}일</span>
+                </div>
+                <div class="streak-row" style="margin-top:3px;border-top:1px solid #282828;padding-top:3px;">
+                    <span class="streak-label">외인 10일</span>
+                    <span class="streak-val {% if s.foreign_days >= 7 %}c-green{% endif %}">{{ s.foreign_days }}/10</span>
+                </div>
+                <div class="streak-row">
+                    <span class="streak-label">기관 10일</span>
+                    <span class="streak-val {% if s.inst_days >= 7 %}c-green{% endif %}">{{ s.inst_days }}/10</span>
+                </div>
+            </div>
+
+            <!-- 동시 연속 일수 -->
+            <div class="stat-col">
+                <div class="stat-num {% if s.joint_streak >= 3 %}c-gold{% else %}c-blue{% endif %}">{{ s.joint_streak }}</div>
+                <div class="stat-lbl">동시연속</div>
+            </div>
+
+            <div class="price-col">{{ s.price }}원</div>
+        </div>
+        {% else %}
+        <div class="empty-msg">조건에 해당하는 종목이 없습니다</div>
+        {% endfor %}
+    </div>
+</div>
+
+<form id="analyzeForm" method="POST" action="/analyze" style="display:none;">
+    <input type="hidden" name="query" id="formQuery">
+    <input type="hidden" name="months" value="3">
+</form>
+
+<script>
+function analyzeStock(ticker) {
+    document.getElementById('formQuery').value = ticker;
+    document.getElementById('analyzeForm').submit();
+}
+
+const cards = document.querySelectorAll('.stock-card');
+const cntAll = document.getElementById('cnt-all');
+const cntA   = document.getElementById('cnt-a');
+const cntBf  = document.getElementById('cnt-bf');
+const cntBi  = document.getElementById('cnt-bi');
+
+cntAll.textContent = '(' + cards.length + ')';
+cntA.textContent   = '(' + [...cards].filter(c => c.dataset.meetsA === 'true').length + ')';
+cntBf.textContent  = '(' + [...cards].filter(c => c.dataset.meetsBf === 'true').length + ')';
+cntBi.textContent  = '(' + [...cards].filter(c => c.dataset.meetsBi === 'true').length + ')';
+
+function filterTab(type, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    cards.forEach(c => {
+        let show = false;
+        if (type === 'all') show = true;
+        else if (type === 'a')  show = c.dataset.meetsA === 'true';
+        else if (type === 'bf') show = c.dataset.meetsBf === 'true';
+        else if (type === 'bi') show = c.dataset.meetsBi === 'true';
+        c.style.display = show ? '' : 'none';
+    });
+}
+</script>
+</body>
+</html>

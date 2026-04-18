@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request, jsonify
-from analysis.screener import scan_top_stocks
+from analysis.screener import scan_top_stocks, scan_supply_leaders
+from analysis.export_growth import load_cache as load_export_cache, scan_export_growth, is_new_update
 from analysis.data_fetcher import get_ticker, get_ohlcv, get_investor_detail, get_supply_zone
 from analysis.indicators import calc_indicators, get_ma_arrangement, get_latest_signals
 from analysis.fundamental import get_fundamental
 from analysis.news import search_naver_news, analyze_news
-from analysis.signal import calc_score, get_recommendation, get_ai_analysis
+from analysis.signal import calc_score, get_recommendation, get_ai_analysis, get_business_description
 from analysis.charts import make_main_chart, make_supply_zone_chart, make_investor_chart, make_ma_chart
 from analysis.dart import get_disclosures, get_company_info
 from analysis.fundamental import get_market_profile
@@ -67,8 +68,21 @@ def analyze():
 
     # 데이터 수집
     ohlcv = get_ohlcv(ticker, months)
-    if ohlcv.empty:
-        return render_template('index.html', error="주가 데이터를 불러올 수 없습니다.")
+
+    # OHLCV 데이터 없거나 부족하면 기업소개 페이지로
+    if ohlcv.empty or len(ohlcv) < 20:
+        try:
+            company_info = get_company_info(ticker)
+        except Exception:
+            company_info = {}
+        try:
+            market_profile = get_market_profile(ticker)
+        except Exception:
+            market_profile = {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
+        return render_template('company_only.html',
+                               name=name, ticker=ticker,
+                               company_info=company_info,
+                               market_profile=market_profile)
 
     # 지표 계산
     df = calc_indicators(ohlcv)
@@ -167,6 +181,47 @@ def analyze():
 def recommend():
     results = scan_top_stocks(top_n=20, months=6)
     return render_template('recommend.html', results=results)
+
+
+@app.route('/supply-leaders')
+def supply_leaders():
+    results = scan_supply_leaders(months=3)
+    return render_template('supply_leaders.html', results=results)
+
+
+@app.route('/export-surge')
+def export_surge():
+    cache = load_export_cache()
+    scanning = False
+    if cache is None:
+        # 첫 요청 시 백그라운드 스캔 시작
+        scanning = True
+        threading.Thread(target=scan_export_growth, daemon=True).start()
+        return render_template('export_surge.html', results=[], scanning=True,
+                               updated_at=None, total=0)
+    return render_template('export_surge.html',
+                           results=cache.get('results', []),
+                           scanning=False,
+                           updated_at=cache.get('updated_at', ''),
+                           total=cache.get('count', 0))
+
+
+@app.route('/export-surge/refresh', methods=['POST'])
+def export_surge_refresh():
+    """수동 재스캔 트리거"""
+    threading.Thread(target=scan_export_growth, daemon=True).start()
+    return jsonify({'status': 'scanning'})
+
+
+@app.route('/api/company-desc')
+def company_desc():
+    ticker = request.args.get('ticker', '').strip()
+    name = request.args.get('name', '').strip()
+    industry = request.args.get('industry', '')
+    if not ticker or not name:
+        return jsonify({'error': '종목 정보가 없습니다.'}), 400
+    desc = get_business_description(name, industry, ticker)
+    return jsonify({'desc': desc})
 
 
 if __name__ == '__main__':

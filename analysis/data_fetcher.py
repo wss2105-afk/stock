@@ -39,13 +39,21 @@ def get_ticker(name_or_ticker):
     query = name_or_ticker.strip()
     # 완전 일치
     if query in db:
-        ticker = db[query]
-        return ticker, query
+        return db[query], query
 
     # 부분 일치
     for name, ticker in db.items():
         if query in name or name in query:
             return ticker, name
+
+    # DART 전체 상장사 폴백 검색
+    try:
+        from analysis.dart import search_ticker_by_name
+        ticker, name = search_ticker_by_name(query)
+        if ticker:
+            return ticker, name
+    except Exception:
+        pass
 
     return None, None
 
@@ -77,20 +85,28 @@ def get_supply_zone(ticker, months=6):
     ohlcv = stock.get_market_ohlcv_by_date(start, end, ticker)
     ohlcv.columns = ['open', 'high', 'low', 'close', 'volume', 'amount']
 
+    if ohlcv.empty:
+        return pd.DataFrame({'price_mid': [], 'volume': []})
+
     price_min = ohlcv['low'].min()
     price_max = ohlcv['high'].max()
-    bins = pd.interval_range(start=price_min, end=price_max, periods=30)
 
-    zone = pd.Series(0.0, index=bins)
-    for _, row in ohlcv.iterrows():
-        avg = (row['high'] + row['low']) / 2
-        for b in bins:
-            if avg in b:
-                zone[b] += row['volume']
-                break
+    # 가격 범위가 너무 좁으면 현재가 기준으로 확장
+    if price_max - price_min < price_min * 0.01:
+        price_min = price_min * 0.97
+        price_max = price_max * 1.03
+
+    n_bins = 25
+    ohlcv['avg_price'] = (ohlcv['high'] + ohlcv['low']) / 2
+
+    bins = pd.cut(ohlcv['avg_price'], bins=n_bins)
+    zone = ohlcv.groupby(bins, observed=False)['volume'].sum()
 
     zone_df = pd.DataFrame({
         'price_mid': [round((b.left + b.right) / 2) for b in zone.index],
         'volume': zone.values
     })
+
+    # 거래량 0인 구간 제거 후 가격순 정렬
+    zone_df = zone_df[zone_df['volume'] > 0].sort_values('price_mid').reset_index(drop=True)
     return zone_df

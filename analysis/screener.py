@@ -141,6 +141,92 @@ def _analyze_one(name, ticker, months=6):
         return None
 
 
+def _check_supply_one(name, ticker, months=3):
+    """수급 조건 전용 경량 스캔 (가격·오실레이터 생략)"""
+    try:
+        investor_df = get_investor_detail(ticker, months)
+        if investor_df.empty or len(investor_df) < 10:
+            return None
+
+        foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
+        inst_col = next((c for c in investor_df.columns if '기관' in c
+                         and '금융' not in c and '연기금' not in c), None)
+        if not foreign_col or not inst_col:
+            return None
+
+        # 조건 A: 외인+기관 동시 연속 3거래일 이상
+        joint_streak = 0
+        for i in range(len(investor_df) - 1, -1, -1):
+            row = investor_df.iloc[i]
+            if row[foreign_col] > 0 and row[inst_col] > 0:
+                joint_streak += 1
+            else:
+                break
+
+        # 조건 B: 최근 10거래일 중 외인 또는 기관이 7일 이상 순매수
+        last10 = investor_df.tail(10)
+        foreign_days = int((last10[foreign_col] > 0).sum())
+        inst_days = int((last10[inst_col] > 0).sum())
+
+        meets_a = joint_streak >= 3
+        meets_b = foreign_days >= 7 or inst_days >= 7
+
+        if not meets_a and not meets_b:
+            return None
+
+        # 현재가
+        try:
+            ohlcv = get_ohlcv(ticker, months=1)
+            current_price = int(ohlcv['close'].iloc[-1]) if not ohlcv.empty else 0
+        except Exception:
+            current_price = 0
+
+        f_streak = _count_consecutive_buying(investor_df, '외국인')
+        if f_streak == 0:
+            f_streak = _count_consecutive_buying(investor_df, '외인')
+        i_streak = _count_consecutive_buying(investor_df, '기관')
+
+        # 최근 10일 외인·기관 순매수 합계
+        f_net = int(last10[foreign_col].sum())
+        i_net = int(last10[inst_col].sum())
+
+        return {
+            'name': name,
+            'ticker': ticker,
+            'price': f"{current_price:,}",
+            'joint_streak': joint_streak,
+            'foreign_days': foreign_days,
+            'inst_days': inst_days,
+            'foreign_streak': f_streak,
+            'inst_streak': i_streak,
+            'foreign_net': f_net,
+            'inst_net': i_net,
+            'meets_a': meets_a,
+            'meets_b': meets_b,
+            'sort_key': joint_streak * 3 + max(foreign_days, inst_days),
+        }
+    except Exception:
+        return None
+
+
+def scan_supply_leaders(months=3, max_workers=8):
+    """외인·기관 수급 주도 종목 스캔"""
+    with open(_TICKER_DB_PATH, encoding='utf-8') as f:
+        tickers = json.load(f)
+
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_check_supply_one, name, ticker, months): name
+                   for name, ticker in tickers.items()}
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                results.append(result)
+
+    results.sort(key=lambda x: x['sort_key'], reverse=True)
+    return results
+
+
 def scan_top_stocks(top_n=20, months=6, max_workers=8):
     with open(_TICKER_DB_PATH, encoding='utf-8') as f:
         tickers = json.load(f)

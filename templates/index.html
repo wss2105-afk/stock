@@ -35,8 +35,12 @@
         .search-group button:hover { opacity: 0.85; }
 
 /* RECOMMEND BTN */
-        .recommend-btn { display: block; max-width: 560px; margin: 14px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 500; letter-spacing: -0.13px; color: #000; border: 1px solid rgba(0,0,0,0.1); border-radius: 4px; background: #fff; text-align: center; text-decoration: none; box-shadow: rgba(1,1,32,0.06) 0px 2px 8px; transition: box-shadow 0.15s; }
+        .recommend-btn { display: block; max-width: 560px; margin: 14px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 500; letter-spacing: -0.13px; color: #000; border: 1px solid rgba(0,0,0,0.1); border-radius: 4px; background: #fff; text-align: center; text-decoration: none; box-shadow: rgba(1,1,32,0.06) 0px 2px 8px; transition: box-shadow 0.15s; position: relative; }
         .recommend-btn:hover { box-shadow: rgba(1,1,32,0.14) 0px 4px 16px; color: #000; }
+        .export-btn { display: block; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 500; letter-spacing: -0.13px; color: #fff; border: 1px solid #e05c00; border-radius: 4px; background: linear-gradient(135deg, #fc4c02 0%, #e05c00 100%); text-align: center; text-decoration: none; box-shadow: rgba(252,76,2,0.2) 0px 4px 12px; transition: box-shadow 0.15s; position: relative; }
+        .export-btn:hover { box-shadow: rgba(252,76,2,0.4) 0px 6px 20px; color: #fff; }
+        .new-badge { display: inline-block; background: #ef4444; color: #fff; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 3px; vertical-align: middle; margin-left: 6px; animation: pulse-badge 1.8s ease-in-out infinite; }
+        @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
         /* STATS */
         .stats { background: #010120; padding: 48px 24px; }
@@ -89,6 +93,13 @@
         </div>
     </form>
     <a href="/recommend" class="recommend-btn">추천 종목 TOP 20 자동 스캔 →</a>
+    <a href="/supply-leaders" class="recommend-btn" style="border-color:rgba(255,192,0,0.3);background:rgba(255,192,0,0.04);">
+        <span style="color:#FFC000;font-weight:600;">수급 주도 종목</span> — 외인·기관 연속 매수 실시간 스캔 →
+    </a>
+    <a href="/export-surge" class="export-btn" id="exportBtn">
+        매출 급성장 수출주 스캔 →
+        <span class="new-badge" id="newBadge" style="display:none;">NEW</span>
+    </a>
 </div>
 
 <div class="stats">

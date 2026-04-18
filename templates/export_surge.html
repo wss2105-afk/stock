@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>매출 급성장 수출주</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
+        .topbar { background: #000; border-bottom: 1px solid #202020; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
+        .topbar a { color: #7D7D7D; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .topbar a:hover { color: #FFC000; }
+        .topbar-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #fff; }
+        .main { max-width: 900px; margin: 0 auto; padding: 32px 16px; }
+        .page-title { font-size: clamp(1.8rem, 6vw, 2.8rem); font-weight: 400; letter-spacing: 0.03em; text-transform: uppercase; color: #fff; margin-bottom: 4px; }
+        .page-sub { font-size: 0.68rem; color: #7D7D7D; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 28px; }
+        .gold-line { width: 40px; height: 2px; background: #fc4c02; margin-bottom: 20px; }
+
+        /* 스캔 중 */
+        .scanning-box { background: #181818; border: 1px solid #313131; padding: 40px 24px; text-align: center; margin: 40px 0; }
+        .scanning-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #fc4c02; margin-bottom: 14px; }
+        .scanning-sub { font-size: 0.8rem; color: #555; line-height: 1.8; }
+        .dot-anim::after { content: ''; animation: dots 1.5s steps(3, end) infinite; }
+        @keyframes dots { 0%,25%{content:'.'} 50%{content:'..'} 75%,100%{content:'...'} }
+        .progress-bar-wrap { background: #313131; height: 2px; margin: 20px 0; }
+        .progress-bar-fill { background: #fc4c02; height: 2px; width: 0; animation: progress 8s linear forwards; }
+        @keyframes progress { to { width: 90%; } }
+
+        /* 카드 */
+        .stock-card { display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: #202020; margin-bottom: 1px; cursor: pointer; transition: background 0.15s; }
+        .stock-card:hover { background: #2a2a2a; }
+        .rank { font-size: clamp(1rem, 3vw, 1.5rem); font-weight: 900; color: #313131; width: 36px; text-align: center; flex-shrink: 0; }
+        .rank.gold { color: #fc4c02; }
+        .rank.silver { color: #969696; }
+        .rank.bronze { color: #917300; }
+        .stock-info { flex: 1; min-width: 0; }
+        .stock-name { font-size: 0.98rem; font-weight: 400; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stock-meta { font-size: 0.65rem; color: #555; letter-spacing: 0.1em; margin-top: 3px; }
+        .growth-col { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+        .growth-num { font-size: 1.3rem; font-weight: 700; color: #fc4c02; line-height: 1; }
+        .growth-lbl { font-size: 0.55rem; color: #555; letter-spacing: 0.1em; text-transform: uppercase; }
+        .badge-row { display: flex; gap: 5px; margin-top: 5px; }
+        .g-badge { padding: 2px 8px; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid; }
+        .b-yoy { border-color: #fc4c02; color: #fc4c02; }
+        .b-qoq { border-color: #FFC000; color: #FFC000; }
+        .price-col { font-size: 0.88rem; font-weight: 700; color: #fff; white-space: nowrap; flex-shrink: 0; min-width: 70px; text-align: right; }
+
+        .meta-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+        .meta-item { font-size: 0.65rem; color: #555; letter-spacing: 0.12em; }
+        .meta-item span { color: #969696; }
+
+        .refresh-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase; color: #555; border: 1px solid #313131; background: none; cursor: pointer; transition: color 0.15s, border-color 0.15s; margin-bottom: 20px; }
+        .refresh-btn:hover { color: #fc4c02; border-color: #fc4c02; }
+
+        @media (max-width: 576px) {
+            .topbar { padding: 10px 12px; }
+            .main { padding: 16px 8px; }
+            .stock-card { padding: 12px 10px; gap: 8px; }
+            .growth-num { font-size: 1.05rem; }
+            .stock-name { font-size: 0.88rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <a href="/">← BACK</a>
+    <span class="topbar-title">매출 급성장 수출주</span>
+</div>
+
+<div class="main">
+    <div class="page-title">매출 급성장<br>수출주 스캔</div>
+    <div class="gold-line"></div>
+    <div class="page-sub">전년동기 또는 전분기 대비 매출 30% 이상 증가 · 수출 비중 높은 업종 우선</div>
+
+    {% if scanning %}
+    <div class="scanning-box">
+        <div class="scanning-title">스캔 중<span class="dot-anim"></span></div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill"></div></div>
+        <div class="scanning-sub">
+            350개 종목 매출 데이터를 분석하고 있습니다.<br>
+            처음 실행 시 5~10분 소요됩니다. 잠시 후 새로고침해 주세요.
+        </div>
+    </div>
+    <script>setTimeout(() => location.reload(), 30000);</script>
+
+    {% else %}
+    <div class="meta-bar">
+        {% if updated_at %}<div class="meta-item">업데이트 <span>{{ updated_at }}</span></div>{% endif %}
+        <div class="meta-item">조건 달성 <span>{{ total }}개 종목</span></div>
+    </div>
+
+    <button class="refresh-btn" onclick="rescan()">↻ 재스캔</button>
+
+    {% for s in results %}
+    <div class="stock-card" onclick="analyzeStock('{{ s.ticker }}')">
+        <div class="rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">{{ loop.index }}</div>
+        <div class="stock-info">
+            <div class="stock-name">{{ s.name }}</div>
+            <div class="stock-meta">{{ s.ticker }} · 최근분기 매출 {{ '{:,}'.format(s.latest_revenue) }}억원</div>
+            <div class="badge-row">
+                {% if s.is_yoy %}<span class="g-badge b-yoy">YoY +{{ s.yoy_growth }}%</span>{% endif %}
+                {% if s.is_qoq %}<span class="g-badge b-qoq">QoQ +{{ s.qoq_growth }}%</span>{% endif %}
+            </div>
+        </div>
+        <div class="growth-col">
+            <div class="growth-num">+{{ s.max_growth }}%</div>
+            <div class="growth-lbl">최대 성장률</div>
+        </div>
+        <div class="price-col">{{ s.price }}원</div>
+    </div>
+    {% else %}
+    <div style="padding:40px;text-align:center;color:#555;font-size:0.78rem;letter-spacing:0.2em;text-transform:uppercase;">
+        조건에 해당하는 종목이 없습니다
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+
+<form id="analyzeForm" method="POST" action="/analyze" style="display:none;">
+    <input type="hidden" name="query" id="formQuery">
+    <input type="hidden" name="months" value="6">
+</form>
+<script>
+function analyzeStock(ticker) {
+    document.getElementById('formQuery').value = ticker;
+    document.getElementById('analyzeForm').submit();
+}
+function rescan() {
+    fetch('/export-surge/refresh', {method:'POST'})
+        .then(() => {
+            document.querySelector('.refresh-btn').textContent = '스캔 시작됨 — 잠시 후 새로고침';
+            setTimeout(() => location.reload(), 30000);
+        });
+}
+</script>
+</body>
+</html>
