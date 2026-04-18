@@ -157,7 +157,8 @@ def get_ai_analysis(ticker_name, score, reasons, signals, fundamental, news_resu
         )
         return message.content[0].text
     except Exception as e:
-        return f"AI 분석 오류 ({type(e).__name__}): {str(e)}"
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        return _fallback_analysis(score, reasons, signals, fundamental) + f"\n\n[API 오류: {error_msg}]"
 
 
 def _fallback_analysis(score, reasons, signals, fundamental):
