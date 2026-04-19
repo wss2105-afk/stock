@@ -239,7 +239,7 @@ def _run_recommend_scan():
 
 
 def _recommend_scheduler():
-    """매일 06:00 추천 종목 자동 스캔 (앱 시작 시 당일 캐시 없으면 즉시 실행)"""
+    """매일 07:00 추천 종목 자동 스캔 (앱 시작 시 당일 캐시 없으면 즉시 실행)"""
     import time as _time
     # 앱 시작 시 오늘 캐시 없으면 즉시 실행
     cache = _load_recommend_cache()
@@ -247,10 +247,10 @@ def _recommend_scheduler():
     if not cache or cache.get('date') != today:
         _run_recommend_scan()
 
-    # 이후 매일 06:00 실행
+    # 이후 매일 07:00 실행
     while True:
         now = datetime.today()
-        next_run = now.replace(hour=6, minute=0, second=0, microsecond=0)
+        next_run = now.replace(hour=7, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
         sleep_sec = (next_run - now).total_seconds()
