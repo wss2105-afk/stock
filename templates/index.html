@@ -291,7 +291,7 @@ function showOsc(kind) {
                 <div><span class="osc-name">${r.name}</span><span class="osc-ticker-s">${r.ticker}</span></div>
                 <div class="osc-tags">${tags}</div>
             </div>
-            <div class="osc-score" style="color:${scoreColor};">${r.score}점</div>
+            <div class="osc-score" style="color:${scoreColor};">${r.score100 ?? r.score}점</div>
             <div class="osc-price-s">${r.price}원</div>
         </a>`;
     }).join('');

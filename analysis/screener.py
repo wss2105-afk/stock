@@ -361,15 +361,22 @@ def _check_osc_one(name, ticker):
         elif bb_pct > 0.9: ob_score += 2; ob_tags.append('BB 상단')
         if mfi > 80: ob_score += 2; ob_tags.append(f'MFI {mfi:.0f}')
 
-        threshold = 4   # 점수 4점 이상만 유의미
+        _MAX = 11  # RSI(3) + Stoch(3) + BB(3) + MFI(2)
+        threshold = 4
         if os_score >= threshold and os_score > ob_score:
             return {'name': name, 'ticker': ticker, 'price': f"{cur:,}",
-                    'kind': 'oversold',   'score': os_score, 'tags': os_tags,
+                    'kind': 'oversold',
+                    'score': os_score,
+                    'score100': round(os_score / _MAX * 100),
+                    'tags': os_tags,
                     'rsi': round(rsi, 1), 'stoch': round(stoch, 1),
                     'bb': round(bb_pct, 2), 'mfi': round(mfi, 1)}
         if ob_score >= threshold and ob_score > os_score:
             return {'name': name, 'ticker': ticker, 'price': f"{cur:,}",
-                    'kind': 'overbought', 'score': ob_score, 'tags': ob_tags,
+                    'kind': 'overbought',
+                    'score': ob_score,
+                    'score100': round(ob_score / _MAX * 100),
+                    'tags': ob_tags,
                     'rsi': round(rsi, 1), 'stoch': round(stoch, 1),
                     'bb': round(bb_pct, 2), 'mfi': round(mfi, 1)}
         return None
