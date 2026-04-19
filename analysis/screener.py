@@ -227,6 +227,248 @@ def scan_supply_leaders(months=3, max_workers=8):
     return results
 
 
+_MA_COLS = [('ma5', '5일'), ('ma10', '10일'), ('ma20', '20일'), ('ma30', '30일')]
+_TOUCH_PCT  = 0.025   # MA ±2.5% 이내면 "터치"로 인정
+_BOUNCE_MIN = 2.0     # 최저점 대비 최소 반등률(%)
+_LOOKBACK   = 10      # 최근 10거래일 내 터치 확인
+
+
+def _check_ma_bounce(name, ticker):
+    """5/10/20/30일선 바닥 터치 후 급반등 패턴 감지"""
+    try:
+        ohlcv = get_ohlcv(ticker, months=3)
+        if ohlcv.empty or len(ohlcv) < 35:
+            return None
+
+        df = ohlcv.copy()
+        # MA 직접 계산 (indicators 모듈 무거운 지표 불필요)
+        for col, _ in _MA_COLS:
+            days = int(col[2:])
+            df[col] = df['close'].rolling(days).mean()
+
+        last = df.iloc[-1]
+        cur  = float(last['close'])
+
+        touched = []
+
+        for col, label in _MA_COLS:
+            cur_ma = last[col]
+            if pd.isna(cur_ma):
+                continue
+
+            cur_ma = float(cur_ma)
+
+            # 현재가가 MA 위에 있어야 (반등 완료)
+            if cur <= cur_ma * 1.005:
+                continue
+
+            # 최근 LOOKBACK일 중 하루라도 저가가 MA를 터치했는지
+            window = df.iloc[-(1 + _LOOKBACK):-1]
+            for i in range(len(window)):
+                low   = float(window['low'].iloc[i])
+                ma_d  = window[col].iloc[i]
+                if pd.isna(ma_d):
+                    continue
+                ma_d = float(ma_d)
+                # 저가가 MA 위아래 _TOUCH_PCT 이내
+                if abs(low - ma_d) / ma_d <= _TOUCH_PCT:
+                    touched.append(label)
+                    break
+
+        if not touched:
+            return None
+
+        # 반등 크기 (최근 LOOKBACK일 최저 → 현재)
+        recent_low = float(df.tail(_LOOKBACK + 1)['low'].min())
+        rebound_pct = (cur - recent_low) / recent_low * 100 if recent_low > 0 else 0
+        if rebound_pct < _BOUNCE_MIN:
+            return None
+
+        # 거래량 비율 (최근 5일 평균 / 이전 20일 평균)
+        recent_vol = df.tail(5)['volume'].mean()
+        old_vol    = df.iloc[-25:-5]['volume'].mean()
+        vol_ratio  = round(recent_vol / old_vol, 1) if old_vol > 0 else 1.0
+
+        return {
+            'name':        name,
+            'ticker':      ticker,
+            'price':       f"{int(cur):,}",
+            'rebound_pct': round(rebound_pct, 1),
+            'vol_ratio':   vol_ratio,
+            'touched_mas': touched,           # 터치한 이동평균선 목록
+            'touch_count': len(touched),
+            'sort_key':    len(touched) * 10 + rebound_pct,
+        }
+    except Exception:
+        return None
+
+
+def scan_ma_bounce_stocks(top_n=20, max_workers=8):
+    """5/10/20/30일선 바닥 터치 후 급반등 종목 스캔"""
+    with open(_TICKER_DB_PATH, encoding='utf-8') as f:
+        tickers = json.load(f)
+
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_check_ma_bounce, name, ticker): name
+                   for name, ticker in tickers.items()}
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                results.append(result)
+
+    # 터치한 MA 개수 많을수록, 반등률 높을수록 상위
+    results.sort(key=lambda x: x['sort_key'], reverse=True)
+    return results[:top_n]
+
+
+def _check_osc_one(name, ticker):
+    """RSI·Stochastic·BB·MFI 기반 과매도/과매수 종목 감지"""
+    try:
+        ohlcv = get_ohlcv(ticker, months=2)
+        if ohlcv.empty or len(ohlcv) < 20:
+            return None
+        df = calc_indicators(ohlcv)
+        last = df.iloc[-1]
+
+        rsi    = float(last['rsi'])
+        stoch  = float(last['stoch_k'])
+        bb_pct = float(last['bb_pct'])
+        mfi    = float(last['mfi'])
+        cur    = int(last['close'])
+
+        # 과매도 점수 (높을수록 강한 과매도)
+        os_score = 0
+        os_tags  = []
+        if rsi   < 25: os_score += 3; os_tags.append(f'RSI {rsi:.0f}')
+        elif rsi < 30: os_score += 2; os_tags.append(f'RSI {rsi:.0f}')
+        elif rsi < 40: os_score += 1
+        if stoch < 15: os_score += 3; os_tags.append(f'Stoch {stoch:.0f}')
+        elif stoch < 20: os_score += 2; os_tags.append(f'Stoch {stoch:.0f}')
+        if bb_pct < 0.05: os_score += 3; os_tags.append('BB 하단')
+        elif bb_pct < 0.1: os_score += 2; os_tags.append('BB 하단')
+        if mfi < 20: os_score += 2; os_tags.append(f'MFI {mfi:.0f}')
+
+        # 과매수 점수
+        ob_score = 0
+        ob_tags  = []
+        if rsi   > 75: ob_score += 3; ob_tags.append(f'RSI {rsi:.0f}')
+        elif rsi > 70: ob_score += 2; ob_tags.append(f'RSI {rsi:.0f}')
+        elif rsi > 60: ob_score += 1
+        if stoch > 85: ob_score += 3; ob_tags.append(f'Stoch {stoch:.0f}')
+        elif stoch > 80: ob_score += 2; ob_tags.append(f'Stoch {stoch:.0f}')
+        if bb_pct > 0.95: ob_score += 3; ob_tags.append('BB 상단')
+        elif bb_pct > 0.9: ob_score += 2; ob_tags.append('BB 상단')
+        if mfi > 80: ob_score += 2; ob_tags.append(f'MFI {mfi:.0f}')
+
+        threshold = 4   # 점수 4점 이상만 유의미
+        if os_score >= threshold and os_score > ob_score:
+            return {'name': name, 'ticker': ticker, 'price': f"{cur:,}",
+                    'kind': 'oversold',   'score': os_score, 'tags': os_tags,
+                    'rsi': round(rsi, 1), 'stoch': round(stoch, 1),
+                    'bb': round(bb_pct, 2), 'mfi': round(mfi, 1)}
+        if ob_score >= threshold and ob_score > os_score:
+            return {'name': name, 'ticker': ticker, 'price': f"{cur:,}",
+                    'kind': 'overbought', 'score': ob_score, 'tags': ob_tags,
+                    'rsi': round(rsi, 1), 'stoch': round(stoch, 1),
+                    'bb': round(bb_pct, 2), 'mfi': round(mfi, 1)}
+        return None
+    except Exception:
+        return None
+
+
+def scan_osc_stocks(top_n=30, max_workers=8):
+    """과매도·과매수 종목 스캔"""
+    with open(_TICKER_DB_PATH, encoding='utf-8') as f:
+        tickers = json.load(f)
+
+    oversold, overbought = [], []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_check_osc_one, name, ticker): name
+                   for name, ticker in tickers.items()}
+        for future in as_completed(futures):
+            r = future.result()
+            if r:
+                (oversold if r['kind'] == 'oversold' else overbought).append(r)
+
+    oversold.sort(key=lambda x: x['score'], reverse=True)
+    overbought.sort(key=lambda x: x['score'], reverse=True)
+    return {
+        'oversold':   oversold[:top_n],
+        'overbought': overbought[:top_n],
+    }
+
+
+def _check_surge_one(name, ticker, days_back=5):
+    """거래량 급증 + 가격 급등 종목 단일 스캔"""
+    try:
+        ohlcv = get_ohlcv(ticker, months=3)
+        if ohlcv.empty or len(ohlcv) < 30:
+            return None
+        df = calc_indicators(ohlcv)
+
+        last = df.iloc[-1]
+        recent = df.tail(days_back)
+        older = df.iloc[-(25 + days_back):-days_back]
+
+        if len(older) < 10:
+            return None
+
+        # 거래량 급증: 최근 N일 평균이 이전 대비 1.5배 이상
+        avg_recent_vol = recent['volume'].mean()
+        avg_old_vol = older['volume'].mean()
+        if avg_old_vol <= 0 or avg_recent_vol < avg_old_vol * 1.5:
+            return None
+
+        # 가격 급등: 최근 N일 기준 3% 이상 상승
+        price_start = df.iloc[-(days_back + 1)]['close']
+        if price_start <= 0:
+            return None
+        price_chg_pct = (last['close'] - price_start) / price_start * 100
+        if price_chg_pct < 3.0:
+            return None
+
+        # MA 배열 확인 (역배열이면 제외)
+        ma_status = get_ma_arrangement(df)
+        if ma_status[1] == 'bearish':
+            return None
+
+        # 5/20/60/120일선과의 근접도 (현재가 기준 각 MA 5% 이내)
+        cur = float(last['close'])
+        vol_ratio = round(avg_recent_vol / avg_old_vol, 1)
+
+        return {
+            'name': name,
+            'ticker': ticker,
+            'price': f"{int(cur):,}",
+            'price_chg_pct': round(price_chg_pct, 1),
+            'vol_ratio': vol_ratio,
+            'ma_label': ma_status[0],
+            'ma_type': ma_status[1],
+            'sort_key': vol_ratio * price_chg_pct,
+        }
+    except Exception:
+        return None
+
+
+def scan_surge_stocks(top_n=20, days_back=5, max_workers=8):
+    """거래량 동반 급등 종목 스캔 (5일 내 거래량 1.5배+, 가격 3%+ 상승)"""
+    with open(_TICKER_DB_PATH, encoding='utf-8') as f:
+        tickers = json.load(f)
+
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_check_surge_one, name, ticker, days_back): name
+                   for name, ticker in tickers.items()}
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                results.append(result)
+
+    results.sort(key=lambda x: x['sort_key'], reverse=True)
+    return results[:top_n]
+
+
 def scan_top_stocks(top_n=20, months=6, max_workers=8):
     with open(_TICKER_DB_PATH, encoding='utf-8') as f:
         tickers = json.load(f)

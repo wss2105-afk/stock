@@ -9,8 +9,10 @@ def calc_indicators(df):
     volume = df['volume']
 
     # 이동평균선
-    df['ma5'] = close.rolling(5).mean()
+    df['ma5']  = close.rolling(5).mean()
+    df['ma10'] = close.rolling(10).mean()
     df['ma20'] = close.rolling(20).mean()
+    df['ma30'] = close.rolling(30).mean()
     df['ma60'] = close.rolling(60).mean()
     df['ma120'] = close.rolling(120).mean()
 

@@ -4,20 +4,9 @@ import plotly.utils
 import json
 
 
-def make_main_chart(df, name, supply_df=None, current_price=None):
-    """캔들차트 + 볼린저밴드 + 이동평균선 (우측 매물대 포함)"""
-    has_supply = (supply_df is not None and not supply_df.empty
-                  and current_price is not None)
-
-    if has_supply:
-        fig = make_subplots(
-            rows=1, cols=2,
-            shared_yaxes=True,
-            column_widths=[0.8, 0.2],
-            horizontal_spacing=0.004,
-        )
-    else:
-        fig = make_subplots(rows=1, cols=1)
+def make_main_chart(df, name):
+    """캔들차트 + 볼린저밴드 + 이동평균선"""
+    fig = make_subplots(rows=1, cols=1)
 
     # 캔들차트
     fig.add_trace(go.Candlestick(
@@ -39,60 +28,15 @@ def make_main_chart(df, name, supply_df=None, current_price=None):
                              showlegend=False), row=1, col=1)
 
     # 이동평균선 (5일, 20일)
-    for col_name, color, label in [('ma5','#e74c3c','5일'), ('ma20','#f39c12','20일')]:
+    for col_name, color, label in [('ma5', '#e74c3c', '5일'), ('ma20', '#f39c12', '20일')]:
         fig.add_trace(go.Scatter(x=df.index, y=df[col_name], name=label,
                                  line=dict(color=color, width=1.2)), row=1, col=1)
-
-    if has_supply:
-        # 현재가 ±3% 내 구간 강조
-        bar_colors = [
-            'rgba(231,76,60,0.80)' if abs(p - current_price) / current_price < 0.03
-            else 'rgba(52,152,219,0.45)'
-            for p in supply_df['price_mid']
-        ]
-        def fmt_vol(v):
-            if v >= 100_000_000:
-                return f'{v/100_000_000:.1f}억'
-            elif v >= 10_000:
-                return f'{v/10_000:.0f}만'
-            return f'{v:,.0f}'
-
-        vol_labels = [fmt_vol(v) for v in supply_df['volume']]
-
-        fig.add_trace(go.Bar(
-            x=supply_df['volume'],
-            y=supply_df['price_mid'],
-            orientation='h',
-            name='매물대',
-            marker=dict(color=bar_colors, line_width=0),
-            text=vol_labels,
-            textposition='outside',
-            textfont=dict(size=8, color='rgba(200,200,200,0.75)'),
-            cliponaxis=False,
-            showlegend=False,
-            hovertemplate='%{y:,.0f}원<br>거래량: %{x:,.0f}<extra></extra>',
-        ), row=1, col=2)
-
-        # 현재가 수평선 (두 패널 공통)
-        fig.add_hline(y=current_price,
-                      line=dict(color='#FFC000', width=1.2, dash='dot'))
-
-        # y축 범위를 캔들 데이터 기준으로 고정해 두 패널 완전 일치
-        y_min = float(df['low'].min()) * 0.97
-        y_max = float(df['high'].max()) * 1.03
-        fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
-        fig.update_yaxes(range=[y_min, y_max],
-                         showticklabels=False, showgrid=False, row=1, col=2)
-
-        fig.update_xaxes(showticklabels=False, showgrid=False,
-                         zeroline=False, row=1, col=2)
 
     fig.update_layout(
         height=550,
         xaxis_rangeslider_visible=False,
         legend=dict(orientation='h', y=1.02),
-        margin=dict(l=40, r=36, t=60, b=20),
-        bargap=0.08,
+        margin=dict(l=40, r=20, t=60, b=20),
     )
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
@@ -180,25 +124,66 @@ def make_ma_chart(df, name):
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
-def make_supply_zone_chart(zone_df, current_price):
-    """매물대 차트"""
+def make_supply_zone_chart(zone_df, current_price, y_min=None, y_max=None):
+    """매물대 차트 — 캔들차트와 동일한 가격 범위(y축) 사용"""
+    def fmt_vol(v):
+        if v >= 100_000_000:
+            return f'{v / 100_000_000:.1f}억'
+        elif v >= 10_000:
+            return f'{v / 10_000:.0f}만'
+        return f'{v:,.0f}'
+
+    # y축 범위: 전달받은 캔들 범위 사용 → 가격대 완전 일치
+    if y_min is None:
+        y_min = zone_df['price_mid'].min() * 0.97
+    if y_max is None:
+        y_max = zone_df['price_mid'].max() * 1.03
+
+    bar_colors = [
+        'rgba(231,76,60,0.85)' if abs(p - current_price) / current_price < 0.03
+        else 'rgba(52,152,219,0.50)'
+        for p in zone_df['price_mid']
+    ]
+    vol_labels = [fmt_vol(v) for v in zone_df['volume']]
+
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=zone_df['volume'], y=zone_df['price_mid'],
-        orientation='h', name='매물대',
-        marker_color=['#e74c3c' if p >= current_price * 0.98 and p <= current_price * 1.02
-                      else '#3498db' for p in zone_df['price_mid']]
+        x=zone_df['volume'],
+        y=zone_df['price_mid'],
+        orientation='h',
+        name='매물대',
+        marker=dict(color=bar_colors, line_width=0),
+        text=vol_labels,
+        textposition='outside',
+        textfont=dict(size=9, color='rgba(200,200,200,0.8)'),
+        cliponaxis=False,
+        hovertemplate='%{y:,.0f}원 구간<br>누적 거래량: %{x:,.0f}<extra></extra>',
     ))
-    fig.add_hline(y=current_price, line_color='#f39c12', line_width=2,
-                  annotation_text=f'현재가 {current_price:,}원')
-    fig.update_layout(title='매물대 분포', height=400, template='plotly_white',
-                      xaxis_title='거래량', yaxis_title='가격',
-                      margin=dict(l=40, r=20, t=40, b=20))
+    fig.add_hline(
+        y=current_price,
+        line=dict(color='#FFC000', width=1.5, dash='dot'),
+        annotation_text=f'현재가 {current_price:,}원',
+        annotation_font=dict(color='#FFC000', size=10),
+        annotation_position='top right',
+    )
+    fig.update_layout(
+        height=280,
+        xaxis=dict(title='거래량', showgrid=False),
+        yaxis=dict(
+            tickformat=',',
+            ticksuffix='원',
+            range=[y_min, y_max],   # 캔들차트와 동일 범위
+            showgrid=True,
+            gridcolor='rgba(255,255,255,0.06)',
+        ),
+        margin=dict(l=80, r=70, t=8, b=30),
+        bargap=0.08,
+    )
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
 def make_investor_chart(investor_df):
-    """외인·기관별 순매수 차트 — 최근 20거래일, 2패널"""
+    """외인·기관 순매수 차트 — 최근 20거래일, 항상 2패널"""
     if investor_df.empty:
         return None
 
@@ -213,6 +198,8 @@ def make_investor_chart(investor_df):
         return None
 
     foreign_col = find_col(df, '외국인합계', '외국인', '외인')
+
+    # 세부 기관 컬럼 (pykrx 데이터)
     pension_col = find_col(df, '연기금')
     finance_col = find_col(df, '금융투자')
     insure_col  = find_col(df, '보험')
@@ -221,7 +208,7 @@ def make_investor_chart(investor_df):
     bank_col    = find_col(df, '은행')
     other_fin   = find_col(df, '기타금융')
 
-    inst_cfg = [
+    detail_cfg = [
         (pension_col, '연기금',   '#2ecc71'),
         (finance_col, '금융투자', '#9b59b6'),
         (insure_col,  '보험',     '#f39c12'),
@@ -230,70 +217,77 @@ def make_investor_chart(investor_df):
         (bank_col,    '은행',     '#95a5a6'),
         (other_fin,   '기타금융', '#7f8c8d'),
     ]
-    # 실제 데이터 있는 것만
-    inst_cfg = [(c, l, clr) for c, l, clr in inst_cfg
-                if c and not df[c].fillna(0).eq(0).all()]
+    detail_cfg = [(c, l, clr) for c, l, clr in detail_cfg
+                  if c and not df[c].fillna(0).eq(0).all()]
 
-    has_inst = len(inst_cfg) > 0
-
-    if has_inst:
-        fig = make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            row_heights=[0.42, 0.58],
-            vertical_spacing=0.06,
-            subplot_titles=['외국인 순매수 (주)', '기관 세부 순매수 (주)'],
-        )
+    # 기관합계: 세부 합산 or 별도 컬럼(Naver 폴백)
+    if detail_cfg:
+        inst_total_vals = sum(df[c].fillna(0) for c, _, _ in detail_cfg)
+        has_detail = True
     else:
-        fig = make_subplots(rows=1, cols=1)
+        inst_col = find_col(df, '기관합계', '기관')
+        if inst_col:
+            inst_total_vals = df[inst_col].fillna(0)
+        else:
+            inst_total_vals = None
+        has_detail = False
+
+    # 항상 2패널 (외국인 / 기관)
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        row_heights=[0.45, 0.55],
+        vertical_spacing=0.06,
+        subplot_titles=['외국인 순매수 (주)', '기관 순매수 (주)'],
+    )
 
     x = df.index
 
-    # ── 외국인 (Row 1) ──────────────────────────────────────
+    # ── Row 1: 외국인 순매수 바 + 누적선 ──────────────────────
     if foreign_col:
-        vals = df[foreign_col].fillna(0)
-        cum  = vals.cumsum()
+        f_vals = df[foreign_col].fillna(0)
+        f_cum  = f_vals.cumsum()
         fig.add_trace(go.Bar(
-            x=x, y=vals, name='외국인',
-            marker_color=['#e74c3c' if v >= 0 else '#3498db' for v in vals],
+            x=x, y=f_vals, name='외국인',
+            marker_color=['#e74c3c' if v >= 0 else '#3498db' for v in f_vals],
             hovertemplate='%{x|%m/%d}<br>외국인: %{y:+,.0f}주<extra></extra>',
         ), row=1, col=1)
-        # 누적선
         fig.add_trace(go.Scatter(
-            x=x, y=cum, name='외국인 누적',
-            line=dict(color='rgba(231,76,60,0.6)', width=1.5, dash='dot'),
-            yaxis='y2' if not has_inst else None,
-            hovertemplate='%{x|%m/%d}<br>누적: %{y:+,.0f}주<extra></extra>',
-            showlegend=False,
+            x=x, y=f_cum, name='외국인 누적',
+            line=dict(color='rgba(231,76,60,0.7)', width=2, dash='dot'),
+            hovertemplate='%{x|%m/%d}<br>외국인 누적: %{y:+,.0f}주<extra></extra>',
         ), row=1, col=1)
 
-    # ── 기관 세부 (Row 2, 스택) ──────────────────────────────
-    if has_inst:
-        for col, label, color in inst_cfg:
+    # ── Row 2: 기관 (세부 스택 or 합계 바) + 누적선 ────────────
+    if has_detail:
+        for col, label, color in detail_cfg:
             vals = df[col].fillna(0)
             fig.add_trace(go.Bar(
                 x=x, y=vals, name=label,
                 marker_color=color,
                 hovertemplate=f'%{{x|%m/%d}}<br>{label}: %{{y:+,.0f}}주<extra></extra>',
             ), row=2, col=1)
-
-        # 기관합계 라인 오버레이
-        inst_total = sum(df[c].fillna(0) for c, _, _ in inst_cfg)
-        fig.add_trace(go.Scatter(
-            x=x, y=inst_total.cumsum(), name='기관 누적',
-            line=dict(color='rgba(255,192,0,0.7)', width=1.5, dash='dot'),
-            hovertemplate='%{x|%m/%d}<br>기관누적: %{y:+,.0f}주<extra></extra>',
-            showlegend=False,
+    elif inst_total_vals is not None:
+        fig.add_trace(go.Bar(
+            x=x, y=inst_total_vals, name='기관',
+            marker_color=['#2ecc71' if v >= 0 else '#9b59b6' for v in inst_total_vals],
+            hovertemplate='%{x|%m/%d}<br>기관: %{y:+,.0f}주<extra></extra>',
         ), row=2, col=1)
 
-    rows = 2 if has_inst else 1
+    if inst_total_vals is not None:
+        fig.add_trace(go.Scatter(
+            x=x, y=inst_total_vals.cumsum(), name='기관 누적',
+            line=dict(color='rgba(255,192,0,0.8)', width=2, dash='dot'),
+            hovertemplate='%{x|%m/%d}<br>기관 누적: %{y:+,.0f}주<extra></extra>',
+        ), row=2, col=1)
+
     fig.update_layout(
-        height=480 if has_inst else 280,
+        height=500,
         barmode='relative',
         hovermode='x unified',
-        legend=dict(orientation='h', y=-0.1, x=0,
+        legend=dict(orientation='h', y=-0.08, x=0,
                     font=dict(size=10), bgcolor='rgba(0,0,0,0)'),
-        margin=dict(l=60, r=20, t=40, b=70),
+        margin=dict(l=60, r=20, t=40, b=80),
     )
     fig.update_xaxes(tickformat='%m/%d', tickangle=-45)
     fig.update_yaxes(tickformat=',.0f', zeroline=True,

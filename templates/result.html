@@ -553,6 +553,16 @@
                 <div id="mainChart"></div>
             </div>
 
+            <!-- 매물대 차트 (캔들차트와 가격 범위 공유, 바로 아래 붙임) -->
+            {% if supply_chart %}
+            <div class="chart-container" style="margin-top:1px;">
+                <div style="font-size:0.62rem;color:#555;letter-spacing:0.2em;text-transform:uppercase;padding:8px 12px 0;">
+                    매물대 분포 <span style="color:#333;">· 6개월 가격대별 누적 거래량 · 빨강=현재가 ±3%</span>
+                </div>
+                <div id="supplyChart"></div>
+            </div>
+            {% endif %}
+
             <!-- 수급 차트 -->
             {% if investor_chart %}
             <div class="section-card">
@@ -812,11 +822,21 @@
         margin: isMobile ? {l:40,r:8,t:40,b:20} : {l:40,r:20,t:60,b:20}
     }, {responsive: true});
 
+    {% if supply_chart %}
+    const supplyData = {{ supply_chart|safe }};
+    Plotly.newPlot('supplyChart', supplyData.data, {
+        ...supplyData.layout, ...darkLayout,
+        height: isMobile ? 200 : 280,
+        margin: isMobile ? {l:70,r:55,t:4,b:24} : {l:80,r:70,t:8,b:30},
+    }, {responsive: true});
+    {% endif %}
+
     {% if investor_chart %}
     const investorData = {{ investor_chart|safe }};
     Plotly.newPlot('investorChart', investorData.data, {
         ...investorData.layout, ...darkLayout,
-        margin: isMobile ? {l:50,r:12,t:36,b:80} : {l:60,r:20,t:40,b:70},
+        height: isMobile ? 360 : 500,
+        margin: isMobile ? {l:50,r:12,t:36,b:90} : {l:60,r:20,t:40,b:80},
     }, {responsive: true});
     {% endif %}
 </script>

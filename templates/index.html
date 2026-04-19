@@ -42,6 +42,49 @@
         .new-badge { display: inline-block; background: #ef4444; color: #fff; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 3px; vertical-align: middle; margin-left: 6px; animation: pulse-badge 1.8s ease-in-out infinite; }
         @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
+        /* MA 반등 패널 */
+        .bounce-panel { width: 100%; max-width: 720px; margin: 24px auto 0; background: #010120; border: 1px solid rgba(255,192,0,0.22); border-radius: 6px; overflow: hidden; }
+        .bounce-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .bounce-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #FFC000; }
+        .bounce-date { font-size: 0.62rem; color: rgba(255,255,255,0.28); letter-spacing: 0.08em; }
+        .bounce-body { display: flex; flex-direction: column; gap: 1px; background: rgba(255,255,255,0.04); }
+        .bounce-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 10px; padding: 10px 18px; background: #010120; cursor: pointer; transition: background 0.15s; text-decoration: none; }
+        .bounce-row:hover { background: rgba(255,192,0,0.05); }
+        .bounce-name { font-size: 0.88rem; color: #fff; font-weight: 500; }
+        .bounce-ticker { font-size: 0.62rem; color: rgba(255,255,255,0.28); font-family: 'Courier New', monospace; margin-left: 5px; }
+        .bounce-ma-tags { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 3px; }
+        .bounce-ma-tag { font-size: 0.58rem; padding: 1px 5px; border: 1px solid rgba(255,192,0,0.4); color: #FFC000; letter-spacing: 0.05em; }
+        .bounce-chg { font-size: 0.82rem; font-weight: 700; color: #e74c3c; white-space: nowrap; }
+        .bounce-vol { font-size: 0.70rem; color: rgba(255,255,255,0.4); white-space: nowrap; }
+        .bounce-price { font-size: 0.74rem; color: rgba(255,255,255,0.45); white-space: nowrap; }
+        .bounce-loading { padding: 20px 18px; font-size: 0.78rem; color: rgba(255,255,255,0.28); text-align: center; }
+        .bounce-empty { padding: 16px 18px; font-size: 0.78rem; color: rgba(255,255,255,0.22); text-align: center; }
+
+        /* 과매도/과매수 패널 */
+        .osc-panel { width: 100%; max-width: 720px; margin: 12px auto 0; background: #010120; border: 1px solid rgba(100,180,255,0.18); border-radius: 6px; overflow: hidden; }
+        .osc-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .osc-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; }
+        .osc-title.over  { color: #FFC000; }
+        .osc-title.under { color: #29ABE2; }
+        .osc-updated { font-size: 0.6rem; color: rgba(255,255,255,0.25); }
+        .osc-tabs { display: flex; gap: 1px; background: rgba(255,255,255,0.04); }
+        .osc-tab { flex: 1; padding: 8px; text-align: center; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; cursor: pointer; transition: background 0.15s; border: none; }
+        .osc-tab.oversold  { color: #FFC000; background: rgba(255,192,0,0.06); }
+        .osc-tab.overbought{ color: #29ABE2; background: rgba(41,171,226,0.06); }
+        .osc-tab.active    { opacity: 1; }
+        .osc-tab:not(.active) { opacity: 0.4; }
+        .osc-body { display: flex; flex-direction: column; gap: 1px; background: rgba(255,255,255,0.04); }
+        .osc-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 9px 18px; background: #010120; cursor: pointer; transition: background 0.15s; text-decoration: none; }
+        .osc-row:hover { background: rgba(255,255,255,0.03); }
+        .osc-name { font-size: 0.86rem; color: #fff; font-weight: 500; }
+        .osc-ticker-s { font-size: 0.62rem; color: rgba(255,255,255,0.28); font-family: 'Courier New', monospace; margin-left: 5px; }
+        .osc-tags { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 2px; }
+        .osc-tag-os  { font-size: 0.58rem; padding: 1px 5px; border: 1px solid rgba(255,192,0,0.5); color: #FFC000; }
+        .osc-tag-ob  { font-size: 0.58rem; padding: 1px 5px; border: 1px solid rgba(41,171,226,0.5); color: #29ABE2; }
+        .osc-score { font-size: 0.8rem; font-weight: 700; }
+        .osc-price-s { font-size: 0.72rem; color: rgba(255,255,255,0.4); white-space: nowrap; }
+        .osc-loading { padding: 18px; font-size: 0.75rem; color: rgba(255,255,255,0.25); text-align: center; }
+
         /* STATS */
         .stats { background: #010120; padding: 48px 24px; }
         .stats-grid { max-width: 800px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 32px; text-align: center; }
@@ -103,14 +146,44 @@
             <div class="suggest-box" id="suggestBox"></div>
         </div>
     </form>
-    <a href="/recommend" class="recommend-btn">추천 종목 TOP 20 자동 스캔 →</a>
+    <a href="/recommend" class="recommend-btn">
+        추천 종목 TOP 20 자동 스캔 →
+        <span id="pickRec" style="display:none;float:right;font-size:0.7rem;color:#FFC000;"></span>
+    </a>
     <a href="/supply-leaders" class="recommend-btn" style="border-color:rgba(255,192,0,0.3);background:rgba(255,192,0,0.04);">
         <span style="color:#FFC000;font-weight:600;">수급 주도 종목</span> — 외인·기관 연속 매수 실시간 스캔 →
+        <span id="pickSup" style="display:none;float:right;font-size:0.7rem;color:#FFC000;"></span>
     </a>
     <a href="/export-surge" class="export-btn" id="exportBtn">
         매출 급성장 수출주 스캔 →
         <span class="new-badge" id="newBadge" style="display:none;">NEW</span>
     </a>
+
+    <!-- 과매도/과매수 패널 -->
+    <div class="osc-panel" id="oscPanel">
+        <div class="osc-header">
+            <span class="osc-title" id="oscPanelTitle">◎ 과매도 · 과매수 레이더</span>
+            <span class="osc-updated" id="oscUpdated"></span>
+        </div>
+        <div class="osc-tabs">
+            <button class="osc-tab oversold active"  onclick="showOsc('oversold')">📉 과매도 (매수 후보)</button>
+            <button class="osc-tab overbought"        onclick="showOsc('overbought')">📈 과매수 (주의)</button>
+        </div>
+        <div class="osc-body" id="oscBody">
+            <div class="osc-loading">스캔 중...</div>
+        </div>
+    </div>
+
+    <!-- MA 반등 종목 패널 -->
+    <div class="bounce-panel" id="bouncePanel">
+        <div class="bounce-header">
+            <span class="bounce-title">↗ 이동평균선 바닥 반등 종목</span>
+            <span class="bounce-date" id="bounceDate"></span>
+        </div>
+        <div class="bounce-body" id="bounceBody">
+            <div class="bounce-loading">스캔 데이터 로딩 중...</div>
+        </div>
+    </div>
 </div>
 
 <div class="stats">
@@ -159,6 +232,95 @@
 </div>
 
 <script>
+// 과매도/과매수 패널
+let _oscData = null;
+(function loadOsc() {
+    fetch('/api/osc-picks')
+        .then(r => r.json())
+        .then(data => {
+            _oscData = data;
+            if (data.updated_at) document.getElementById('oscUpdated').textContent = data.updated_at + ' 기준';
+            showOsc('oversold');
+        })
+        .catch(() => {
+            document.getElementById('oscBody').innerHTML = '<div class="osc-loading">데이터 없음</div>';
+        });
+})();
+
+function showOsc(kind) {
+    document.querySelectorAll('.osc-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.osc-tab.${kind}`).classList.add('active');
+    const body = document.getElementById('oscBody');
+    if (!_oscData) return;
+    const list = _oscData[kind] || [];
+    if (!list.length) {
+        body.innerHTML = `<div class="osc-loading">해당 종목 없음</div>`;
+        return;
+    }
+    const isOs = kind === 'oversold';
+    body.innerHTML = list.slice(0, 10).map(r => {
+        const tagCls = isOs ? 'osc-tag-os' : 'osc-tag-ob';
+        const tags = (r.tags || []).map(t => `<span class="${tagCls}">${t}</span>`).join('');
+        const scoreColor = isOs ? '#FFC000' : '#29ABE2';
+        return `<a class="osc-row" href="/analyze?query=${encodeURIComponent(r.ticker)}&months=3">
+            <div>
+                <div><span class="osc-name">${r.name}</span><span class="osc-ticker-s">${r.ticker}</span></div>
+                <div class="osc-tags">${tags}</div>
+            </div>
+            <div class="osc-score" style="color:${scoreColor};">${r.score}점</div>
+            <div class="osc-price-s">${r.price}원</div>
+        </a>`;
+    }).join('');
+}
+
+// MA 반등 종목 패널 로드
+(function loadBounce() {
+    const body   = document.getElementById('bounceBody');
+    const dateEl = document.getElementById('bounceDate');
+
+    fetch('/api/surge-picks')
+        .then(r => r.json())
+        .then(data => {
+            const list = data.bounce && data.bounce.length ? data.bounce : data.results;
+            if (!list || list.length === 0) {
+                body.innerHTML = '<div class="bounce-empty">오늘 스캔 데이터가 없습니다. 앱 시작 후 잠시 기다려 주세요.</div>';
+                return;
+            }
+            if (data.date) dateEl.textContent = data.date + ' 기준';
+
+            body.innerHTML = list.slice(0, 10).map(r => {
+                const maTags = (r.touched_mas || []).map(m =>
+                    `<span class="bounce-ma-tag">${m}선</span>`).join('');
+                const chg = r.rebound_pct != null
+                    ? `+${r.rebound_pct}%`
+                    : (r.price_chg_pct != null ? `+${r.price_chg_pct}%` : '');
+                const vol = r.vol_ratio != null ? `거래량 ${r.vol_ratio}배` : '';
+                return `<a class="bounce-row" href="/analyze?query=${encodeURIComponent(r.ticker)}&months=3">
+                    <div>
+                        <div><span class="bounce-name">${r.name}</span><span class="bounce-ticker">${r.ticker}</span></div>
+                        ${maTags ? `<div class="bounce-ma-tags">${maTags}</div>` : ''}
+                    </div>
+                    <div class="bounce-chg">${chg}</div>
+                    <div class="bounce-vol">${vol}</div>
+                    <div class="bounce-price">${r.price}원</div>
+                </a>`;
+            }).join('');
+
+            // 버튼 뱃지
+            if (data.pick_rec) {
+                const el = document.getElementById('pickRec');
+                if (el) { el.textContent = `오늘: ${data.pick_rec.name}`; el.style.display = 'inline'; }
+            }
+            if (data.pick_sup) {
+                const el = document.getElementById('pickSup');
+                if (el) { el.textContent = `오늘: ${data.pick_sup.name}`; el.style.display = 'inline'; }
+            }
+        })
+        .catch(() => {
+            body.innerHTML = '<div class="bounce-empty">데이터를 불러올 수 없습니다.</div>';
+        });
+})();
+
 (function () {
     const input = document.getElementById('searchInput');
     const box = document.getElementById('suggestBox');
