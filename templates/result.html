@@ -554,9 +554,12 @@
             </div>
 
             <!-- 수급 차트 -->
-            <div class="chart-container">
+            {% if investor_chart %}
+            <div class="section-card">
+                <div class="section-title">외인·기관 순매수 <span style="color:#555;">최근 20거래일</span></div>
                 <div id="investorChart"></div>
             </div>
+            {% endif %}
 
             <!-- DART 공시 -->
             <div class="section-card">
@@ -776,7 +779,10 @@
 
     {% if investor_chart %}
     const investorData = {{ investor_chart|safe }};
-    Plotly.newPlot('investorChart', investorData.data, { ...investorData.layout, ...darkLayout }, {responsive: true});
+    Plotly.newPlot('investorChart', investorData.data, {
+        ...investorData.layout, ...darkLayout,
+        margin: isMobile ? {l:50,r:12,t:36,b:80} : {l:60,r:20,t:40,b:70},
+    }, {responsive: true});
     {% endif %}
 </script>
 </body>

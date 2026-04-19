@@ -192,37 +192,105 @@ def make_supply_zone_chart(zone_df, current_price):
 
 
 def make_investor_chart(investor_df):
-    """수급 차트"""
+    """외인·기관별 순매수 차트 — 최근 20거래일, 2패널"""
     if investor_df.empty:
         return None
 
-    fig = go.Figure()
-    cols_map = {}
-    for col in investor_df.columns:
-        if '외국인' in col or '외인' in col:
-            cols_map['외국인'] = col
-        elif '연기금' in col:
-            cols_map['연기금'] = col
-        elif '금융투자' in col:
-            cols_map['금융투자'] = col
-        elif '기관' in col and '연기금' not in col and '금융' not in col:
-            cols_map['기관합계'] = col
-        elif '개인' in col:
-            cols_map['개인'] = col
+    import pandas as pd
+    df = investor_df.tail(20).copy()
 
-    colors_map = {
-        '외국인': '#e74c3c', '기관합계': '#3498db',
-        '연기금': '#2ecc71', '금융투자': '#9b59b6', '개인': '#f39c12'
-    }
+    def find_col(df, *keywords):
+        for kw in keywords:
+            for c in df.columns:
+                if kw in str(c):
+                    return c
+        return None
 
-    for label, col in cols_map.items():
-        vals = investor_df[col]
-        bar_colors = ['#e74c3c' if v > 0 else '#3498db' for v in vals]
-        fig.add_trace(go.Bar(x=investor_df.index, y=vals,
-                             name=label, marker_color=bar_colors,
-                             visible=True if label == '외국인' else 'legendonly'))
+    foreign_col = find_col(df, '외국인합계', '외국인', '외인')
+    pension_col = find_col(df, '연기금')
+    finance_col = find_col(df, '금융투자')
+    insure_col  = find_col(df, '보험')
+    trust_col   = find_col(df, '투신')
+    private_col = find_col(df, '사모')
+    bank_col    = find_col(df, '은행')
+    other_fin   = find_col(df, '기타금융')
 
-    fig.update_layout(title='투자자별 순매수 현황', height=350,
-                      template='plotly_white', barmode='group',
-                      margin=dict(l=40, r=20, t=40, b=20))
+    inst_cfg = [
+        (pension_col, '연기금',   '#2ecc71'),
+        (finance_col, '금융투자', '#9b59b6'),
+        (insure_col,  '보험',     '#f39c12'),
+        (trust_col,   '투신',     '#1abc9c'),
+        (private_col, '사모',     '#e67e22'),
+        (bank_col,    '은행',     '#95a5a6'),
+        (other_fin,   '기타금융', '#7f8c8d'),
+    ]
+    # 실제 데이터 있는 것만
+    inst_cfg = [(c, l, clr) for c, l, clr in inst_cfg
+                if c and not df[c].fillna(0).eq(0).all()]
+
+    has_inst = len(inst_cfg) > 0
+
+    if has_inst:
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            row_heights=[0.42, 0.58],
+            vertical_spacing=0.06,
+            subplot_titles=['외국인 순매수 (주)', '기관 세부 순매수 (주)'],
+        )
+    else:
+        fig = make_subplots(rows=1, cols=1)
+
+    x = df.index
+
+    # ── 외국인 (Row 1) ──────────────────────────────────────
+    if foreign_col:
+        vals = df[foreign_col].fillna(0)
+        cum  = vals.cumsum()
+        fig.add_trace(go.Bar(
+            x=x, y=vals, name='외국인',
+            marker_color=['#e74c3c' if v >= 0 else '#3498db' for v in vals],
+            hovertemplate='%{x|%m/%d}<br>외국인: %{y:+,.0f}주<extra></extra>',
+        ), row=1, col=1)
+        # 누적선
+        fig.add_trace(go.Scatter(
+            x=x, y=cum, name='외국인 누적',
+            line=dict(color='rgba(231,76,60,0.6)', width=1.5, dash='dot'),
+            yaxis='y2' if not has_inst else None,
+            hovertemplate='%{x|%m/%d}<br>누적: %{y:+,.0f}주<extra></extra>',
+            showlegend=False,
+        ), row=1, col=1)
+
+    # ── 기관 세부 (Row 2, 스택) ──────────────────────────────
+    if has_inst:
+        for col, label, color in inst_cfg:
+            vals = df[col].fillna(0)
+            fig.add_trace(go.Bar(
+                x=x, y=vals, name=label,
+                marker_color=color,
+                hovertemplate=f'%{{x|%m/%d}}<br>{label}: %{{y:+,.0f}}주<extra></extra>',
+            ), row=2, col=1)
+
+        # 기관합계 라인 오버레이
+        inst_total = sum(df[c].fillna(0) for c, _, _ in inst_cfg)
+        fig.add_trace(go.Scatter(
+            x=x, y=inst_total.cumsum(), name='기관 누적',
+            line=dict(color='rgba(255,192,0,0.7)', width=1.5, dash='dot'),
+            hovertemplate='%{x|%m/%d}<br>기관누적: %{y:+,.0f}주<extra></extra>',
+            showlegend=False,
+        ), row=2, col=1)
+
+    rows = 2 if has_inst else 1
+    fig.update_layout(
+        height=480 if has_inst else 280,
+        barmode='relative',
+        hovermode='x unified',
+        legend=dict(orientation='h', y=-0.1, x=0,
+                    font=dict(size=10), bgcolor='rgba(0,0,0,0)'),
+        margin=dict(l=60, r=20, t=40, b=70),
+    )
+    fig.update_xaxes(tickformat='%m/%d', tickangle=-45)
+    fig.update_yaxes(tickformat=',.0f', zeroline=True,
+                     zerolinecolor='rgba(255,255,255,0.15)', zerolinewidth=1)
+
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
