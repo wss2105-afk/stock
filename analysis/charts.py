@@ -286,8 +286,18 @@ def make_investor_chart(investor_df):
                     font=dict(size=10), bgcolor='rgba(0,0,0,0)'),
         margin=dict(l=60, r=20, t=40, b=80),
     )
-    fig.update_xaxes(tickformat='%m/%d', tickangle=-45)
-    fig.update_yaxes(tickformat=',.0f', zeroline=True,
+    fig.update_xaxes(
+        tickformat='%m/%d',
+        tickangle=-45,
+        tickmode='array',
+        tickvals=df.index[::2],      # 2일 간격으로 눈금 표시 (20일 → 10개)
+        ticktext=[d.strftime('%m/%d') for d in df.index[::2]],
+        showticklabels=True,
+    )
+    # 하단 x축에만 "날짜" 타이틀 표시
+    fig.update_xaxes(title_text='날짜 (최근 20거래일)', row=2, col=1,
+                     title_font=dict(size=10), title_standoff=4)
+    fig.update_yaxes(tickformat=',.0f', ticksuffix='주', zeroline=True,
                      zerolinecolor='rgba(255,255,255,0.15)', zerolinewidth=1)
 
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
