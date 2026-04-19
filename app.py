@@ -218,50 +218,111 @@ def analyze():
                                company_info=company_info,
                                market_profile=market_profile)
 
-    # ── 데이터 수집 (캐시 우선 → 미스 시 실시간 fetch) ────────────
+    # ── 데이터 수집 (캐시 우선 → 미스 시 병렬 fetch) ────────────
     import pandas as pd
+    from concurrent.futures import ThreadPoolExecutor
+
+    _empty_fundamental = {'per': 'N/A', 'forward_per': 'N/A', 'pbr': 'N/A', 'operating_profit': [],
+                          'roe': 'N/A', 'op_margin': 'N/A', 'debt_ratio': 'N/A', 'revenue': []}
+    _empty_news = {'total': 0, 'positive': 0, 'negative': 0, 'neutral': 0,
+                   'sentiment_score': 0, 'top_keywords': [], 'press_counts': {},
+                   'exclusive_count': 0, 'articles': []}
+
     cached = load_stock_cache(ticker)
 
     if cached:
-        # 캐시 히트: OHLCV + 오늘 현재가 1회만 추가
-        ohlcv_full = cached['ohlcv']                          # 최대 6개월
-        today_info = get_today_price(ticker)                  # 현재가만 빠르게
-        ohlcv_full = append_today(ohlcv_full, today_info)
-        # 요청 기간에 맞게 자름
-        ohlcv = ohlcv_full.tail(max(months * 22, 60))
-        investor_df  = cached['investor_df']
-        supply_df    = cached['supply_df']
-        fundamental  = cached['fundamental']
+        ohlcv_full  = cached['ohlcv']
+        today_info  = get_today_price(ticker)
+        ohlcv_full  = append_today(ohlcv_full, today_info)
+        ohlcv       = ohlcv_full.tail(max(months * 22, 60))
+        investor_df = cached['investor_df']
+        supply_df   = cached['supply_df']
+        fundamental = cached['fundamental']
+
+        # 나머지는 병렬 fetch
+        def _company():
+            try: return get_company_info(ticker)
+            except: return {}
+        def _profile():
+            try: return get_market_profile(ticker)
+            except: return {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
+        def _news():
+            try: return analyze_news(search_naver_news(name, days=30))
+            except: return _empty_news
+        def _research():
+            try:
+                rr = get_research_reports(ticker)
+                return rr, summarize_research(name, rr)
+            except: return [], ""
+        def _disclosures():
+            try: return get_disclosures(ticker, days=60)
+            except: return []
+
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            f_co = ex.submit(_company)
+            f_pr = ex.submit(_profile)
+            f_nw = ex.submit(_news)
+            f_rr = ex.submit(_research)
+            f_dc = ex.submit(_disclosures)
+            company_info   = f_co.result()
+            market_profile = f_pr.result()
+            news_result    = f_nw.result()
+            research_reports, research_summary = f_rr.result()
+            disclosures    = f_dc.result()
     else:
-        # 캐시 미스: 기존 방식으로 실시간 수집
-        ohlcv = get_ohlcv(ticker, months)
-        investor_df = pd.DataFrame()
-        supply_df   = pd.DataFrame({'price_mid': [], 'volume': []})
-        fundamental = {'per': 'N/A', 'forward_per': 'N/A', 'pbr': 'N/A', 'operating_profit': [],
-                       'roe': 'N/A', 'op_margin': 'N/A', 'debt_ratio': 'N/A', 'revenue': []}
-        try:
-            investor_df = get_investor_detail(ticker, months)
-        except Exception:
-            pass
-        try:
-            supply_df = get_supply_zone(ticker, max(months, 6))
-        except Exception:
-            pass
-        try:
-            fundamental = get_fundamental(ticker)
-        except Exception:
-            pass
+        # 캐시 미스: 모든 항목 병렬 fetch
+        def _ohlcv():
+            try: return get_ohlcv(ticker, months)
+            except: return pd.DataFrame()
+        def _investor():
+            try: return get_investor_detail(ticker, months)
+            except: return pd.DataFrame()
+        def _supply():
+            try: return get_supply_zone(ticker, max(months, 6))
+            except: return pd.DataFrame({'price_mid': [], 'volume': []})
+        def _fundamental():
+            try: return get_fundamental(ticker)
+            except: return _empty_fundamental
+        def _company():
+            try: return get_company_info(ticker)
+            except: return {}
+        def _profile():
+            try: return get_market_profile(ticker)
+            except: return {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
+        def _news():
+            try: return analyze_news(search_naver_news(name, days=30))
+            except: return _empty_news
+        def _research():
+            try:
+                rr = get_research_reports(ticker)
+                return rr, summarize_research(name, rr)
+            except: return [], ""
+        def _disclosures():
+            try: return get_disclosures(ticker, days=60)
+            except: return []
+
+        with ThreadPoolExecutor(max_workers=9) as ex:
+            f_ohl = ex.submit(_ohlcv)
+            f_inv = ex.submit(_investor)
+            f_sup = ex.submit(_supply)
+            f_fun = ex.submit(_fundamental)
+            f_co  = ex.submit(_company)
+            f_pr  = ex.submit(_profile)
+            f_nw  = ex.submit(_news)
+            f_rr  = ex.submit(_research)
+            f_dc  = ex.submit(_disclosures)
+            ohlcv          = f_ohl.result()
+            investor_df    = f_inv.result()
+            supply_df      = f_sup.result()
+            fundamental    = f_fun.result()
+            company_info   = f_co.result()
+            market_profile = f_pr.result()
+            news_result    = f_nw.result()
+            research_reports, research_summary = f_rr.result()
+            disclosures    = f_dc.result()
 
     # OHLCV 데이터 부족하면 기업소개 페이지로
-    if ohlcv.empty or len(ohlcv) < 20:
-        try:
-            company_info = get_company_info(ticker)
-        except Exception:
-            company_info = {}
-        try:
-            market_profile = get_market_profile(ticker)
-        except Exception:
-            market_profile = {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
+    if ohlcv is None or ohlcv.empty or len(ohlcv) < 20:
         return render_template('company_only.html',
                                name=name, ticker=ticker,
                                company_info=company_info,
@@ -273,55 +334,16 @@ def analyze():
     signals = get_latest_signals(df)
     current_price = int(df['close'].iloc[-1])
 
-    # 캐시 미스일 때만 수급/매물대 재수집 (이미 위에서 처리)
-    # 펀더멘털도 캐시에 없으면 이미 실시간으로 받아옴
-
-    # 매물대 빈 경우 처리
     if supply_df is None:
         supply_df = pd.DataFrame({'price_mid': [], 'volume': []})
-
-    # 기업 프로필
-    try:
-        company_info = get_company_info(ticker)
-    except Exception:
-        company_info = {}
-    try:
-        market_profile = get_market_profile(ticker)
-    except Exception:
-        market_profile = {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
-
-    # 뉴스
-    try:
-        articles = search_naver_news(name, days=30)
-        news_result = analyze_news(articles)
-    except Exception:
-        news_result = {'total': 0, 'positive': 0, 'negative': 0, 'neutral': 0,
-                       'sentiment_score': 0, 'top_keywords': [], 'press_counts': {},
-                       'exclusive_count': 0, 'articles': []}
-
-    # 증권사 리포트
-    try:
-        research_reports = get_research_reports(ticker)
-        research_summary = summarize_research(name, research_reports)
-    except Exception:
-        research_reports, research_summary = [], ""
 
     # 신호 계산
     score, reasons = calc_score(ma_status, signals, investor_df, news_result)
     recommendation, rec_color = get_recommendation(score)
     score_pct = max(0, min(100, round((score + 14) / 28 * 100)))
 
-    # DART 공시
-    try:
-        disclosures = get_disclosures(ticker, days=60)
-    except Exception:
-        disclosures = []
-
-    # AI 분석
-    try:
-        ai_comment = get_ai_analysis(name, score, reasons, signals, fundamental, news_result)
-    except Exception as e:
-        ai_comment = f"AI 분석 오류: {str(e)}"
+    # AI 분석 — 별도 API로 지연 로딩 (페이지 속도 개선)
+    ai_comment = None
 
     # 차트
     main_chart = make_main_chart(df, name)
@@ -409,6 +431,36 @@ def osc_picks():
 def osc_refresh():
     threading.Thread(target=_run_osc_scan, daemon=True).start()
     return jsonify({'status': 'scanning'})
+
+
+@app.route('/api/ai-comment')
+def ai_comment_api():
+    """AI 분석을 별도로 요청 (result 페이지에서 비동기 호출)"""
+    ticker = request.args.get('ticker', '').strip()
+    name   = request.args.get('name', '').strip()
+    if not ticker or not name:
+        return jsonify({'comment': 'ticker/name 파라미터가 필요합니다.'})
+    try:
+        import pandas as pd
+        ohlcv = get_ohlcv(ticker, months=3)
+        if ohlcv.empty:
+            return jsonify({'comment': '데이터를 불러올 수 없습니다.'})
+        df = calc_indicators(ohlcv)
+        ma_status   = get_ma_arrangement(df)
+        signals     = get_latest_signals(df)
+        try: investor_df = get_investor_detail(ticker, months=1)
+        except: investor_df = pd.DataFrame()
+        try:
+            articles = search_naver_news(name, days=30)
+            news_result = analyze_news(articles)
+        except: news_result = {'total':0,'positive':0,'negative':0,'neutral':0,'sentiment_score':0,'top_keywords':[],'press_counts':{},'exclusive_count':0,'articles':[]}
+        try: fundamental = get_fundamental(ticker)
+        except: fundamental = {'per':'N/A','forward_per':'N/A','pbr':'N/A','operating_profit':[],'roe':'N/A','op_margin':'N/A','debt_ratio':'N/A','revenue':[]}
+        score, reasons = calc_score(ma_status, signals, investor_df, news_result)
+        comment = get_ai_analysis(name, score, reasons, signals, fundamental, news_result)
+        return jsonify({'comment': comment})
+    except Exception as e:
+        return jsonify({'comment': f'AI 분석 오류: {str(e)}'})
 
 
 @app.route('/api/cache-status')
