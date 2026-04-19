@@ -128,18 +128,10 @@ threading.Thread(target=_early_morning_scheduler, daemon=True).start()
 
 _EXPORT_SCAN_PATH = os.path.join(os.path.dirname(__file__), 'data', 'export_scan_month.txt')
 
-def _auto_export_scan():
-    """매월 15일 수출주 자동 스캔"""
-    today = datetime.today()
-    if today.day != 15:
-        return
-    this_month = today.strftime('%Y-%m')
-    if os.path.exists(_EXPORT_SCAN_PATH):
-        with open(_EXPORT_SCAN_PATH) as f:
-            if f.read().strip() == this_month:
-                return
+def _run_export_scan():
+    """수출주 스캔 실행 후 완료 월 기록"""
+    this_month = datetime.today().strftime('%Y-%m')
     try:
-        from analysis.export_growth import scan_export_growth
         scan_export_growth(growth_threshold=10)
         with open(_EXPORT_SCAN_PATH, 'w') as f:
             f.write(this_month)
@@ -147,7 +139,33 @@ def _auto_export_scan():
     except Exception as e:
         print(f'수출주 스캔 오류: {e}')
 
-threading.Thread(target=_auto_export_scan, daemon=True).start()
+def _export_scan_scheduler():
+    """매월 15일 06:00 수출주 자동 스캔 (루프 방식)"""
+    import time as _time
+    # 앱 시작 시 이번 달 15일 스캔이 아직 안 됐으면 즉시 실행
+    today = datetime.today()
+    this_month = today.strftime('%Y-%m')
+    already_done = False
+    if os.path.exists(_EXPORT_SCAN_PATH):
+        with open(_EXPORT_SCAN_PATH) as f:
+            already_done = f.read().strip() == this_month
+    if not already_done and today.day >= 15:
+        _run_export_scan()
+
+    while True:
+        now = datetime.today()
+        # 다음 15일 06:00 KST(= UTC-9) 계산
+        year, month = now.year, now.month
+        if now.day > 15 or (now.day == 15 and now.hour >= 6):
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+        next_run = now.replace(year=year, month=month, day=15, hour=6, minute=0, second=0, microsecond=0)
+        _time.sleep((next_run - now).total_seconds())
+        _run_export_scan()
+
+threading.Thread(target=_export_scan_scheduler, daemon=True).start()
 
 
 def _auto_build_cache():

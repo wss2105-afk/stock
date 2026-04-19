@@ -145,9 +145,12 @@ def get_ohlcv(ticker, months=3):
 def get_investor_detail(ticker, months=3):
     """연기금/금융투자 포함 상세 수급 (pykrx → Naver 폴백)"""
     start, end = get_date_range(months)
-    # 1차: pykrx
+    # 1차: pykrx (순매수량)
     try:
-        df = stock.get_market_trading_volume_by_date(start, end, ticker)
+        try:
+            df = stock.get_market_trading_volume_by_date(start, end, ticker, on='순매수')
+        except TypeError:
+            df = stock.get_market_trading_volume_by_date(start, end, ticker)
         if not df.empty:
             df.index = pd.to_datetime(df.index)
             return df
@@ -165,6 +168,15 @@ def _parse_naver_num(s):
         return 0
 
 
+def _find_col_idx(headers, *keywords):
+    """헤더 리스트에서 키워드가 모두 포함된 컬럼 인덱스 반환"""
+    for i, h in enumerate(headers):
+        h_clean = h.replace(' ', '').replace('\n', '')
+        if all(kw in h_clean for kw in keywords):
+            return i
+    return None
+
+
 def _get_investor_naver(ticker, months=3):
     """Naver Finance frgn 페이지에서 외국인·기관 순매수 스크래핑"""
     import requests
@@ -173,6 +185,8 @@ def _get_investor_naver(ticker, months=3):
     records = []
     page = 1
     limit = months * 22
+    foreign_idx = None
+    inst_idx = None
 
     while len(records) < limit:
         url = f"https://finance.naver.com/item/frgn.naver?code={ticker}&page={page}"
@@ -198,28 +212,49 @@ def _get_investor_naver(ticker, months=3):
             if target_table is None:
                 break
 
+            # 첫 페이지에서 헤더 기반으로 컬럼 인덱스 확정
+            if page == 1 or foreign_idx is None:
+                th_els = target_table.find_all('th')
+                if th_els:
+                    th_texts = [th.get_text(separator='', strip=True) for th in th_els]
+                    foreign_idx = _find_col_idx(th_texts, '외국인', '순매수')
+                    inst_idx    = _find_col_idx(th_texts, '기관', '순매수')
+                # 헤더를 못 찾으면 실제 데이터 행으로 TD 수 파악 후 기본값 적용
+                if foreign_idx is None:
+                    for tr in target_table.find_all('tr'):
+                        tds = tr.find_all('td')
+                        if tds and len(tds) >= 5:
+                            first = tds[0].get_text(strip=True)
+                            if len(first) == 10 and first.count('.') == 2:
+                                n = len(tds)
+                                # TD 수별 기본 오프셋
+                                # 8TD: 날짜|종가|전일비|거래량|외국인순매수|보유주수|지분율|기관순매수
+                                # 9TD: 날짜|종가|▲이미지|전일비숫자|거래량|외국인순매수|보유주수|지분율|기관순매수
+                                if n >= 9:
+                                    foreign_idx = 5
+                                    inst_idx    = 8
+                                else:
+                                    foreign_idx = 4
+                                    inst_idx    = 7
+                                break
+
+            if foreign_idx is None:
+                break
+
             found = False
             for tr in target_table.find_all('tr'):
                 tds = tr.find_all('td')
-                if len(tds) < 5:
+                if len(tds) < foreign_idx + 1:
                     continue
                 date_str = tds[0].get_text(strip=True)
                 if len(date_str) != 10 or date_str.count('.') != 2:
                     continue
 
-                # frgn.naver 컬럼: 날짜|종가|전일비|거래량|외국인순매수|보유주수|지분율|기관순매수
-                # (일부 페이지는 컬럼이 달라질 수 있으므로 마지막 숫자 컬럼 탐지)
-                if len(tds) >= 8:
-                    foreign_net = _parse_naver_num(tds[4].get_text(strip=True))
-                    inst_net    = _parse_naver_num(tds[7].get_text(strip=True))
-                elif len(tds) >= 7:
-                    foreign_net = _parse_naver_num(tds[4].get_text(strip=True))
-                    inst_net    = _parse_naver_num(tds[6].get_text(strip=True))
-                elif len(tds) >= 5:
-                    foreign_net = _parse_naver_num(tds[3].get_text(strip=True))
-                    inst_net    = 0
-                else:
-                    continue
+                foreign_net = _parse_naver_num(tds[foreign_idx].get_text(strip=True))
+                inst_net = (
+                    _parse_naver_num(tds[inst_idx].get_text(strip=True))
+                    if inst_idx is not None and inst_idx < len(tds) else 0
+                )
 
                 records.append({
                     'date': date_str,

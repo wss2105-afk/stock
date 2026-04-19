@@ -352,7 +352,7 @@
                     <div style="font-size:0.80rem;color:#c8d0dc;line-height:1.7;">{{ interp[0] }}</div>
                 </div>
 
-                <div id="maChart" style="margin:0 -4px;"></div>
+                <div id="maChart"></div>
             </div>
 
             <!-- 매수/매도 타이밍 -->
@@ -821,27 +821,22 @@
     {% if supply_chart %}const _supplyData   = {{ supply_chart|safe }};{% endif %}
     {% if investor_chart %}const _investorData = {{ investor_chart|safe }};{% endif %}
 
-    // 다크 테마는 Python(charts.py)에서 완성됨 — JS는 height/margin만 조정
+    // 다크 테마: Python JSON 값 기반 + JS에서 bgcolor 보장
     function _plotChart(id, data, layoutExtra) {
-        const el = document.getElementById(id);
+        var el = document.getElementById(id);
         if (!el || !data) return Promise.resolve();
-        try {
-            // 최상위 속성만 병합 (xaxis/yaxis 등 중첩 객체는 Python 값 그대로 사용)
-            const layout = Object.assign({}, data.layout, layoutExtra);
-            return Plotly.newPlot(el, data.data, layout, {
-                responsive: true,
-                displayModeBar: false,
-                scrollZoom: false,
-            }).catch(function(e) { console.error('[chart]', id, e); });
-        } catch(e) {
-            console.error('[chart-sync]', id, e);
-            return Promise.resolve();
-        }
+        var layout = Object.assign({}, data.layout, layoutExtra, {
+            paper_bgcolor: '#000',
+            plot_bgcolor:  '#000',
+        });
+        return Plotly.newPlot(el, data.data, layout, {
+            responsive: true, displayModeBar: false, scrollZoom: false,
+        }).catch(function(e){ console.error('[chart]', id, e); });
     }
 
     function _doRender() {
-        const isMobile = window.innerWidth < 768;
-        const isSmall  = window.innerWidth < 480;
+        var isMobile = window.innerWidth < 768;
+        var isSmall  = window.innerWidth < 480;
 
         Promise.all([
             _plotChart('mainChart', _mainData, {
@@ -867,15 +862,22 @@
             }),
             {% endif %}
             Promise.resolve()
-        ]);
+        ]).then(function() {
+            // 렌더 후 컨테이너 너비로 리사이즈 — Bootstrap 레이아웃 계산 완료 대기
+            setTimeout(function() {
+                ['mainChart','maChart','supplyChart','investorChart'].forEach(function(id) {
+                    var el = document.getElementById(id);
+                    if (el && el._fullLayout) Plotly.Plots.resize(el);
+                });
+            }, 200);
+        });
     }
 
-    // 컨테이너 너비 확보 후 렌더링 (최대 30회 × 100ms = 3초)
-    // 너비 0이 지속되면 강제 렌더
-    let _retries = 0;
+    // 칭찬받던 그 방식: double rAF + 30회 재시도 (너비 확보 후 렌더)
+    var _retries = 0;
     function _renderWhenReady() {
-        const el = document.getElementById('mainChart');
-        const w  = el ? el.getBoundingClientRect().width : 0;
+        var el = document.getElementById('mainChart');
+        var w  = el ? el.getBoundingClientRect().width : 0;
         if (w > 10 || _retries >= 30) {
             _doRender();
         } else {
@@ -885,7 +887,6 @@
     }
 
     if (document.readyState === 'complete') {
-        // 이미 로드 완료 — 다음 프레임에서 렌더 (CSS 레이아웃 완료 보장)
         requestAnimationFrame(function() { requestAnimationFrame(_renderWhenReady); });
     } else {
         window.addEventListener('load', function() {
@@ -894,10 +895,9 @@
     }
 
     // 창 크기 변경 시 재렌더링 (디바운스 300ms)
-    let _resizeTimer;
-    window.addEventListener('resize', function () {
-        clearTimeout(_resizeTimer);
-        _resizeTimer = setTimeout(_doRender, 300);
+    var _rt;
+    window.addEventListener('resize', function() {
+        clearTimeout(_rt); _rt = setTimeout(_doRender, 300);
     });
 </script>
 </body>

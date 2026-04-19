@@ -27,28 +27,28 @@ def _dark(fig):
 
 def make_main_chart(df, name):
     """캔들차트 + 볼린저밴드 + 이동평균선"""
-    fig = make_subplots(rows=1, cols=1)
+    fig = go.Figure()
 
     fig.add_trace(go.Candlestick(
         x=df.index, open=df['open'], high=df['high'],
         low=df['low'], close=df['close'], name='주가',
         increasing_line_color='#e74c3c', decreasing_line_color='#3498db'
-    ), row=1, col=1)
+    ))
 
     fig.add_trace(go.Scatter(x=df.index, y=df['bb_upper'], name='BB Upper',
                              line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2),
-                             showlegend=False), row=1, col=1)
+                             showlegend=False))
     fig.add_trace(go.Scatter(x=df.index, y=df['bb_lower'], name='BB Lower',
                              fill='tonexty', fillcolor='rgba(100,180,255,0.07)',
                              line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2),
-                             showlegend=False), row=1, col=1)
+                             showlegend=False))
     fig.add_trace(go.Scatter(x=df.index, y=df['bb_mid'], name='BB Mid',
                              line=dict(color='rgba(100,180,255,0.4)', dash='dot', width=1.0),
-                             showlegend=False), row=1, col=1)
+                             showlegend=False))
 
     for col_name, color, label in [('ma5', '#e74c3c', '5일'), ('ma20', '#f39c12', '20일')]:
         fig.add_trace(go.Scatter(x=df.index, y=df[col_name], name=label,
-                                 line=dict(color=color, width=1.2)), row=1, col=1)
+                                 line=dict(color=color, width=1.2)))
 
     fig.update_layout(
         height=520,
