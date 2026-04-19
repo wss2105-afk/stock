@@ -77,9 +77,15 @@ def make_main_chart(df, name, supply_df=None, current_price=None):
         fig.add_hline(y=current_price,
                       line=dict(color='#FFC000', width=1.2, dash='dot'))
 
+        # y축 범위를 캔들 데이터 기준으로 고정해 두 패널 완전 일치
+        y_min = float(df['low'].min()) * 0.97
+        y_max = float(df['high'].max()) * 1.03
+        fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
+        fig.update_yaxes(range=[y_min, y_max],
+                         showticklabels=False, showgrid=False, row=1, col=2)
+
         fig.update_xaxes(showticklabels=False, showgrid=False,
                          zeroline=False, row=1, col=2)
-        fig.update_yaxes(showticklabels=False, showgrid=False, row=1, col=2)
 
     fig.update_layout(
         height=550,

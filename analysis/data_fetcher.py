@@ -41,12 +41,15 @@ def get_ticker(name_or_ticker):
     if query in db:
         return db[query], query
 
-    # 부분 일치
-    for name, ticker in db.items():
-        if query in name or name in query:
-            return ticker, name
+    # 부분 일치: query가 DB 종목명 안에 포함된 경우만 허용
+    # (name in query는 제외 — "카카오"가 "카카오페이" 쿼리에 매칭되는 오류 방지)
+    candidates = [(name, ticker) for name, ticker in db.items() if query in name]
+    if candidates:
+        # 가장 짧은 이름(가장 유사한 것) 선택
+        candidates.sort(key=lambda x: len(x[0]))
+        return candidates[0][1], candidates[0][0]
 
-    # DART 전체 상장사 폴백 검색
+    # DART 전체 상장사 폴백 검색 (비 KOSPI200/KOSDAQ150 종목)
     try:
         from analysis.dart import search_ticker_by_name
         ticker, name = search_ticker_by_name(query)
