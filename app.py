@@ -24,7 +24,7 @@ _LAST_UPDATE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ticker_last
 
 
 def _auto_update_tickers():
-    """매월 1일 종목 DB 자동 갱신 (KOSPI 500 + KOSDAQ 300)"""
+    """매월 1일 종목 DB 자동 갱신 (스캔용 800 + 전종목 4000+)"""
     today = datetime.today()
     if today.day != 1:
         return
@@ -565,15 +565,18 @@ def surge_refresh():
     return jsonify({'status': 'scanning'})
 
 
+_ALL_TICKER_PATH = os.path.join(os.path.dirname(__file__), 'data', 'krx_all_tickers.json')
+
 @app.route('/api/search-suggest')
 def search_suggest():
     q = request.args.get('q', '').strip()
     if len(q) < 1:
         return jsonify([])
-    import json as _json
+    # 전종목 DB 우선, 없으면 800종목 DB
+    path = _ALL_TICKER_PATH if os.path.exists(_ALL_TICKER_PATH) else _TICKER_PATH
     try:
-        with open(_TICKER_PATH, encoding='utf-8') as f:
-            db = _json.load(f)
+        with open(path, encoding='utf-8') as f:
+            db = json.load(f)
         q_lower = q.lower()
         matches = [
             {'name': name, 'ticker': ticker}

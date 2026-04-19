@@ -4,8 +4,10 @@ from datetime import datetime, timedelta
 import json
 import os
 
-_TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
-_ticker_db = None
+_TICKER_DB_PATH     = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
+_ALL_TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_all_tickers.json')
+_ticker_db     = None
+_all_ticker_db = None
 
 
 def _load_ticker_db():
@@ -16,6 +18,19 @@ def _load_ticker_db():
     return _ticker_db
 
 
+def _load_all_ticker_db():
+    """전종목 DB (KOSPI + KOSDAQ 전체, 검색·기업소개용)"""
+    global _all_ticker_db
+    if _all_ticker_db is None:
+        path = _ALL_TICKER_DB_PATH
+        if not os.path.exists(path):
+            # 전종목 DB가 없으면 기존 800종목 DB로 폴백
+            return _load_ticker_db()
+        with open(path, encoding='utf-8') as f:
+            _all_ticker_db = json.load(f)
+    return _all_ticker_db
+
+
 def get_date_range(months=3):
     end = datetime.today()
     start = end - timedelta(days=months * 30)
@@ -23,48 +38,42 @@ def get_date_range(months=3):
 
 
 def get_ticker(name_or_ticker):
-    """종목명 또는 티커 코드로 (ticker, name) 반환"""
-    db = _load_ticker_db()
+    """종목명 또는 티커 코드로 (ticker, name) 반환 — 전종목 DB 우선 검색"""
+    all_db = _load_all_ticker_db()
+    query  = name_or_ticker.strip()
+    query_lower = query.lower()
 
-    # 6자리 숫자 코드로 직접 입력한 경우
-    if name_or_ticker.isdigit() and len(name_or_ticker) == 6:
+    # 6자리 코드 직접 입력
+    if query.isdigit() and len(query) == 6:
+        # 전종목 DB에서 역방향 조회
+        for name, code in all_db.items():
+            if code == query:
+                return code, name
+        # pykrx 폴백
         try:
-            name = stock.get_market_ticker_name(name_or_ticker)
+            name = stock.get_market_ticker_name(query)
             if name:
-                return name_or_ticker, name
+                return query, name
         except Exception:
             pass
 
-    # 종목명으로 검색 (대소문자 무시)
-    query = name_or_ticker.strip()
-    query_lower = query.lower()
-
-    # 완전 일치 (대소문자 무시)
-    for name, ticker in db.items():
+    # 완전 일치
+    for name, ticker in all_db.items():
         if name.lower() == query_lower:
             return ticker, name
 
-    # 부분 일치: query가 DB 종목명 안에 포함된 경우만 허용 (대소문자 무시)
-    candidates = [(name, ticker) for name, ticker in db.items()
+    # 부분 일치 (짧은 이름 우선)
+    candidates = [(name, ticker) for name, ticker in all_db.items()
                   if query_lower in name.lower()]
     if candidates:
         candidates.sort(key=lambda x: len(x[0]))
         return candidates[0][1], candidates[0][0]
 
-    # DART 전체 상장사 폴백 검색 (비 KOSPI200/KOSDAQ150 종목)
-    try:
-        from analysis.dart import search_ticker_by_name
-        ticker, name = search_ticker_by_name(query)
-        if ticker:
-            return ticker, name
-    except Exception:
-        pass
-
     return None, None
 
 
 def is_main_stock(ticker):
-    """KOSPI200 + KOSDAQ150 로컬 DB 포함 종목 여부"""
+    """분석 대상 종목 여부 (KOSPI 500 + KOSDAQ 300 = 800개)"""
     db = _load_ticker_db()
     return ticker in db.values()
 
