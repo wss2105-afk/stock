@@ -821,10 +821,11 @@
     {% if supply_chart %}const _supplyData   = {{ supply_chart|safe }};{% endif %}
     {% if investor_chart %}const _investorData = {{ investor_chart|safe }};{% endif %}
 
-    // 다크 테마: Python JSON 값 기반 + JS에서 bgcolor 보장
+    // Plotly.react: 기존 차트 완전 교체(겹침 방지) + 없으면 신규 생성
     function _plotChart(id, data, layoutExtra) {
         var el = document.getElementById(id);
         if (!el || !data) return Promise.resolve();
+        Plotly.purge(el);
         var layout = Object.assign({}, data.layout, layoutExtra, {
             paper_bgcolor: '#000',
             plot_bgcolor:  '#000',
@@ -862,15 +863,7 @@
             }),
             {% endif %}
             Promise.resolve()
-        ]).then(function() {
-            // 렌더 후 컨테이너 너비로 리사이즈 — Bootstrap 레이아웃 계산 완료 대기
-            setTimeout(function() {
-                ['mainChart','maChart','supplyChart','investorChart'].forEach(function(id) {
-                    var el = document.getElementById(id);
-                    if (el && el._fullLayout) Plotly.Plots.resize(el);
-                });
-            }, 200);
-        });
+        ]);
     }
 
     // 칭찬받던 그 방식: double rAF + 30회 재시도 (너비 확보 후 렌더)
