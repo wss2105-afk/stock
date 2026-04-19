@@ -166,6 +166,19 @@ PER {fundamental.get('per','N/A')} · Fwd PER {fundamental.get('forward_per','N/
         return _fallback_analysis(score, reasons, signals, fundamental) + f"\n\n[API 오류: {error_msg}]"
 
 
+def _clean_text(text):
+    """마크다운 기호 제거"""
+    import re
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)   # **bold**
+    text = re.sub(r'\*(.+?)\*', r'\1', text)         # *italic*
+    text = re.sub(r'`(.+?)`', r'\1', text)           # `code`
+    text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)  # # 헤더
+    text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)   # 1. 번호목록
+    text = re.sub(r'^[-*]\s+', '', text, flags=re.MULTILINE)    # - * 목록
+    text = re.sub(r'\n{3,}', '\n\n', text)           # 과도한 빈 줄
+    return text.strip()
+
+
 def get_business_description(name, industry, ticker):
     """Claude API로 기업 사업 내용 및 매출 구조 설명 생성"""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -173,14 +186,15 @@ def get_business_description(name, industry, ticker):
         return "API 키가 설정되지 않았습니다."
 
     client = anthropic.Anthropic(api_key=api_key)
-    prompt = f"""한국 상장기업 '{name}' (종목코드: {ticker}, 업종코드: {industry})에 대해 아래 항목을 간결하게 설명해 주세요.
+    prompt = f"""한국 상장기업 '{name}' (종목코드: {ticker}, 업종: {industry})에 대해 아래 항목을 간결하게 설명해 주세요.
 
-1. 주요 사업 내용 (어떤 제품/서비스를 만드는지, 2~3문장)
-2. 주요 매출원 (어디서 돈을 버는지, 매출 비중이 큰 순서로)
-3. 주요 고객 및 시장 (국내/해외, B2B/B2C 등)
-4. 대표 경쟁사 또는 산업 내 위치 (1~2문장)
+주요 사업 내용, 주요 매출원, 주요 고객·시장, 경쟁사 또는 산업 내 위치를 포함하세요.
 
-초보 투자자도 쉽게 이해할 수 있게 간단한 언어로 작성하세요. 총 200~300자 내외."""
+규칙:
+- 마크다운(#, **, *, ` 등) 절대 사용 금지
+- 번호나 기호 없이 자연스러운 문단으로 작성
+- 초보 투자자도 이해할 수 있는 쉬운 언어
+- 200~300자 내외"""
 
     try:
         message = client.messages.create(
@@ -188,7 +202,7 @@ def get_business_description(name, industry, ticker):
             max_tokens=600,
             messages=[{"role": "user", "content": prompt}]
         )
-        return message.content[0].text
+        return _clean_text(message.content[0].text)
     except Exception as e:
         return f"사업 설명을 불러오는 중 오류가 발생했습니다: {type(e).__name__}"
 
