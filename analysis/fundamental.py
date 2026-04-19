@@ -6,6 +6,59 @@ from datetime import datetime, timedelta
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
 
+def get_company_info_naver(ticker):
+    """Naver Finance coinfo 페이지에서 기업 기본정보 스크래핑"""
+    result = {}
+    try:
+        url = f"https://finance.naver.com/item/coinfo.naver?code={ticker}"
+        res = requests.get(url, headers=HEADERS, timeout=6)
+        soup = BeautifulSoup(res.text, 'html.parser')
+
+        # 여러 테이블 셀렉터 시도
+        table = (soup.select_one('table.coinfo_t1') or
+                 soup.select_one('table.tb_type1') or
+                 soup.find('table', attrs={'summary': lambda s: s and '기업' in s}))
+
+        if table:
+            rows = table.find_all('tr')
+            for row in rows:
+                ths = row.find_all('th')
+                tds = row.find_all('td')
+                for i, th in enumerate(ths):
+                    if i >= len(tds):
+                        continue
+                    key = th.get_text(strip=True)
+                    td = tds[i]
+                    val = td.get_text(strip=True)
+                    if '업종' in key and 'industry' not in result:
+                        result['industry'] = val
+                    elif '대표자' in key and 'ceo' not in result:
+                        result['ceo'] = val
+                    elif '결산' in key and 'fiscal_month' not in result:
+                        result['fiscal_month'] = val if val else 'N/A'
+                    elif '설립일' in key and 'founded' not in result:
+                        result['founded'] = val.replace('.', '').replace('-', '') if val else ''
+                    elif '홈페이지' in key and 'website' not in result:
+                        a_tag = td.find('a')
+                        result['website'] = a_tag['href'] if a_tag else val
+
+        # 업종이 없으면 main 페이지의 업종 링크에서 추출
+        if 'industry' not in result:
+            main_url = f"https://finance.naver.com/item/main.naver?code={ticker}"
+            main_res = requests.get(main_url, headers=HEADERS, timeout=5)
+            main_soup = BeautifulSoup(main_res.text, 'html.parser')
+            # 업종 링크 패턴: /sise/sise_group_detail.naver?type=upjong
+            for a in main_soup.find_all('a', href=True):
+                if 'upjong' in a['href'] or 'type=upjong' in a['href']:
+                    industry_text = a.get_text(strip=True)
+                    if industry_text:
+                        result['industry'] = industry_text
+                        break
+    except Exception:
+        pass
+    return result
+
+
 def get_market_profile(ticker):
     """시가총액, 52주 최고/최저, 시장구분"""
     result = {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
@@ -43,7 +96,6 @@ def get_market_profile(ticker):
             elif 'KOSDAQ' in txt.upper():
                 result['market_type'] = 'KOSDAQ'
         else:
-            # 코드 범위로 추정
             result['market_type'] = 'KOSDAQ' if ticker.startswith(('0', '1')) and int(ticker) < 200000 and int(ticker) >= 100000 else 'KOSPI'
     except Exception:
         pass

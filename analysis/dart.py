@@ -94,31 +94,44 @@ _IMPORTANT_TYPES = {'B', 'C', 'D', 'I'}  # 중요 공시 유형
 
 
 def get_company_info(ticker):
-    """DART에서 기업 기본정보 조회"""
-    if not DART_API_KEY:
-        return {}
-    corp_code = get_corp_code(ticker)
-    if not corp_code:
-        return {}
-    try:
-        resp = requests.get(
-            "https://opendart.fss.or.kr/api/company.json",
-            params={'crtfc_key': DART_API_KEY, 'corp_code': corp_code},
-            timeout=10
-        )
-        data = resp.json()
-        if data.get('status') != '000':
-            return {}
-        return {
-            'ceo': data.get('ceo_nm', 'N/A'),
-            'industry': data.get('induty_code', 'N/A'),
-            'founded': data.get('est_dt', ''),
-            'fiscal_month': data.get('acc_mt', 'N/A') + '월',
-            'website': data.get('hm_url', ''),
-            'address': data.get('adres', ''),
-        }
-    except Exception:
-        return {}
+    """DART에서 기업 기본정보 조회 (실패 시 Naver Finance 폴백)"""
+    from analysis.fundamental import get_company_info_naver
+
+    dart_info = {}
+    if DART_API_KEY:
+        corp_code = get_corp_code(ticker)
+        if corp_code:
+            try:
+                resp = requests.get(
+                    "https://opendart.fss.or.kr/api/company.json",
+                    params={'crtfc_key': DART_API_KEY, 'corp_code': corp_code},
+                    timeout=10
+                )
+                data = resp.json()
+                if data.get('status') == '000':
+                    dart_info = {
+                        'ceo': data.get('ceo_nm', ''),
+                        'industry': '',  # induty_code는 숫자코드라 미사용
+                        'founded': data.get('est_dt', ''),
+                        'fiscal_month': (data.get('acc_mt', '') + '월') if data.get('acc_mt') else '',
+                        'website': data.get('hm_url', ''),
+                        'address': data.get('adres', ''),
+                    }
+            except Exception:
+                pass
+
+    # Naver Finance에서 부족한 정보 보완
+    naver_info = get_company_info_naver(ticker)
+
+    merged = {
+        'ceo': dart_info.get('ceo') or naver_info.get('ceo', 'N/A'),
+        'industry': naver_info.get('industry', dart_info.get('industry', 'N/A')),
+        'founded': dart_info.get('founded') or naver_info.get('founded', ''),
+        'fiscal_month': dart_info.get('fiscal_month') or naver_info.get('fiscal_month', 'N/A'),
+        'website': dart_info.get('website') or naver_info.get('website', ''),
+        'address': dart_info.get('address', ''),
+    }
+    return merged
 
 
 def get_disclosures(ticker, days=60):
