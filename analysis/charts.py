@@ -100,13 +100,10 @@ def make_ma_chart(df, name):
             xanchor='left', xshift=8, yanchor='middle'
         )
 
-    # 현재가 수평선
+    # 현재가 수평선 (주석 없이 — topbar에 이미 가격 표시됨)
     fig.add_hline(
         y=cur,
         line=dict(color='#FFC000', width=1.5, dash='dot'),
-        annotation_text=f'현재 {int(cur):,}원',
-        annotation_font=dict(color='#FFC000', size=10),
-        annotation_position='top left'
     )
 
     fig.update_layout(

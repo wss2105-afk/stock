@@ -232,7 +232,6 @@
     <a href="/">← BACK</a>
     <span class="stock-name">{{ name }} <span class="stock-ticker">{{ ticker }}</span></span>
     <span class="stock-price">{{ current_price }}원</span>
-    <span class="stock-period">{{ months }}개월</span>
 </div>
 
 <div class="main">
@@ -822,25 +821,32 @@
     {% if supply_chart %}const _supplyData   = {{ supply_chart|safe }};{% endif %}
     {% if investor_chart %}const _investorData = {{ investor_chart|safe }};{% endif %}
 
-    const _dark = {
-        paper_bgcolor: '#000', plot_bgcolor: '#000',
-        font: { color: '#969696' },
-        xaxis:  { gridcolor: '#1e1e1e', linecolor: '#2a2a2a', zerolinecolor: '#2a2a2a' },
-        yaxis:  { gridcolor: '#1e1e1e', linecolor: '#2a2a2a', zerolinecolor: '#2a2a2a' },
-        xaxis2: { gridcolor: '#1e1e1e', linecolor: '#2a2a2a', zerolinecolor: '#2a2a2a' },
-        yaxis2: { gridcolor: '#1e1e1e', linecolor: '#2a2a2a', zerolinecolor: '#2a2a2a' },
-    };
+    // 다크 테마: xaxis/yaxis는 Object.assign으로 덮어쓰면 원본 설정(rangeslider, type 등)이
+    // 소실되므로 newPlot 후 relayout으로 색상만 추가 적용
+    const _axisKeys = ['xaxis','yaxis','xaxis2','yaxis2','xaxis3','yaxis3'];
+    const _axisColors = {};
+    _axisKeys.forEach(ax => {
+        _axisColors[ax + '.gridcolor']      = '#1e1e1e';
+        _axisColors[ax + '.linecolor']      = '#2a2a2a';
+        _axisColors[ax + '.zerolinecolor']  = '#2a2a2a';
+        _axisColors[ax + '.tickfont.color'] = '#7a7a7a';
+    });
 
     function _plotChart(id, data, layoutExtra) {
         const el = document.getElementById(id);
         if (!el) return;
-        const layout = Object.assign({}, data.layout, _dark, layoutExtra);
-        // newPlot: 항상 새로 그림 (react보다 안정적)
+        // 최상위 레이아웃만 얕은 병합 (xaxis/yaxis 객체는 건드리지 않음)
+        const layout = Object.assign({}, data.layout, layoutExtra, {
+            paper_bgcolor: '#000',
+            plot_bgcolor:  '#000',
+        });
         Plotly.newPlot(el, data.data, layout, {
             responsive: true,
             displayModeBar: false,
             scrollZoom: false,
         });
+        // 축 색상만 별도로 덮어씌움 → 기존 설정(rangeslider, type, format 등) 보존
+        Plotly.relayout(el, _axisColors);
     }
 
     function _doRender() {
