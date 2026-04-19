@@ -826,10 +826,10 @@
     const _axisKeys = ['xaxis','yaxis','xaxis2','yaxis2','xaxis3','yaxis3'];
     const _axisColors = {};
     _axisKeys.forEach(ax => {
-        _axisColors[ax + '.gridcolor']      = '#1e1e1e';
-        _axisColors[ax + '.linecolor']      = '#2a2a2a';
-        _axisColors[ax + '.zerolinecolor']  = '#2a2a2a';
-        _axisColors[ax + '.tickfont.color'] = '#7a7a7a';
+        _axisColors[ax + '.gridcolor']      = 'rgba(255,255,255,0.07)';
+        _axisColors[ax + '.linecolor']      = 'rgba(255,255,255,0.1)';
+        _axisColors[ax + '.zerolinecolor']  = 'rgba(255,255,255,0.1)';
+        _axisColors[ax + '.tickfont.color'] = '#c0c0c0';
     });
 
     function _plotChart(id, data, layoutExtra) {
@@ -891,10 +891,7 @@
             }),
             {% endif %}
             Promise.resolve()
-        ]).then(function() {
-            // 렌더 완료 후 resize 이벤트로 Plotly responsive 크기 재조정
-            window.dispatchEvent(new Event('resize'));
-        });
+        ]);
     }
 
     // 컨테이너 너비 확보 후 렌더링 (최대 30회 × 100ms = 3초)
