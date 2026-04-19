@@ -166,6 +166,38 @@ PER {fundamental.get('per','N/A')} · Fwd PER {fundamental.get('forward_per','N/
         return _fallback_analysis(score, reasons, signals, fundamental) + f"\n\n[API 오류: {error_msg}]"
 
 
+def summarize_research(name, reports):
+    """증권사 리포트 목록을 Claude로 2~3줄 요약"""
+    if not reports:
+        return ""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return ""
+    client = anthropic.Anthropic(api_key=api_key)
+    lines = "\n".join(
+        f"- [{r['date']}] {r['firm']}: {r['title']}" +
+        (f" (목표가 {r['target']})" if r['target'] else "")
+        for r in reports
+    )
+    prompt = f"""다음은 '{name}'에 대한 최근 증권사 애널리스트 리포트 목록입니다.
+
+{lines}
+
+이 리포트들의 핵심 내용을 2~3문장으로 요약해 주세요.
+- 마크다운(#, **, * 등) 절대 사용 금지
+- 목표가 변화, 투자의견 변화, 주요 이슈를 중심으로
+- 초보 투자자도 이해할 수 있는 간결한 언어"""
+    try:
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return _clean_text(msg.content[0].text)
+    except Exception:
+        return ""
+
+
 def _clean_text(text):
     """마크다운 기호 제거"""
     import re

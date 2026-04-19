@@ -4,8 +4,8 @@ from analysis.export_growth import load_cache as load_export_cache, scan_export_
 from analysis.data_fetcher import get_ticker, get_ohlcv, get_investor_detail, get_supply_zone, is_main_stock
 from analysis.indicators import calc_indicators, get_ma_arrangement, get_latest_signals
 from analysis.fundamental import get_fundamental
-from analysis.news import search_naver_news, analyze_news
-from analysis.signal import calc_score, get_recommendation, get_ai_analysis, get_business_description
+from analysis.news import search_naver_news, analyze_news, get_research_reports
+from analysis.signal import calc_score, get_recommendation, get_ai_analysis, get_business_description, summarize_research
 from analysis.charts import make_main_chart, make_supply_zone_chart, make_investor_chart, make_ma_chart
 from analysis.dart import get_disclosures, get_company_info
 from analysis.fundamental import get_market_profile
@@ -167,6 +167,13 @@ def analyze():
                        'sentiment_score': 0, 'top_keywords': [], 'press_counts': {},
                        'exclusive_count': 0, 'articles': []}
 
+    # 증권사 리포트
+    try:
+        research_reports = get_research_reports(ticker)
+        research_summary = summarize_research(name, research_reports)
+    except Exception:
+        research_reports, research_summary = [], ""
+
     # 신호 계산
     score, reasons = calc_score(ma_status, signals, investor_df, news_result)
     recommendation, rec_color = get_recommendation(score)
@@ -206,6 +213,8 @@ def analyze():
         score=score, recommendation=recommendation, rec_color=rec_color,
         reasons=reasons,
         news=news_result,
+        research_reports=research_reports,
+        research_summary=research_summary,
         ai_comment=ai_comment,
         main_chart=main_chart,
         supply_chart=supply_chart,

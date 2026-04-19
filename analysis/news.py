@@ -108,6 +108,49 @@ def analyze_news(articles):
     }
 
 
+def get_research_reports(ticker, max_items=6):
+    """네이버 증권 리서치에서 종목 애널리스트 리포트 목록 수집"""
+    reports = []
+    try:
+        url = (f"https://finance.naver.com/research/company_list.naver"
+               f"?searchType=itemCode&itemCode={ticker}")
+        res = requests.get(url, headers=HEADERS, timeout=8)
+        soup = BeautifulSoup(res.text, 'html.parser')
+
+        table = soup.select_one('table.type_1')
+        if not table:
+            return []
+
+        for tr in table.select('tr'):
+            tds = tr.find_all('td')
+            if len(tds) < 5:
+                continue
+            title_a = tds[0].find('a')
+            if not title_a:
+                continue
+            title    = title_a.get_text(strip=True)
+            firm     = tds[1].get_text(strip=True)
+            target   = tds[2].get_text(strip=True).replace('\xa0', '').strip()
+            date_txt = tds[4].get_text(strip=True)
+            href     = title_a.get('href', '')
+            if href and not href.startswith('http'):
+                href = 'https://finance.naver.com' + href
+
+            if title and firm:
+                reports.append({
+                    'title': title,
+                    'firm': firm,
+                    'target': target,
+                    'date': date_txt,
+                    'url': href,
+                })
+            if len(reports) >= max_items:
+                break
+    except Exception as e:
+        print(f"리포트 수집 오류: {e}")
+    return reports
+
+
 def get_news_signal_score(news_result):
     """뉴스 기반 신호 점수 (-2 ~ +2)"""
     if news_result['total'] == 0:

@@ -579,6 +579,41 @@
                 {% endif %}
             </div>
 
+            <!-- 증권사 리포트 -->
+            {% if research_reports %}
+            <div class="section-card">
+                <div class="section-title">증권사 리포트 <span style="color:#555;">최근 {{ research_reports|length }}건</span></div>
+
+                {% if research_summary %}
+                <div style="border-left:2px solid #FFC000;padding:10px 14px;margin-bottom:14px;background:rgba(255,192,0,0.05);">
+                    <div style="font-size:0.62rem;color:#FFC000;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:5px;">AI 요약</div>
+                    <div style="font-size:0.84rem;color:#c8d0dc;line-height:1.75;">{{ research_summary }}</div>
+                </div>
+                {% endif %}
+
+                <div style="display:flex;flex-direction:column;gap:1px;">
+                {% for r in research_reports %}
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:9px 10px;background:#181818;gap:10px;">
+                    <div style="flex:1;min-width:0;">
+                        <a href="{{ r.url }}" target="_blank"
+                           style="font-size:0.83rem;color:#e2e8f0;text-decoration:none;line-height:1.4;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                           onmouseover="this.style.color='#FFC000'" onmouseout="this.style.color='#e2e8f0'">
+                            {{ r.title }}
+                        </a>
+                        <div style="font-size:0.68rem;color:#555;margin-top:3px;">{{ r.firm }}</div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;">
+                        {% if r.target %}
+                        <div style="font-size:0.78rem;color:#FFC000;font-weight:600;white-space:nowrap;">▲ {{ r.target }}</div>
+                        {% endif %}
+                        <div style="font-size:0.65rem;color:#444;margin-top:2px;white-space:nowrap;">{{ r.date }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
             <!-- 뉴스 -->
             <div class="section-card">
                 <div class="section-title">뉴스 분석 <span style="color:#555;">최근 30일</span></div>
