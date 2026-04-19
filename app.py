@@ -76,7 +76,7 @@ def _auto_surge_scan():
         except Exception:
             surge = []
 
-        # 추천/수급 각 1건 (버튼 뱃지용)
+        # 추천/수급/매출급성장 각 1건 (버튼 뱃지용)
         try:
             top_rec = scan_top_stocks(top_n=1, months=3)
             pick_rec = top_rec[0] if top_rec else None
@@ -87,14 +87,21 @@ def _auto_surge_scan():
             pick_sup = top_sup[0] if top_sup else None
         except Exception:
             pick_sup = None
+        try:
+            exp_cache = load_export_cache()
+            exp_list = exp_cache.get('results', []) if exp_cache else []
+            pick_exp = {'name': exp_list[0]['name'], 'ticker': exp_list[0]['ticker']} if exp_list else None
+        except Exception:
+            pick_exp = None
 
         with open(_SURGE_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump({
                 'date':     today,
-                'bounce':   bounce,   # MA 반등 종목
-                'results':  surge,    # 거래량 급등 종목
+                'bounce':   bounce,
+                'results':  surge,
                 'pick_rec': pick_rec,
                 'pick_sup': pick_sup,
+                'pick_exp': pick_exp,
             }, f, ensure_ascii=False)
         print(f'[{today}] 스캔 완료 — 반등: {len(bounce)}건, 급등: {len(surge)}건')
     except Exception as e:
@@ -421,7 +428,7 @@ def surge_picks():
     cache = _load_surge_cache()
     if cache:
         return jsonify(cache)
-    return jsonify({'date': '', 'bounce': [], 'results': [], 'pick_rec': None, 'pick_sup': None})
+    return jsonify({'date': '', 'bounce': [], 'results': [], 'pick_rec': None, 'pick_sup': None, 'pick_exp': None})
 
 
 @app.route('/api/surge-refresh', methods=['POST'])

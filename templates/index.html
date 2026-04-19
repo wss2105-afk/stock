@@ -157,6 +157,7 @@
     <a href="/export-surge" class="export-btn" id="exportBtn">
         매출 급성장 수출주 스캔 →
         <span class="new-badge" id="newBadge" style="display:none;">NEW</span>
+        <span id="pickExp" style="display:none;float:right;font-size:0.7rem;color:#ffe0c0;"></span>
     </a>
 
     <!-- 과매도/과매수 패널 -->
@@ -314,6 +315,10 @@ function showOsc(kind) {
             if (data.pick_sup) {
                 const el = document.getElementById('pickSup');
                 if (el) { el.textContent = `오늘: ${data.pick_sup.name}`; el.style.display = 'inline'; }
+            }
+            if (data.pick_exp) {
+                const el = document.getElementById('pickExp');
+                if (el) { el.textContent = `오늘: ${data.pick_exp.name}`; el.style.display = 'inline'; }
             }
         })
         .catch(() => {
