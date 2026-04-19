@@ -50,22 +50,26 @@ def get_ma_arrangement(df):
 
     has_120 = not pd.isna(ma120)
 
+    # 4선 완전 정/역배열
     if has_120:
         if ma5 > ma20 > ma60 > ma120:
             return "완전 정배열 (강한 상승추세)", "bullish"
         elif ma5 < ma20 < ma60 < ma120:
             return "완전 역배열 (강한 하락추세)", "bearish"
 
+    # 3선 정/역배열
     if ma5 > ma20 > ma60:
         return "정배열 (상승추세)", "bullish"
     elif ma5 < ma20 < ma60:
         return "역배열 (하락추세)", "bearish"
-    elif ma5 > ma20 and ma60 > (ma120 if has_120 else ma60):
+
+    # 단기선(5·20일) 기준
+    if ma5 > ma20:
         return "단기 정배열 (상승 전환 중)", "mild_bullish"
-    elif ma5 < ma20 and ma20 < ma60:
+    elif ma5 < ma20:
         return "단기 역배열 (하락 전환 중)", "mild_bearish"
-    else:
-        return "혼조 (방향성 불명확)", "neutral"
+
+    return "혼조 (방향성 불명확)", "neutral"
 
 
 def get_latest_signals(df):

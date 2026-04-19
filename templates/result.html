@@ -198,7 +198,7 @@
 
             /* 차트 */
             #mainChart { min-height: 0 !important; }
-            #supplyChart, #investorChart { min-height: 0 !important; }
+            #investorChart { min-height: 0 !important; }
 
             /* 뉴스 */
             .news-item a { font-size: 0.82rem; }
@@ -553,18 +553,9 @@
                 <div id="mainChart"></div>
             </div>
 
-            <!-- 매물대 + 수급 -->
-            <div class="row g-0" style="gap:0;">
-                <div class="col-md-5" style="padding-right:1px;">
-                    <div class="chart-container">
-                        <div id="supplyChart"></div>
-                    </div>
-                </div>
-                <div class="col-md-7">
-                    <div class="chart-container">
-                        <div id="investorChart"></div>
-                    </div>
-                </div>
+            <!-- 수급 차트 -->
+            <div class="chart-container">
+                <div id="investorChart"></div>
             </div>
 
             <!-- DART 공시 -->
@@ -702,6 +693,16 @@
 
         function esc(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+        function clean(t) {
+            return t
+                .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold**
+                .replace(/\*([^*]+)\*/g, '$1')        // *italic*
+                .replace(/`([^`]+)`/g, '$1')           // `code`
+                .replace(/^#{1,3}\s*/gm, '')           // ## 헤더 잔여
+                .replace(/^\d+\.\s+/, '')              // 번호 목록 앞 숫자
+                .trim();
+        }
+
         function renderBody(key, body) {
             if (key === '매수·매도 근거') {
                 const lines = body.split('\n').filter(l => l.trim());
@@ -772,17 +773,6 @@
         legend: { orientation: 'h', y: 1.02, font: { size: isMobile ? 9 : 10 }, bgcolor: 'rgba(0,0,0,0)' },
         margin: isMobile ? {l:40,r:8,t:40,b:20} : {l:40,r:20,t:60,b:20}
     }, {responsive: true});
-
-    {% if supply_chart %}
-    const supplyData = {{ supply_chart|safe }};
-    Plotly.newPlot('supplyChart', supplyData.data, {
-        ...supplyData.layout, ...darkLayout,
-        height: isMobile ? 280 : 400,
-        margin: isMobile ? {l:50,r:8,t:30,b:20} : {l:40,r:20,t:40,b:20}
-    }, {responsive: true});
-    {% else %}
-    document.getElementById('supplyChart').innerHTML = '<p style="color:#555;text-align:center;padding:30px;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;">매물대 데이터 없음</p>';
-    {% endif %}
 
     {% if investor_chart %}
     const investorData = {{ investor_chart|safe }};

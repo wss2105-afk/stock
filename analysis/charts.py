@@ -4,37 +4,77 @@ import plotly.utils
 import json
 
 
-def make_main_chart(df, name):
-    """캔들차트 + 이동평균선 + 볼린저밴드"""
-    fig = go.Figure()
+def make_main_chart(df, name, supply_df=None, current_price=None):
+    """캔들차트 + 볼린저밴드 + 이동평균선 (우측 매물대 포함)"""
+    has_supply = (supply_df is not None and not supply_df.empty
+                  and current_price is not None)
+
+    if has_supply:
+        fig = make_subplots(
+            rows=1, cols=2,
+            shared_yaxes=True,
+            column_widths=[0.8, 0.2],
+            horizontal_spacing=0.004,
+        )
+    else:
+        fig = make_subplots(rows=1, cols=1)
 
     # 캔들차트
     fig.add_trace(go.Candlestick(
         x=df.index, open=df['open'], high=df['high'],
         low=df['low'], close=df['close'], name='주가',
         increasing_line_color='#e74c3c', decreasing_line_color='#3498db'
-    ))
+    ), row=1, col=1)
 
     # Bollinger Bands
     fig.add_trace(go.Scatter(x=df.index, y=df['bb_upper'], name='BB Upper',
-                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2), showlegend=False))
+                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2),
+                             showlegend=False), row=1, col=1)
     fig.add_trace(go.Scatter(x=df.index, y=df['bb_lower'], name='BB Lower',
                              fill='tonexty', fillcolor='rgba(100,180,255,0.07)',
-                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2), showlegend=False))
+                             line=dict(color='rgba(100,180,255,0.7)', dash='dash', width=1.2),
+                             showlegend=False), row=1, col=1)
     fig.add_trace(go.Scatter(x=df.index, y=df['bb_mid'], name='BB Mid',
-                             line=dict(color='rgba(100,180,255,0.4)', dash='dot', width=1.0), showlegend=False))
+                             line=dict(color='rgba(100,180,255,0.4)', dash='dot', width=1.0),
+                             showlegend=False), row=1, col=1)
 
-    # 이동평균선 (5일, 20일만)
-    colors = {'ma5': '#e74c3c', 'ma20': '#f39c12'}
-    labels = {'ma5': '5일', 'ma20': '20일'}
-    for col, color in colors.items():
-        fig.add_trace(go.Scatter(x=df.index, y=df[col], name=labels[col],
-                                 line=dict(color=color, width=1.2)))
+    # 이동평균선 (5일, 20일)
+    for col_name, color, label in [('ma5','#e74c3c','5일'), ('ma20','#f39c12','20일')]:
+        fig.add_trace(go.Scatter(x=df.index, y=df[col_name], name=label,
+                                 line=dict(color=color, width=1.2)), row=1, col=1)
 
-    fig.update_layout(height=550, template='plotly_white',
-                      xaxis_rangeslider_visible=False,
-                      legend=dict(orientation='h', y=1.02),
-                      margin=dict(l=40, r=20, t=60, b=20))
+    if has_supply:
+        # 현재가 ±3% 내 구간 강조
+        bar_colors = [
+            'rgba(231,76,60,0.80)' if abs(p - current_price) / current_price < 0.03
+            else 'rgba(52,152,219,0.45)'
+            for p in supply_df['price_mid']
+        ]
+        fig.add_trace(go.Bar(
+            x=supply_df['volume'],
+            y=supply_df['price_mid'],
+            orientation='h',
+            name='매물대',
+            marker=dict(color=bar_colors, line_width=0),
+            showlegend=False,
+            hovertemplate='%{y:,.0f}원<br>거래량: %{x:,.0f}<extra></extra>',
+        ), row=1, col=2)
+
+        # 현재가 수평선 (두 패널 공통)
+        fig.add_hline(y=current_price,
+                      line=dict(color='#FFC000', width=1.2, dash='dot'))
+
+        fig.update_xaxes(showticklabels=False, showgrid=False,
+                         zeroline=False, row=1, col=2)
+        fig.update_yaxes(showticklabels=False, showgrid=False, row=1, col=2)
+
+    fig.update_layout(
+        height=550,
+        xaxis_rangeslider_visible=False,
+        legend=dict(orientation='h', y=1.02),
+        margin=dict(l=40, r=8, t=60, b=20),
+        bargap=0.08,
+    )
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
@@ -42,7 +82,7 @@ def make_ma_chart(df, name):
     """이동평균선 배열 차트 (Plotly 인터랙티브)"""
     import pandas as pd
 
-    display_df = df.tail(120) if len(df) > 120 else df
+    display_df = df.tail(180) if len(df) > 180 else df
     last = df.iloc[-1]
     cur = last['close']
 
@@ -83,7 +123,7 @@ def make_ma_chart(df, name):
         diff_pct = (cur - ma_val) / ma_val * 100
         sign = '+' if diff_pct >= 0 else ''
         fig.add_trace(go.Scatter(
-            x=display_df.index, y=display_df[col],
+            x=series.index, y=series,
             name=f'{label}선  {sign}{diff_pct:.1f}%',
             line=dict(color=color, width=2.2),
             hovertemplate=f'{label}선: %{{y:,.0f}}원<extra></extra>'

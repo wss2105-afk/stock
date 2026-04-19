@@ -184,13 +184,10 @@ def analyze():
     except Exception as e:
         ai_comment = f"AI 분석 오류: {str(e)}"
 
-    # 차트
-    main_chart = make_main_chart(df, name)
+    # 차트 (매물대는 캔들차트 우측에 통합)
+    main_chart = make_main_chart(df, name, supply_df if not supply_df.empty else None, current_price)
     ma_chart = make_ma_chart(df, name)
-    try:
-        supply_chart = make_supply_zone_chart(supply_df, current_price)
-    except Exception:
-        supply_chart = None
+    supply_chart = None  # 별도 매물대 차트는 더 이상 사용 안 함
     try:
         investor_chart = make_investor_chart(investor_df)
     except Exception:
