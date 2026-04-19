@@ -424,7 +424,7 @@
                         </div>
                         <div style="font-size:0.65rem;color:#555;margin-top:2px;">
                             Hist <span style="color:{{ '#FFC000' if macd_h > 0 else '#29ABE2' }};">{{ signals.macd.hist }}</span>
-                            &nbsp;·&nbsp; Signal 대비 <span style="color:{{ macd_color }};">{{ macd_s }}</span>
+                            &nbsp;·&nbsp; 신호선 대비 <span style="color:{{ macd_color }};">{% if macd_s == 'golden' %}골든크로스{% elif macd_s == 'dead' %}데드크로스{% elif macd_h > 0 %}위(양전환){% elif macd_h < 0 %}아래(음전환){% else %}중립{% endif %}</span>
                         </div>
                     </div>
 
@@ -464,7 +464,7 @@
                         <div class="osc-top">
                             <span class="osc-name" onclick="showDesc('bb')">Bollinger %B (20/2) ⓘ</span>
                             <div class="osc-right">
-                                <span class="osc-val" style="color:{{ bb_color }};">{{ bb }}</span>
+                                <span class="osc-val" style="color:{{ bb_color }};">{{ (bb * 100)|round(1) }}%</span>
                                 {% if bb < 0.1 %}<span class="osc-badge b-buy">하단 이탈</span>
                                 {% elif bb > 0.9 %}<span class="osc-badge b-sell">상단 돌파</span>
                                 {% else %}<span class="osc-badge b-neu">밴드 내</span>{% endif %}
@@ -476,9 +476,9 @@
                             <div class="osc-bar-marker" style="left:{{ bb_pct_bar }}%;background:{{ bb_color }};"></div>
                         </div>
                         <div style="display:flex;justify-content:space-between;margin-top:5px;">
-                            <span style="font-size:0.55rem;color:#444;">0 하단</span>
+                            <span style="font-size:0.55rem;color:#444;">0% 하단</span>
                             <span style="font-size:0.55rem;color:#555;">Mid: {{ signals.bb.mid | int | string | replace(',','') }}원</span>
-                            <span style="font-size:0.55rem;color:#444;">상단 1</span>
+                            <span style="font-size:0.55rem;color:#444;">상단 100%</span>
                         </div>
                     </div>
 
