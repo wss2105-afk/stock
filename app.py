@@ -61,23 +61,16 @@ def _load_surge_cache():
     except Exception:
         return None
 
-def _auto_surge_scan():
-    """매일 앱 시작 시 오늘 날짜 캐시가 없으면 급등 스캔 실행"""
+def _run_surge_scan():
+    """MA 반등 종목 + 급등 종목 스캔 후 surge_cache 저장"""
     today = datetime.today().strftime('%Y-%m-%d')
-    cache = _load_surge_cache()
-    if cache and cache.get('date') == today:
-        return
+    scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
     try:
-        # MA 반등 종목 스캔 (핵심)
         bounce = scan_ma_bounce_stocks(top_n=20)
-
-        # 거래량 급등 종목 스캔 (보조)
         try:
             surge = scan_surge_stocks(top_n=10)
         except Exception:
             surge = []
-
-        # 추천/수급/매출급성장 각 1건 (버튼 뱃지용)
         try:
             top_rec = scan_top_stocks(top_n=1, months=3)
             pick_rec = top_rec[0] if top_rec else None
@@ -97,18 +90,41 @@ def _auto_surge_scan():
 
         with open(_SURGE_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump({
-                'date':     today,
-                'bounce':   bounce,
-                'results':  surge,
-                'pick_rec': pick_rec,
-                'pick_sup': pick_sup,
-                'pick_exp': pick_exp,
+                'date':       today,
+                'scanned_at': scanned_at,
+                'bounce':     bounce,
+                'results':    surge,
+                'pick_rec':   pick_rec,
+                'pick_sup':   pick_sup,
+                'pick_exp':   pick_exp,
             }, f, ensure_ascii=False)
-        print(f'[{today}] 스캔 완료 — 반등: {len(bounce)}건, 급등: {len(surge)}건')
+        print(f'[{scanned_at}] 반등/급등 스캔 완료 — 반등:{len(bounce)}건, 급등:{len(surge)}건')
     except Exception as e:
-        print(f'스캔 오류: {e}')
+        print(f'반등/급등 스캔 오류: {e}')
 
-threading.Thread(target=_auto_surge_scan, daemon=True).start()
+
+def _early_morning_scheduler():
+    """매일 04:00 과매도/과매수 + 반등종목 스캔 (앱 시작 시 당일 캐시 없으면 즉시 실행)"""
+    import time as _time
+    today = datetime.today().strftime('%Y-%m-%d')
+    surge_cache = _load_surge_cache()
+    osc_cache   = _load_osc_cache()
+    if not surge_cache or surge_cache.get('date') != today:
+        _run_surge_scan()
+    if osc_cache is None:
+        _run_osc_scan()
+
+    while True:
+        now = datetime.today()
+        next_run = now.replace(hour=4, minute=0, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        _time.sleep((next_run - now).total_seconds())
+        _run_surge_scan()
+        _run_osc_scan()
+
+
+threading.Thread(target=_early_morning_scheduler, daemon=True).start()
 
 _EXPORT_SCAN_PATH = os.path.join(os.path.dirname(__file__), 'data', 'export_scan_month.txt')
 
@@ -177,14 +193,6 @@ def _run_osc_scan():
         _osc_scanning = False
 
 
-def _auto_osc_scan():
-    """캐시가 없을 때 즉시 1회"""
-    cache = _load_osc_cache()
-    if cache is None:
-        _run_osc_scan()
-
-
-threading.Thread(target=_auto_osc_scan, daemon=True).start()
 
 
 # ── 추천 종목 TOP 20 일일 캐시 ───────────────────────────────────

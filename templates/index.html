@@ -198,7 +198,7 @@
 
 <div class="stats">
     <div class="stats-grid">
-        <div><div class="stat-num">350</div><div class="stat-label">KOSPI 200 + KOSDAQ 150</div></div>
+        <div><div class="stat-num">800</div><div class="stat-label">KOSPI 500 + KOSDAQ 300</div></div>
         <div><div class="stat-num">10+</div><div class="stat-label">분석 지표</div></div>
         <div><div class="stat-num">DART</div><div class="stat-label">실시간 공시 연동</div></div>
         <div><div class="stat-num">AI</div><div class="stat-label">Claude 종합 분석</div></div>
@@ -310,7 +310,8 @@ function showOsc(kind) {
                 body.innerHTML = '<div class="bounce-empty">오늘 스캔 데이터가 없습니다. 앱 시작 후 잠시 기다려 주세요.</div>';
                 return;
             }
-            if (data.date) dateEl.textContent = data.date + ' 기준';
+            if (data.scanned_at) dateEl.textContent = data.scanned_at + ' 기준';
+            else if (data.date) dateEl.textContent = data.date + ' 기준';
 
             body.innerHTML = list.slice(0, 10).map(r => {
                 const maTags = (r.touched_mas || []).map(m =>
