@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 import os
 import json
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
 app = Flask(__name__)
@@ -48,8 +48,9 @@ def _auto_update_tickers():
 threading.Thread(target=_auto_update_tickers, daemon=True).start()
 
 
-_SURGE_CACHE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'surge_cache.json')
-_OSC_CACHE_PATH   = os.path.join(os.path.dirname(__file__), 'data', 'osc_cache.json')
+_SURGE_CACHE_PATH     = os.path.join(os.path.dirname(__file__), 'data', 'surge_cache.json')
+_OSC_CACHE_PATH       = os.path.join(os.path.dirname(__file__), 'data', 'osc_cache.json')
+_RECOMMEND_CACHE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'recommend_cache.json')
 
 def _load_surge_cache():
     if not os.path.exists(_SURGE_CACHE_PATH):
@@ -184,6 +185,54 @@ def _auto_osc_scan():
 
 
 threading.Thread(target=_auto_osc_scan, daemon=True).start()
+
+
+# ── 추천 종목 TOP 20 일일 캐시 ───────────────────────────────────
+def _load_recommend_cache():
+    if not os.path.exists(_RECOMMEND_CACHE_PATH):
+        return None
+    try:
+        with open(_RECOMMEND_CACHE_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _run_recommend_scan():
+    """추천 종목 20선 스캔 후 캐시 저장"""
+    try:
+        results = scan_top_stocks(top_n=20, months=6)
+        today = datetime.today().strftime('%Y-%m-%d')
+        scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
+        with open(_RECOMMEND_CACHE_PATH, 'w', encoding='utf-8') as f:
+            json.dump({'date': today, 'scanned_at': scanned_at, 'results': results}, f,
+                      ensure_ascii=False)
+        print(f'[{scanned_at}] 추천 종목 스캔 완료 — {len(results)}건')
+    except Exception as e:
+        print(f'추천 종목 스캔 오류: {e}')
+
+
+def _recommend_scheduler():
+    """매일 06:00 추천 종목 자동 스캔 (앱 시작 시 당일 캐시 없으면 즉시 실행)"""
+    import time as _time
+    # 앱 시작 시 오늘 캐시 없으면 즉시 실행
+    cache = _load_recommend_cache()
+    today = datetime.today().strftime('%Y-%m-%d')
+    if not cache or cache.get('date') != today:
+        _run_recommend_scan()
+
+    # 이후 매일 06:00 실행
+    while True:
+        now = datetime.today()
+        next_run = now.replace(hour=6, minute=0, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        sleep_sec = (next_run - now).total_seconds()
+        _time.sleep(sleep_sec)
+        _run_recommend_scan()
+
+
+threading.Thread(target=_recommend_scheduler, daemon=True).start()
 
 
 @app.route('/')
@@ -391,8 +440,15 @@ def analyze():
 
 @app.route('/recommend')
 def recommend():
-    results = scan_top_stocks(top_n=20, months=6)
-    return render_template('recommend.html', results=results)
+    cache = _load_recommend_cache()
+    if cache:
+        results    = cache.get('results', [])
+        scanned_at = cache.get('scanned_at', '')
+    else:
+        # 캐시 없으면 실시간 스캔 (첫 접속 시만)
+        results    = scan_top_stocks(top_n=20, months=6)
+        scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
+    return render_template('recommend.html', results=results, scanned_at=scanned_at)
 
 
 @app.route('/supply-leaders')
@@ -487,9 +543,12 @@ def cache_refresh():
 @app.route('/api/surge-picks')
 def surge_picks():
     cache = _load_surge_cache()
+    rec_cache = _load_recommend_cache()
+    recommend_date = rec_cache.get('scanned_at', '') if rec_cache else ''
     if cache:
-        return jsonify(cache)
-    return jsonify({'date': '', 'bounce': [], 'results': [], 'pick_rec': None, 'pick_sup': None, 'pick_exp': None})
+        return jsonify({**cache, 'recommend_date': recommend_date})
+    return jsonify({'date': '', 'bounce': [], 'results': [], 'pick_rec': None,
+                    'pick_sup': None, 'pick_exp': None, 'recommend_date': recommend_date})
 
 
 @app.route('/api/surge-refresh', methods=['POST'])
