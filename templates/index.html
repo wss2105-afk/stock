@@ -242,20 +242,34 @@
 <script>
 // 과매도/과매수 패널
 let _oscData = null;
-(function loadOsc() {
+let _oscActiveTab = 'oversold';
+
+function loadOsc() {
     fetch('/api/osc-picks')
         .then(r => r.json())
         .then(data => {
-            _oscData = data;
-            if (data.updated_at) document.getElementById('oscUpdated').textContent = data.updated_at + ' 기준';
-            showOsc('oversold');
+            const hasData = (data.oversold && data.oversold.length) || (data.overbought && data.overbought.length);
+            if (hasData) {
+                _oscData = data;
+                if (data.updated_at) document.getElementById('oscUpdated').textContent = data.updated_at + ' 기준';
+                showOsc(_oscActiveTab);
+            } else if (data.scanning) {
+                document.getElementById('oscBody').innerHTML = '<div class="osc-loading">🔍 전종목 스캔 중... (수분 소요, 자동 갱신)</div>';
+                setTimeout(loadOsc, 30000);  // 30초 후 재시도
+            } else {
+                // 스캔은 끝났는데 결과가 없음 → 수동 재스캔 트리거 후 대기
+                document.getElementById('oscBody').innerHTML = '<div class="osc-loading">스캔 결과 없음 — 재시도 중...</div>';
+                fetch('/api/osc-refresh', {method:'POST'}).then(() => setTimeout(loadOsc, 60000));
+            }
         })
         .catch(() => {
             document.getElementById('oscBody').innerHTML = '<div class="osc-loading">데이터 없음</div>';
         });
-})();
+}
+loadOsc();
 
 function showOsc(kind) {
+    _oscActiveTab = kind;
     document.querySelectorAll('.osc-tab').forEach(t => t.classList.remove('active'));
     document.querySelector(`.osc-tab.${kind}`).classList.add('active');
     const body = document.getElementById('oscBody');

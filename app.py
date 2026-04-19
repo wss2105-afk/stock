@@ -158,23 +158,29 @@ def _load_osc_cache():
         return None
 
 
+_osc_scanning = False
+
 def _run_osc_scan():
     """과매도/과매수 스캔 실행 후 캐시 저장"""
+    global _osc_scanning
+    _osc_scanning = True
     try:
         result = scan_osc_stocks(top_n=30)
         now = datetime.today().strftime('%Y-%m-%d %H:%M')
         with open(_OSC_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump({'updated_at': now, **result}, f, ensure_ascii=False)
-        print(f'[{now}] 과매도/과매수 스캔 완료')
+        print(f'[{now}] 과매도/과매수 스캔 완료 — 과매도:{len(result["oversold"])} 과매수:{len(result["overbought"])}')
     except Exception as e:
         print(f'과매도/과매수 스캔 오류: {e}')
+    finally:
+        _osc_scanning = False
 
 
 def _auto_osc_scan():
-    """캐시가 없을 때 즉시 1회, 이후 앱이 살아있는 동안 평일 11시·14시 전후 재실행"""
+    """캐시가 없을 때 즉시 1회"""
     cache = _load_osc_cache()
     if cache is None:
-        _run_osc_scan()   # 첫 실행
+        _run_osc_scan()
 
 
 threading.Thread(target=_auto_osc_scan, daemon=True).start()
@@ -423,8 +429,8 @@ def export_surge_refresh():
 def osc_picks():
     cache = _load_osc_cache()
     if cache:
-        return jsonify(cache)
-    return jsonify({'updated_at': '', 'oversold': [], 'overbought': []})
+        return jsonify({**cache, 'scanning': False})
+    return jsonify({'updated_at': '', 'oversold': [], 'overbought': [], 'scanning': _osc_scanning})
 
 
 @app.route('/api/osc-refresh', methods=['POST'])
