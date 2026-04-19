@@ -58,6 +58,12 @@ def get_ticker(name_or_ticker):
     return None, None
 
 
+def is_main_stock(ticker):
+    """KOSPI200 + KOSDAQ150 로컬 DB 포함 종목 여부"""
+    db = _load_ticker_db()
+    return ticker in db.values()
+
+
 def get_ohlcv(ticker, months=3):
     start, end = get_date_range(months)
     df = stock.get_market_ohlcv_by_date(start, end, ticker)

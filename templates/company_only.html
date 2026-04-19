@@ -55,8 +55,8 @@
     <div class="gold-line"></div>
 
     <div class="notice-box">
-        <strong>분석 데이터 수집 중</strong> — 이 종목은 주가 데이터가 아직 충분하지 않아 전체 기술적 분석을 제공하기 어렵습니다.<br>
-        기업 기본 정보와 AI 사업 소개를 먼저 확인하세요.
+        <strong>KOSPI200·KOSDAQ150 외 종목</strong> — 이 종목은 현재 분석 대상(시총 상위 350개)에 포함되지 않아 기술적 분석을 제공하지 않습니다.<br>
+        기업 기본 정보와 AI 사업 소개를 확인하세요.
     </div>
 
     <!-- 기업 기본 정보 -->
@@ -117,17 +117,8 @@
         </div>
     </div>
 
-    <!-- 전체 분석 시도 버튼 -->
-    <a href="/analyze" onclick="document.getElementById('analyzeForm').submit();return false;" class="full-btn">
-        전체 분석 다시 시도
-        <span class="full-btn-sub">주가 데이터 재조회</span>
-    </a>
+    <a href="/" class="full-btn">← 다른 종목 검색</a>
 </div>
-
-<form id="analyzeForm" method="POST" action="/analyze">
-    <input type="hidden" name="query" value="{{ ticker }}">
-    <input type="hidden" name="months" value="12">
-</form>
 
 <script>
 fetch(`/api/company-desc?ticker={{ ticker }}&name={{ name }}&industry={{ company_info.get('industry', '') }}`)

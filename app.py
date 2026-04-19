@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from analysis.screener import scan_top_stocks, scan_supply_leaders
 from analysis.export_growth import load_cache as load_export_cache, scan_export_growth, is_new_update
-from analysis.data_fetcher import get_ticker, get_ohlcv, get_investor_detail, get_supply_zone
+from analysis.data_fetcher import get_ticker, get_ohlcv, get_investor_detail, get_supply_zone, is_main_stock
 from analysis.indicators import calc_indicators, get_ma_arrangement, get_latest_signals
 from analysis.fundamental import get_fundamental
 from analysis.news import search_naver_news, analyze_news
@@ -90,10 +90,25 @@ def analyze():
     if not ticker:
         return render_template('index.html', error=f"'{query}' 종목을 찾을 수 없습니다.")
 
+    # KOSPI200·KOSDAQ150 외 종목은 기업소개 페이지로
+    if not is_main_stock(ticker):
+        try:
+            company_info = get_company_info(ticker)
+        except Exception:
+            company_info = {}
+        try:
+            market_profile = get_market_profile(ticker)
+        except Exception:
+            market_profile = {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
+        return render_template('company_only.html',
+                               name=name, ticker=ticker,
+                               company_info=company_info,
+                               market_profile=market_profile)
+
     # 데이터 수집
     ohlcv = get_ohlcv(ticker, months)
 
-    # OHLCV 데이터 없거나 부족하면 기업소개 페이지로
+    # OHLCV 데이터 부족하면 기업소개 페이지로
     if ohlcv.empty or len(ohlcv) < 20:
         try:
             company_info = get_company_info(ticker)
