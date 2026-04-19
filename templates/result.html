@@ -821,16 +821,15 @@
     {% if supply_chart %}const _supplyData   = {{ supply_chart|safe }};{% endif %}
     {% if investor_chart %}const _investorData = {{ investor_chart|safe }};{% endif %}
 
-    // Plotly.react: 기존 차트 완전 교체(겹침 방지) + 없으면 신규 생성
+    // Plotly.react: 기존 차트 in-place 교체 (race-condition 없음, 겹침 방지)
     function _plotChart(id, data, layoutExtra) {
         var el = document.getElementById(id);
         if (!el || !data) return Promise.resolve();
-        Plotly.purge(el);
         var layout = Object.assign({}, data.layout, layoutExtra, {
             paper_bgcolor: '#000',
             plot_bgcolor:  '#000',
         });
-        return Plotly.newPlot(el, data.data, layout, {
+        return Plotly.react(el, data.data, layout, {
             responsive: true, displayModeBar: false, scrollZoom: false,
         }).catch(function(e){ console.error('[chart]', id, e); });
     }

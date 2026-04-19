@@ -56,6 +56,7 @@ def make_main_chart(df, name):
         legend=dict(orientation='h', y=1.02, bgcolor='rgba(0,0,0,0)', font=dict(size=10)),
         margin=dict(l=72, r=20, t=52, b=18),
     )
+    fig.update_yaxes(tickformat=',', ticksuffix='원')
     _dark(fig)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
@@ -124,6 +125,7 @@ def make_ma_chart(df, name):
                     font=dict(size=9), bgcolor='rgba(0,0,0,0)'),
         margin=dict(l=72, r=72, t=16, b=64),
     )
+    fig.update_yaxes(tickformat=',', ticksuffix='원')
     _dark(fig)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
@@ -222,48 +224,66 @@ def make_investor_chart(investor_df):
         inst_total_vals = df[inst_col].fillna(0) if inst_col else None
         has_detail = False
 
+    # 값이 KRW(원)인지 주 수인지 자동 판별: 절댓값 최대가 1억 이상이면 억원 단위로 변환
+    all_vals = []
+    if foreign_col:
+        all_vals.extend(df[foreign_col].fillna(0).abs().tolist())
+    if has_detail:
+        for col, _, _ in detail_cfg:
+            all_vals.extend(df[col].fillna(0).abs().tolist())
+    elif inst_total_vals is not None:
+        all_vals.extend(inst_total_vals.abs().tolist())
+    max_abs = max(all_vals) if all_vals else 0
+    if max_abs >= 1e8:
+        scale = 1e8
+        unit = '억원'
+    else:
+        scale = 1
+        unit = '주'
+
     fig = make_subplots(
         rows=2, cols=1,
         shared_xaxes=True,
         row_heights=[0.45, 0.55],
         vertical_spacing=0.14,
-        subplot_titles=['외국인 순매수 (주)', '기관 순매수 (주)'],
+        subplot_titles=[f'외국인 순매수 ({unit})', f'기관 순매수 ({unit})'],
     )
 
     x = df.index
 
     if foreign_col:
-        f_vals = df[foreign_col].fillna(0)
+        f_vals = df[foreign_col].fillna(0) / scale
         fig.add_trace(go.Bar(
             x=x, y=f_vals, name='외국인',
             marker_color=['#e74c3c' if v >= 0 else '#3498db' for v in f_vals],
-            hovertemplate='%{x|%m/%d}<br>외국인: %{y:+,.0f}주<extra></extra>',
+            hovertemplate=f'%{{x|%m/%d}}<br>외국인: %{{y:+,.1f}}{unit}<extra></extra>',
         ), row=1, col=1)
         fig.add_trace(go.Scatter(
             x=x, y=f_vals.cumsum(), name='외국인 누적',
             line=dict(color='rgba(231,76,60,0.7)', width=2, dash='dot'),
-            hovertemplate='%{x|%m/%d}<br>외국인 누적: %{y:+,.0f}주<extra></extra>',
+            hovertemplate=f'%{{x|%m/%d}}<br>외국인 누적: %{{y:+,.1f}}{unit}<extra></extra>',
         ), row=1, col=1)
 
     if has_detail:
         for col, label, color in detail_cfg:
             fig.add_trace(go.Bar(
-                x=x, y=df[col].fillna(0), name=label,
+                x=x, y=df[col].fillna(0) / scale, name=label,
                 marker_color=color,
-                hovertemplate=f'%{{x|%m/%d}}<br>{label}: %{{y:+,.0f}}주<extra></extra>',
+                hovertemplate=f'%{{x|%m/%d}}<br>{label}: %{{y:+,.1f}}{unit}<extra></extra>',
             ), row=2, col=1)
     elif inst_total_vals is not None:
         fig.add_trace(go.Bar(
-            x=x, y=inst_total_vals, name='기관',
-            marker_color=['#2ecc71' if v >= 0 else '#9b59b6' for v in inst_total_vals],
-            hovertemplate='%{x|%m/%d}<br>기관: %{y:+,.0f}주<extra></extra>',
+            x=x, y=inst_total_vals / scale, name='기관',
+            marker_color=['#2ecc71' if v >= 0 else '#9b59b6' for v in inst_total_vals / scale],
+            hovertemplate=f'%{{x|%m/%d}}<br>기관: %{{y:+,.1f}}{unit}<extra></extra>',
         ), row=2, col=1)
 
     if inst_total_vals is not None:
+        scaled_inst = inst_total_vals / scale
         fig.add_trace(go.Scatter(
-            x=x, y=inst_total_vals.cumsum(), name='기관 누적',
+            x=x, y=scaled_inst.cumsum(), name='기관 누적',
             line=dict(color='rgba(255,192,0,0.8)', width=2, dash='dot'),
-            hovertemplate='%{x|%m/%d}<br>기관 누적: %{y:+,.0f}주<extra></extra>',
+            hovertemplate=f'%{{x|%m/%d}}<br>기관 누적: %{{y:+,.1f}}{unit}<extra></extra>',
         ), row=2, col=1)
 
     fig.update_layout(
@@ -282,7 +302,7 @@ def make_investor_chart(investor_df):
     )
     fig.update_xaxes(title_text='날짜 (최근 20거래일)', row=2, col=1,
                      title_font=dict(size=10), title_standoff=4)
-    fig.update_yaxes(tickformat=',.0f', ticksuffix='주', zeroline=True,
+    fig.update_yaxes(tickformat=',.1f', ticksuffix=unit, zeroline=True,
                      zerolinewidth=1)
     _dark(fig)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
