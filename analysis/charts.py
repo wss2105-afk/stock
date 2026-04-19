@@ -234,7 +234,7 @@ def make_investor_chart(investor_df):
         rows=2, cols=1,
         shared_xaxes=True,
         row_heights=[0.45, 0.55],
-        vertical_spacing=0.06,
+        vertical_spacing=0.14,
         subplot_titles=['외국인 순매수 (주)', '기관 순매수 (주)'],
     )
 
@@ -279,12 +279,12 @@ def make_investor_chart(investor_df):
         ), row=2, col=1)
 
     fig.update_layout(
-        height=500,
+        height=560,
         barmode='relative',
         hovermode='x unified',
-        legend=dict(orientation='h', y=-0.08, x=0,
+        legend=dict(orientation='h', y=-0.10, x=0,
                     font=dict(size=10), bgcolor='rgba(0,0,0,0)'),
-        margin=dict(l=60, r=20, t=40, b=80),
+        margin=dict(l=60, r=20, t=44, b=90),
     )
     fig.update_xaxes(
         tickformat='%m/%d',
