@@ -267,10 +267,11 @@ def search_suggest():
     try:
         with open(_TICKER_PATH, encoding='utf-8') as f:
             db = _json.load(f)
+        q_lower = q.lower()
         matches = [
             {'name': name, 'ticker': ticker}
             for name, ticker in db.items()
-            if q in name or q in ticker
+            if q_lower in name.lower() or q_lower in ticker.lower()
         ][:10]
     except Exception:
         matches = []

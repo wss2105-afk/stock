@@ -35,17 +35,19 @@ def get_ticker(name_or_ticker):
         except Exception:
             pass
 
-    # 종목명으로 검색 (부분 일치 포함)
+    # 종목명으로 검색 (대소문자 무시)
     query = name_or_ticker.strip()
-    # 완전 일치
-    if query in db:
-        return db[query], query
+    query_lower = query.lower()
 
-    # 부분 일치: query가 DB 종목명 안에 포함된 경우만 허용
-    # (name in query는 제외 — "카카오"가 "카카오페이" 쿼리에 매칭되는 오류 방지)
-    candidates = [(name, ticker) for name, ticker in db.items() if query in name]
+    # 완전 일치 (대소문자 무시)
+    for name, ticker in db.items():
+        if name.lower() == query_lower:
+            return ticker, name
+
+    # 부분 일치: query가 DB 종목명 안에 포함된 경우만 허용 (대소문자 무시)
+    candidates = [(name, ticker) for name, ticker in db.items()
+                  if query_lower in name.lower()]
     if candidates:
-        # 가장 짧은 이름(가장 유사한 것) 선택
         candidates.sort(key=lambda x: len(x[0]))
         return candidates[0][1], candidates[0][0]
 
