@@ -131,11 +131,24 @@
         .news-press { font-size: 0.68rem; color: #555; margin-top: 4px; letter-spacing: 0.08em; }
 
         /* AI 분석 */
-        .ai-box { background: #181818; padding: 20px; line-height: 1.85; font-size: 0.87rem; color: #e2e8f0; }
-        .ai-box .ai-section { margin-bottom: 18px; }
-        .ai-box .ai-section:last-child { margin-bottom: 0; }
-        .ai-box .ai-h { font-size: 0.65rem; font-weight: 700; color: #FFC000; letter-spacing: 0.25em; text-transform: uppercase; border-bottom: 1px solid #2a2a2a; padding-bottom: 6px; margin-bottom: 10px; }
-        .ai-box .ai-body { color: #c8d0dc; white-space: pre-wrap; }
+        .ai-box { background: #111; }
+        .ai-sec { padding: 16px 20px; border-bottom: 1px solid #1e1e1e; }
+        .ai-sec:last-child { border-bottom: none; }
+        .ai-sec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .ai-sec-icon { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; flex-shrink: 0; }
+        .ai-sec-title { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; }
+        .ai-sec-body { font-size: 0.86rem; color: #b8c4d0; line-height: 1.85; }
+        .ai-sec-body p { margin: 0 0 6px 0; }
+        .ai-sec-body p:last-child { margin-bottom: 0; }
+        .ai-bullet { display: flex; gap: 8px; margin: 5px 0; }
+        .ai-bullet-dot { color: #FFC000; flex-shrink: 0; font-weight: 700; }
+        .ai-risk { display: flex; gap: 8px; margin: 5px 0; }
+        .ai-risk-icon { flex-shrink: 0; }
+        .ai-forecast { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #1e1e1e; margin-top: 2px; }
+        .ai-forecast-item { background: #111; padding: 10px 14px; }
+        .ai-forecast-label { font-size: 0.58rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 5px; }
+        .ai-forecast-text { font-size: 0.83rem; color: #b8c4d0; line-height: 1.6; }
+        @media(max-width:576px) { .ai-forecast { grid-template-columns: 1fr; } .ai-sec { padding: 14px; } }
 
         /* 차트 컨테이너 */
         .chart-container { background: #000; margin-bottom: 1px; overflow: hidden; }
@@ -667,29 +680,73 @@
             })
             .catch(() => { body.textContent = '오류가 발생했습니다.'; });
     }
-    // AI 분석 텍스트 섹션별 렌더링
+    // AI 분석 렌더링
     (function() {
         const raw = {{ ai_comment | tojson }};
         const box = document.getElementById('aiBox');
         if (!box) return;
-        // 번호(1. 2. 3. 4.) 또는 ■ 로 시작하는 줄을 섹션 헤더로 처리
-        const sections = raw.split(/\n(?=\d+\.|■|##)/);
-        if (sections.length <= 1) {
-            // 섹션 구분이 없으면 그냥 표시
-            box.innerHTML = `<div class="ai-body">${raw.replace(/</g,'&lt;')}</div>`;
+
+        const SEC = {
+            '현재 상황':    { icon: '◎', color: '#FFC000', bg: 'rgba(255,192,0,0.08)' },
+            '매수·매도 근거':{ icon: '▲', color: '#2ecc71', bg: 'rgba(46,204,113,0.08)' },
+            '리스크':       { icon: '⚡', color: '#e74c3c', bg: 'rgba(231,76,60,0.08)' },
+            '단기·중기 전망':{ icon: '→', color: '#29ABE2', bg: 'rgba(41,171,226,0.08)' },
+        };
+
+        // ## 헤더 기준으로 파싱
+        const parts = raw.split(/\n##\s+/);
+        if (parts.length <= 1) {
+            box.innerHTML = `<div class="ai-sec"><div class="ai-sec-body"><p>${esc(raw)}</p></div></div>`;
             return;
         }
-        box.innerHTML = sections.map(sec => {
-            sec = sec.trim();
-            if (!sec) return '';
-            const headMatch = sec.match(/^(\d+\.|■|##\s?)(.+?)[\n:]/);
-            if (headMatch) {
-                const head = sec.slice(0, sec.indexOf('\n') >= 0 ? sec.indexOf('\n') : sec.length);
-                const body = sec.slice(head.length).trim();
-                return `<div class="ai-section"><div class="ai-h">${head.replace(/</g,'&lt;')}</div><div class="ai-body">${body.replace(/</g,'&lt;')}</div></div>`;
+
+        function esc(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        function renderBody(key, body) {
+            if (key === '매수·매도 근거') {
+                const lines = body.split('\n').filter(l => l.trim());
+                return lines.map(l => {
+                    const t = l.replace(/^[•·\-]\s*/, '').trim();
+                    return t ? `<div class="ai-bullet"><span class="ai-bullet-dot">•</span><span>${esc(t)}</span></div>` : '';
+                }).join('');
             }
-            return `<div class="ai-section"><div class="ai-body">${sec.replace(/</g,'&lt;')}</div></div>`;
+            if (key === '리스크') {
+                const lines = body.split('\n').filter(l => l.trim());
+                return lines.map(l => {
+                    const t = l.replace(/^[⚠•·\-]\s*/, '').trim();
+                    return t ? `<div class="ai-risk"><span class="ai-risk-icon" style="color:#e74c3c;">⚠</span><span>${esc(t)}</span></div>` : '';
+                }).join('');
+            }
+            if (key === '단기·중기 전망') {
+                let short = '', mid = '';
+                body.split('\n').forEach(l => {
+                    if (/단기/.test(l)) short = l.replace(/단기[^:：]*[:：]\s*/,'').trim();
+                    else if (/중기/.test(l)) mid   = l.replace(/중기[^:：]*[:：]\s*/,'').trim();
+                });
+                return `<div class="ai-forecast">
+                    <div class="ai-forecast-item"><div class="ai-forecast-label">단기 1~4주</div><div class="ai-forecast-text">${esc(short || body.split('\n')[0] || '')}</div></div>
+                    <div class="ai-forecast-item"><div class="ai-forecast-label">중기 1~3개월</div><div class="ai-forecast-text">${esc(mid || body.split('\n')[1] || '')}</div></div>
+                </div>`;
+            }
+            // 기본: 줄바꿈 → <p>
+            return body.split('\n').filter(l=>l.trim()).map(l=>`<p>${esc(l.trim())}</p>`).join('');
+        }
+
+        const html = parts.slice(1).map(part => {
+            const nl = part.indexOf('\n');
+            const title = nl >= 0 ? part.slice(0, nl).trim() : part.trim();
+            const body  = nl >= 0 ? part.slice(nl + 1).trim() : '';
+            const cfg   = SEC[title] || { icon: '·', color: '#FFC000', bg: 'rgba(255,192,0,0.05)' };
+            return `<div class="ai-sec">
+                <div class="ai-sec-head">
+                    <div class="ai-sec-icon" style="background:${cfg.bg};color:${cfg.color};">${cfg.icon}</div>
+                    <div class="ai-sec-title" style="color:${cfg.color};">${esc(title)}</div>
+                </div>
+                <div class="ai-sec-body">${renderBody(title, body)}</div>
+            </div>`;
         }).join('');
+
+        box.innerHTML = html || `<div class="ai-sec"><div class="ai-sec-body"><p>${esc(raw)}</p></div></div>`;
     })();
 
     document.getElementById('bizModal').addEventListener('click', function(e) {

@@ -115,39 +115,41 @@ def get_ai_analysis(ticker_name, score, reasons, signals, fundamental, news_resu
     news_summary = f"뉴스 총 {news_result['total']}건, 긍정 {news_result['positive']}건, 부정 {news_result['negative']}건"
     keywords = ', '.join([kw for kw, _ in news_result.get('top_keywords', [])[:5]])
 
-    prompt = f"""당신은 한국 주식 시장 전문 애널리스트입니다. 아래 데이터를 바탕으로 투자자에게 명확하고 실용적인 분석을 제공하세요.
+    prompt = f"""당신은 한국 주식 시장 전문 애널리스트입니다. 아래 데이터를 분석해 투자자에게 실용적인 분석을 제공하세요.
 
 종목명: {ticker_name}
-종합 점수: {score}점
-추천: {get_recommendation(score)[0]}
+종합 점수: {score}점 / 추천: {get_recommendation(score)[0]}
 
 [기술적 지표]
-- RSI: {signals['rsi']['value']} ({signals['rsi']['signal']})
-- MACD 신호: {signals['macd']['signal']}
-- Stochastic K: {signals['stoch']['k']}
-- 볼린저밴드 위치: {signals['bb']['pct']} (0=하단, 1=상단)
-- MFI: {signals['mfi']['value']}
+RSI {signals['rsi']['value']} · MACD {signals['macd']['signal']} · Stochastic K {signals['stoch']['k']} · BB위치 {signals['bb']['pct']} · MFI {signals['mfi']['value']}
 
 [펀더멘털]
-- PER: {fundamental.get('per', 'N/A')}
-- Forward PER: {fundamental.get('forward_per', 'N/A')}
-- PBR: {fundamental.get('pbr', 'N/A')}
-- 영업이익 추이: {', '.join(fundamental.get('operating_profit', []))}억원
+PER {fundamental.get('per','N/A')} · Fwd PER {fundamental.get('forward_per','N/A')} · PBR {fundamental.get('pbr','N/A')} · 영업이익 추이: {', '.join(fundamental.get('operating_profit',[]))}억원
 
-[뉴스]
-- {news_summary}
-- 주요 키워드: {keywords}
+[뉴스] {news_summary} · 키워드: {keywords}
 
-[신호 요약]
-{chr(10).join(reasons)}
+[신호] {' / '.join(reasons)}
 
-위 데이터를 종합하여 다음을 작성하세요:
-1. 현재 상황 요약 (2-3문장)
-2. 매수/매도 타이밍 판단 근거 (핵심 3가지)
-3. 주의해야 할 리스크 (1-2가지)
-4. 단기/중기 전망 (각 1문장)
+아래 형식을 반드시 지켜 작성하세요. 각 섹션 제목은 ## 로 시작합니다.
 
-전문적이지만 초보 투자자도 이해할 수 있게 설명하세요."""
+## 현재 상황
+지금 이 종목이 어떤 상태인지 2~3문장으로 요약하세요. 수치를 언급하되 쉽게 설명하세요.
+
+## 매수·매도 근거
+핵심 근거 3가지를 각각 한 문장씩 작성하세요. 반드시 아래 형식 사용:
+• 근거 1
+• 근거 2
+• 근거 3
+
+## 리스크
+주의해야 할 리스크 1~2가지를 아래 형식으로 작성하세요:
+⚠ 리스크 내용
+
+## 단기·중기 전망
+단기(1~4주): 한 문장
+중기(1~3개월): 한 문장
+
+초보 투자자도 이해할 수 있는 쉬운 언어를 사용하세요."""
 
     try:
         message = client.messages.create(
