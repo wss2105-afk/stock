@@ -1,5 +1,5 @@
 """
-KOSPI 시총 상위 200 + KOSDAQ 시총 상위 150 종목 DB 업데이트
+KOSPI 시총 상위 500 + KOSDAQ 시총 상위 300 종목 DB 업데이트
 실행: python update_tickers.py
 """
 import requests
@@ -11,7 +11,7 @@ HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 OUTPUT = os.path.join(os.path.dirname(__file__), 'data', 'krx_tickers.json')
 
 
-def fetch_naver_rank(market='KOSPI', top_n=200):
+def fetch_naver_rank(market='KOSPI', top_n=500):
     """네이버 금융 시총 상위 종목 수집"""
     sosok = 0 if market == 'KOSPI' else 1
     tickers = {}
@@ -41,17 +41,16 @@ def fetch_naver_rank(market='KOSPI', top_n=200):
             break
         page += 1
 
-    # 상위 top_n개만
     return dict(list(tickers.items())[:top_n])
 
 
 def update():
-    print('KOSPI 시총 상위 200 수집 중...')
-    kospi = fetch_naver_rank('KOSPI', top_n=200)
+    print('KOSPI 시총 상위 500 수집 중...')
+    kospi = fetch_naver_rank('KOSPI', top_n=500)
     print(f'  → {len(kospi)}개 수집')
 
-    print('KOSDAQ 시총 상위 150 수집 중...')
-    kosdaq = fetch_naver_rank('KOSDAQ', top_n=150)
+    print('KOSDAQ 시총 상위 300 수집 중...')
+    kosdaq = fetch_naver_rank('KOSDAQ', top_n=300)
     print(f'  → {len(kosdaq)}개 수집')
 
     # 합산 (중복 코드 제거)
@@ -66,7 +65,7 @@ def update():
         json.dump(combined, f, ensure_ascii=False, indent=2)
 
     print(f'\n완료: 총 {len(combined)}개 종목 저장 → {OUTPUT}')
-    print(f'KOSPI 200 + KOSDAQ 150 = {len(kospi) + len(kosdaq)}개 (중복 제외 {len(combined)}개)')
+    print(f'KOSPI 500 + KOSDAQ 300 = {len(kospi) + len(kosdaq)}개 (중복 제외 {len(combined)}개)')
 
 
 if __name__ == '__main__':

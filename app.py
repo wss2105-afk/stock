@@ -24,7 +24,7 @@ _LAST_UPDATE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ticker_last
 
 
 def _auto_update_tickers():
-    """매월 1일 종목 DB 자동 갱신"""
+    """매월 1일 종목 DB 자동 갱신 (KOSPI 500 + KOSDAQ 300)"""
     today = datetime.today()
     if today.day != 1:
         return

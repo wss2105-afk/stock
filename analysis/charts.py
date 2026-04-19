@@ -159,9 +159,6 @@ def make_supply_zone_chart(zone_df, current_price, y_min=None, y_max=None):
     fig.add_hline(
         y=current_price,
         line=dict(color='#FFC000', width=1.5, dash='dot'),
-        annotation_text=f'현재가 {current_price:,}원',
-        annotation_font=dict(color='#FFC000', size=10),
-        annotation_position='top right',
     )
     fig.update_layout(
         height=280,
