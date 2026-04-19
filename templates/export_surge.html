@@ -12,10 +12,9 @@
         .topbar a { color: #7D7D7D; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
         .topbar a:hover { color: #FFC000; }
         .topbar-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #fff; }
-        .main { max-width: 900px; margin: 0 auto; padding: 32px 16px; }
-        .page-title { font-size: clamp(1.8rem, 6vw, 2.8rem); font-weight: 400; letter-spacing: 0.03em; text-transform: uppercase; color: #fff; margin-bottom: 4px; }
-        .page-sub { font-size: 0.68rem; color: #7D7D7D; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 28px; }
-        .gold-line { width: 40px; height: 2px; background: #fc4c02; margin-bottom: 20px; }
+        .main { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+        .page-title { font-size: clamp(1.6rem, 5vw, 2.4rem); font-weight: 400; letter-spacing: 0.03em; color: #fff; margin-bottom: 4px; }
+        .page-sub { font-size: 0.68rem; color: #7D7D7D; letter-spacing: 0.12em; margin-bottom: 24px; }
 
         /* 스캔 중 */
         .scanning-box { background: #181818; border: 1px solid #313131; padding: 40px 24px; text-align: center; margin: 40px 0; }
@@ -24,45 +23,64 @@
         .dot-anim::after { content: ''; animation: dots 1.5s steps(3, end) infinite; }
         @keyframes dots { 0%,25%{content:'.'} 50%{content:'..'} 75%,100%{content:'...'} }
         .progress-bar-wrap { background: #313131; height: 2px; margin: 20px 0; }
-        .progress-bar-fill { background: #fc4c02; height: 2px; width: 0; animation: progress 8s linear forwards; }
+        .progress-bar-fill { background: #fc4c02; height: 2px; width: 0; animation: progress 10s linear forwards; }
         @keyframes progress { to { width: 90%; } }
 
-        /* 카드 */
-        .stock-card { display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: #202020; margin-bottom: 1px; cursor: pointer; transition: background 0.15s; }
-        .stock-card:hover { background: #2a2a2a; }
-        .rank { font-size: clamp(1rem, 3vw, 1.5rem); font-weight: 900; color: #313131; width: 36px; text-align: center; flex-shrink: 0; }
-        .rank.gold { color: #fc4c02; }
-        .rank.silver { color: #969696; }
-        .rank.bronze { color: #917300; }
-        .stock-info { flex: 1; min-width: 0; }
-        .stock-name { font-size: 0.98rem; font-weight: 400; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .stock-meta { font-size: 0.65rem; color: #555; letter-spacing: 0.1em; margin-top: 3px; }
-        .growth-col { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
-        .growth-num { font-size: 1.3rem; font-weight: 700; color: #fc4c02; line-height: 1; }
-        .growth-lbl { font-size: 0.55rem; color: #555; letter-spacing: 0.1em; text-transform: uppercase; }
-        .badge-row { display: flex; gap: 5px; margin-top: 5px; }
-        .g-badge { padding: 2px 8px; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid; }
-        .b-yoy { border-color: #fc4c02; color: #fc4c02; }
-        .b-qoq { border-color: #FFC000; color: #FFC000; }
-        .price-col { font-size: 0.88rem; font-weight: 700; color: #fff; white-space: nowrap; flex-shrink: 0; min-width: 70px; text-align: right; }
-
-        .meta-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+        /* 메타 / 버튼 */
+        .meta-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
         .meta-item { font-size: 0.65rem; color: #555; letter-spacing: 0.12em; }
         .meta-item span { color: #969696; }
-
-        .refresh-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase; color: #555; border: 1px solid #313131; background: none; cursor: pointer; transition: color 0.15s, border-color 0.15s; margin-bottom: 20px; }
+        .refresh-btn { display: inline-flex; align-items: center; gap: 8px; padding: 7px 16px; font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; color: #555; border: 1px solid #313131; background: none; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
         .refresh-btn:hover { color: #fc4c02; border-color: #fc4c02; }
-        .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
-        .filter-btn { padding: 5px 14px; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; border: 1px solid #313131; background: none; color: #555; cursor: pointer; transition: all 0.15s; }
-        .filter-btn.active { border-color: #fc4c02; color: #fc4c02; background: rgba(252,76,2,0.06); }
-        .filter-btn:hover { color: #fc4c02; border-color: #fc4c02; }
+
+        /* 섹션 헤더 */
+        .section-hd { display: flex; align-items: center; gap: 12px; padding: 14px 0 10px; border-top: 1px solid #222; margin-top: 24px; }
+        .section-hd:first-of-type { margin-top: 0; border-top: none; }
+        .section-badge { padding: 4px 12px; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; }
+        .badge-high { background: rgba(252,76,2,0.12); color: #fc4c02; border: 1px solid rgba(252,76,2,0.4); }
+        .badge-mod  { background: rgba(255,192,0,0.10); color: #FFC000; border: 1px solid rgba(255,192,0,0.35); }
+        .section-desc { font-size: 0.65rem; color: #555; letter-spacing: 0.1em; }
+        .section-cnt  { margin-left: auto; font-size: 0.62rem; color: #444; letter-spacing: 0.1em; }
+
+        /* 카드 */
+        .stock-card { display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: #141414; margin-bottom: 1px; cursor: pointer; transition: background 0.15s; border-left: 3px solid transparent; }
+        .stock-card:hover { background: #1e1e1e; }
+        .stock-card.high { border-left-color: rgba(252,76,2,0.5); }
+        .stock-card.moderate { border-left-color: rgba(255,192,0,0.4); }
+        .rank { font-size: clamp(0.9rem, 2.5vw, 1.3rem); font-weight: 900; color: #2a2a2a; width: 32px; text-align: center; flex-shrink: 0; }
+        .rank.top1 { color: #fc4c02; }
+        .rank.top2 { color: #969696; }
+        .rank.top3 { color: #7a5800; }
+        .stock-info { flex: 1; min-width: 0; }
+        .stock-name { font-size: 0.95rem; font-weight: 500; color: #e8e8e8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stock-meta { font-size: 0.62rem; color: #444; letter-spacing: 0.08em; margin-top: 3px; }
+
+        /* 성장률 뱃지 */
+        .badge-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+        .g-badge { padding: 2px 8px; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.08em; border: 1px solid; }
+        .b-yoy-h  { border-color: #fc4c02; color: #fc4c02; }
+        .b-qoq-h  { border-color: #e67e22; color: #e67e22; }
+        .b-yoy-m  { border-color: #FFC000; color: #FFC000; }
+        .b-qoq-m  { border-color: #c9960a; color: #c9960a; }
+        .b-neutral { border-color: #333; color: #555; }
+
+        /* 성장률 숫자 */
+        .growth-col { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; min-width: 64px; }
+        .growth-num { font-size: 1.2rem; font-weight: 700; line-height: 1; }
+        .gn-high { color: #fc4c02; }
+        .gn-mod  { color: #FFC000; }
+        .growth-lbl { font-size: 0.52rem; color: #444; letter-spacing: 0.1em; text-transform: uppercase; }
+        .price-col { font-size: 0.85rem; font-weight: 600; color: #c0c0c0; white-space: nowrap; flex-shrink: 0; min-width: 72px; text-align: right; }
+
+        .empty-msg { padding: 28px; text-align: center; color: #333; font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase; }
 
         @media (max-width: 576px) {
             .topbar { padding: 10px 12px; }
             .main { padding: 16px 8px; }
-            .stock-card { padding: 12px 10px; gap: 8px; }
-            .growth-num { font-size: 1.05rem; }
-            .stock-name { font-size: 0.88rem; }
+            .stock-card { padding: 11px 10px; gap: 8px; }
+            .growth-num { font-size: 1rem; }
+            .stock-name { font-size: 0.86rem; }
+            .price-col { min-width: 60px; font-size: 0.78rem; }
         }
     </style>
 </head>
@@ -73,17 +91,16 @@
 </div>
 
 <div class="main">
-    <div class="page-title">매출 급성장<br>수출주 스캔</div>
-    <div class="gold-line"></div>
-    <div class="page-sub">전년동기 또는 전분기 대비 매출 30% 이상 증가 · 수출 비중 높은 업종 우선</div>
+    <div class="page-title">매출 급성장 수출주</div>
+    <div class="page-sub">전년동기(YoY) · 전분기(QoQ) 대비 매출 성장률 분석 — 30%↑ 강한 성장 / 10~30% 양호한 성장</div>
 
     {% if scanning %}
     <div class="scanning-box">
         <div class="scanning-title">스캔 중<span class="dot-anim"></span></div>
         <div class="progress-bar-wrap"><div class="progress-bar-fill"></div></div>
         <div class="scanning-sub">
-            350개 종목 매출 데이터를 분석하고 있습니다.<br>
-            처음 실행 시 5~10분 소요됩니다. 잠시 후 새로고침해 주세요.
+            전체 종목 매출 데이터를 분석하고 있습니다.<br>
+            처음 실행 시 10~15분 소요됩니다. 잠시 후 새로고침해 주세요.
         </div>
     </div>
     <script>setTimeout(() => location.reload(), 30000);</script>
@@ -91,42 +108,91 @@
     {% else %}
     <div class="meta-bar">
         {% if updated_at %}<div class="meta-item">업데이트 <span>{{ updated_at }}</span></div>{% endif %}
-        <div class="meta-item">조건 달성 <span>{{ total }}개 종목</span></div>
+        <div class="meta-item">강한 성장 <span>{{ high_count }}개</span></div>
+        <div class="meta-item">양호한 성장 <span>{{ moderate_count }}개</span></div>
+        <button class="refresh-btn" onclick="rescan()">↻ 재스캔</button>
     </div>
 
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
-        <button class="refresh-btn" style="margin-bottom:0;" onclick="rescan()">↻ 재스캔</button>
-        <div class="filter-bar" style="margin-bottom:0;">
-            <button class="filter-btn active" onclick="setFilter(10, this)">10%↑</button>
-            <button class="filter-btn" onclick="setFilter(20, this)">20%↑</button>
-            <button class="filter-btn" onclick="setFilter(30, this)">30%↑</button>
-            <button class="filter-btn" onclick="setFilter(50, this)">50%↑</button>
-        </div>
-        <span id="visibleCount" style="font-size:0.65rem;color:#555;letter-spacing:0.1em;"></span>
+    <!-- ── 강한 성장 섹션 (30%↑) ── -->
+    <div class="section-hd">
+        <span class="section-badge badge-high">강한 성장 30%↑</span>
+        <span class="section-desc">전년동기 또는 전분기 대비 매출 30% 이상 급증</span>
+        <span class="section-cnt">{{ high_count }}개 종목</span>
     </div>
 
-    {% for s in results %}
-    <div class="stock-card" data-growth="{{ s.max_growth }}" onclick="analyzeStock('{{ s.ticker }}')">
-        <div class="rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">{{ loop.index }}</div>
+    {% for s in high %}
+    <div class="stock-card high" onclick="analyzeStock('{{ s.ticker }}')">
+        <div class="rank {% if loop.index == 1 %}top1{% elif loop.index == 2 %}top2{% elif loop.index == 3 %}top3{% endif %}">{{ loop.index }}</div>
         <div class="stock-info">
             <div class="stock-name">{{ s.name }}</div>
             <div class="stock-meta">{{ s.ticker }} · 최근분기 매출 {{ '{:,}'.format(s.latest_revenue) }}억원</div>
             <div class="badge-row">
-                {% if s.is_yoy %}<span class="g-badge b-yoy">YoY +{{ s.yoy_growth }}%</span>{% endif %}
-                {% if s.is_qoq %}<span class="g-badge b-qoq">QoQ +{{ s.qoq_growth }}%</span>{% endif %}
+                {% if s.yoy_growth is not none %}
+                    {% if s.yoy_high %}
+                        <span class="g-badge b-yoy-h">전년동기 +{{ s.yoy_growth }}%</span>
+                    {% else %}
+                        <span class="g-badge b-neutral">전년동기 {{ '+' if s.yoy_growth > 0 else '' }}{{ s.yoy_growth }}%</span>
+                    {% endif %}
+                {% endif %}
+                {% if s.qoq_growth is not none %}
+                    {% if s.qoq_high %}
+                        <span class="g-badge b-qoq-h">전분기 +{{ s.qoq_growth }}%</span>
+                    {% else %}
+                        <span class="g-badge b-neutral">전분기 {{ '+' if s.qoq_growth > 0 else '' }}{{ s.qoq_growth }}%</span>
+                    {% endif %}
+                {% endif %}
             </div>
         </div>
         <div class="growth-col">
-            <div class="growth-num">+{{ s.max_growth }}%</div>
+            <div class="growth-num gn-high">+{{ s.max_growth }}%</div>
             <div class="growth-lbl">최대 성장률</div>
         </div>
         <div class="price-col">{{ s.price }}원</div>
     </div>
     {% else %}
-    <div style="padding:40px;text-align:center;color:#555;font-size:0.78rem;letter-spacing:0.2em;text-transform:uppercase;">
-        조건에 해당하는 종목이 없습니다
-    </div>
+    <div class="empty-msg">조건에 해당하는 종목이 없습니다</div>
     {% endfor %}
+
+    <!-- ── 양호한 성장 섹션 (10~30%) ── -->
+    <div class="section-hd">
+        <span class="section-badge badge-mod">양호한 성장 10~30%</span>
+        <span class="section-desc">전년동기 또는 전분기 대비 매출 10~30% 증가</span>
+        <span class="section-cnt">{{ moderate_count }}개 종목</span>
+    </div>
+
+    {% for s in moderate %}
+    <div class="stock-card moderate" onclick="analyzeStock('{{ s.ticker }}')">
+        <div class="rank {% if loop.index == 1 %}top1{% elif loop.index == 2 %}top2{% elif loop.index == 3 %}top3{% endif %}">{{ loop.index }}</div>
+        <div class="stock-info">
+            <div class="stock-name">{{ s.name }}</div>
+            <div class="stock-meta">{{ s.ticker }} · 최근분기 매출 {{ '{:,}'.format(s.latest_revenue) }}억원</div>
+            <div class="badge-row">
+                {% if s.yoy_growth is not none %}
+                    {% if s.yoy_mod %}
+                        <span class="g-badge b-yoy-m">전년동기 +{{ s.yoy_growth }}%</span>
+                    {% else %}
+                        <span class="g-badge b-neutral">전년동기 {{ '+' if s.yoy_growth > 0 else '' }}{{ s.yoy_growth }}%</span>
+                    {% endif %}
+                {% endif %}
+                {% if s.qoq_growth is not none %}
+                    {% if s.qoq_mod %}
+                        <span class="g-badge b-qoq-m">전분기 +{{ s.qoq_growth }}%</span>
+                    {% else %}
+                        <span class="g-badge b-neutral">전분기 {{ '+' if s.qoq_growth > 0 else '' }}{{ s.qoq_growth }}%</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        <div class="growth-col">
+            <div class="growth-num gn-mod">+{{ s.max_growth }}%</div>
+            <div class="growth-lbl">최대 성장률</div>
+        </div>
+        <div class="price-col">{{ s.price }}원</div>
+    </div>
+    {% else %}
+    <div class="empty-msg">조건에 해당하는 종목이 없습니다</div>
+    {% endfor %}
+
     {% endif %}
 </div>
 
@@ -140,39 +206,12 @@ function analyzeStock(ticker) {
     document.getElementById('analyzeForm').submit();
 }
 function rescan() {
+    const btn = document.querySelector('.refresh-btn');
+    btn.textContent = '스캔 시작됨 — 잠시 후 새로고침';
+    btn.disabled = true;
     fetch('/export-surge/refresh', {method:'POST'})
-        .then(() => {
-            document.querySelector('.refresh-btn').textContent = '스캔 시작됨 — 잠시 후 새로고침';
-            setTimeout(() => location.reload(), 30000);
-        });
+        .then(() => setTimeout(() => location.reload(), 60000));
 }
-
-let currentFilter = 10;
-function setFilter(threshold, btn) {
-    currentFilter = threshold;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const cards = document.querySelectorAll('.stock-card[data-growth]');
-    let visible = 0;
-    cards.forEach((c, i) => {
-        const g = parseFloat(c.dataset.growth);
-        const show = g >= threshold;
-        c.style.display = show ? '' : 'none';
-        if (show) {
-            visible++;
-            // 순위 재번호
-            const rankEl = c.querySelector('.rank');
-            if (rankEl) {
-                rankEl.textContent = visible;
-                rankEl.className = 'rank' + (visible===1?' gold':visible===2?' silver':visible===3?' bronze':'');
-            }
-        }
-    });
-    const cnt = document.getElementById('visibleCount');
-    if (cnt) cnt.textContent = visible + '개 종목';
-}
-// 초기 카운트 표시
-window.addEventListener('DOMContentLoaded', () => setFilter(10, document.querySelector('.filter-btn')));
 </script>
 </body>
 </html>

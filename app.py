@@ -404,18 +404,21 @@ def supply_leaders():
 @app.route('/export-surge')
 def export_surge():
     cache = load_export_cache()
-    scanning = False
     if cache is None:
-        # 첫 요청 시 백그라운드 스캔 시작
-        scanning = True
         threading.Thread(target=scan_export_growth, daemon=True).start()
-        return render_template('export_surge.html', results=[], scanning=True,
-                               updated_at=None, total=0)
+        return render_template('export_surge.html', high=[], moderate=[], scanning=True,
+                               updated_at=None, total=0, high_count=0, moderate_count=0)
+    results = cache.get('results', [])
+    high     = [r for r in results if r.get('tier') == 'high']
+    moderate = [r for r in results if r.get('tier') == 'moderate']
     return render_template('export_surge.html',
-                           results=cache.get('results', []),
+                           high=high,
+                           moderate=moderate,
                            scanning=False,
                            updated_at=cache.get('updated_at', ''),
-                           total=cache.get('count', 0))
+                           total=cache.get('count', 0),
+                           high_count=len(high),
+                           moderate_count=len(moderate))
 
 
 @app.route('/export-surge/refresh', methods=['POST'])
