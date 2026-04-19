@@ -151,7 +151,11 @@
         @media(max-width:576px) { .ai-forecast { grid-template-columns: 1fr; } .ai-sec { padding: 14px; } }
 
         /* 차트 컨테이너 */
-        .chart-container { background: #000; margin-bottom: 1px; overflow: hidden; }
+        .chart-container { background: #000; margin-bottom: 1px; }
+        #mainChart     { min-height: 280px; width: 100%; }
+        #supplyChart   { min-height: 200px; width: 100%; }
+        #maChart       { min-height: 220px; width: 100%; }
+        #investorChart { min-height: 300px; width: 100%; }
 
         /* 설명 모달 */
         #descModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; }
@@ -812,43 +816,81 @@
         if (e.target === this) this.style.display = 'none';
     });
 
-    const isMobile = window.innerWidth < 768;
-    const isSmall = window.innerWidth < 480;
-    const darkLayout = { paper_bgcolor: '#000', plot_bgcolor: '#000', font: { color: '#969696', size: isMobile ? 9 : 10 }, xaxis: { gridcolor: '#181818', linecolor: '#202020' }, yaxis: { gridcolor: '#181818', linecolor: '#202020' } };
+    // ── 차트 렌더링: DOM 완전 로딩 후 실행 ──────────────────────────
+    const _maData       = {{ ma_chart|safe }};
+    const _mainData     = {{ main_chart|safe }};
+    {% if supply_chart %}const _supplyData   = {{ supply_chart|safe }};{% endif %}
+    {% if investor_chart %}const _investorData = {{ investor_chart|safe }};{% endif %}
 
-    const maData = {{ ma_chart|safe }};
-    Plotly.newPlot('maChart', maData.data, {
-        ...maData.layout, ...darkLayout,
-        height: isMobile ? 260 : 380,
-        legend: { orientation: 'h', y: -0.22, x: 0, font: { size: isMobile ? 9 : 10 }, bgcolor: 'rgba(0,0,0,0)' },
-        margin: isMobile ? {l:45,r:55,t:16,b:70} : {l:50,r:70,t:20,b:70}
-    }, {responsive: true});
+    function _renderCharts() {
+        const isMobile = window.innerWidth < 768;
+        const isSmall  = window.innerWidth < 480;
 
-    const mainData = {{ main_chart|safe }};
-    Plotly.newPlot('mainChart', mainData.data, {
-        ...mainData.layout, ...darkLayout,
-        height: isSmall ? 280 : isMobile ? 350 : 550,
-        legend: { orientation: 'h', y: 1.02, font: { size: isMobile ? 9 : 10 }, bgcolor: 'rgba(0,0,0,0)' },
-        margin: isMobile ? {l:40,r:8,t:40,b:20} : {l:40,r:20,t:60,b:20}
-    }, {responsive: true});
+        const dark = {
+            paper_bgcolor: '#000', plot_bgcolor: '#000',
+            font: { color: '#969696', size: isMobile ? 9 : 10 },
+            xaxis: { gridcolor: '#181818', linecolor: '#202020' },
+            yaxis: { gridcolor: '#181818', linecolor: '#202020' },
+        };
 
-    {% if supply_chart %}
-    const supplyData = {{ supply_chart|safe }};
-    Plotly.newPlot('supplyChart', supplyData.data, {
-        ...supplyData.layout, ...darkLayout,
-        height: isMobile ? 200 : 280,
-        margin: isMobile ? {l:70,r:55,t:4,b:24} : {l:80,r:70,t:8,b:30},
-    }, {responsive: true});
-    {% endif %}
+        // 이동평균선 배열 차트
+        Plotly.react('maChart', _maData.data, {
+            ..._maData.layout, ...dark,
+            autosize: true,
+            height: isMobile ? 240 : 360,
+            legend: { orientation: 'h', y: -0.22, x: 0,
+                      font: { size: isMobile ? 8 : 10 }, bgcolor: 'rgba(0,0,0,0)' },
+            margin: isMobile ? {l:58,r:60,t:12,b:65} : {l:72,r:75,t:16,b:65},
+        }, {responsive: true, displayModeBar: false});
 
-    {% if investor_chart %}
-    const investorData = {{ investor_chart|safe }};
-    Plotly.newPlot('investorChart', investorData.data, {
-        ...investorData.layout, ...darkLayout,
-        height: isMobile ? 360 : 500,
-        margin: isMobile ? {l:50,r:12,t:36,b:90} : {l:60,r:20,t:40,b:80},
-    }, {responsive: true});
-    {% endif %}
+        // 캔들 차트
+        Plotly.react('mainChart', _mainData.data, {
+            ..._mainData.layout, ...dark,
+            autosize: true,
+            height: isSmall ? 260 : isMobile ? 320 : 520,
+            legend: { orientation: 'h', y: 1.02,
+                      font: { size: isMobile ? 8 : 10 }, bgcolor: 'rgba(0,0,0,0)' },
+            margin: isSmall ? {l:52,r:10,t:36,b:16}
+                  : isMobile ? {l:58,r:12,t:40,b:18}
+                  : {l:72,r:24,t:55,b:18},
+        }, {responsive: true, displayModeBar: false});
+
+        // 매물대 차트
+        {% if supply_chart %}
+        Plotly.react('supplyChart', _supplyData.data, {
+            ..._supplyData.layout, ...dark,
+            autosize: true,
+            height: isMobile ? 190 : 260,
+            margin: isMobile ? {l:75,r:58,t:4,b:22} : {l:88,r:72,t:6,b:26},
+        }, {responsive: true, displayModeBar: false});
+        {% endif %}
+
+        // 외인·기관 수급 차트
+        {% if investor_chart %}
+        Plotly.react('investorChart', _investorData.data, {
+            ..._investorData.layout, ...dark,
+            autosize: true,
+            height: isMobile ? 340 : 480,
+            margin: isMobile ? {l:55,r:14,t:34,b:85} : {l:68,r:22,t:38,b:75},
+        }, {responsive: true, displayModeBar: false});
+        {% endif %}
+    }
+
+    // DOM 완전 준비 후 렌더링
+    if (document.readyState === 'complete') {
+        requestAnimationFrame(_renderCharts);
+    } else {
+        window.addEventListener('load', function() {
+            requestAnimationFrame(_renderCharts);
+        });
+    }
+
+    // 창 크기 변경 시 재렌더링
+    let _resizeTimer;
+    window.addEventListener('resize', function() {
+        clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(_renderCharts, 200);
+    });
 </script>
 </body>
 </html>
