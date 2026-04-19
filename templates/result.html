@@ -834,19 +834,19 @@
 
     function _plotChart(id, data, layoutExtra) {
         const el = document.getElementById(id);
-        if (!el) return;
-        // 최상위 레이아웃만 얕은 병합 (xaxis/yaxis 객체는 건드리지 않음)
+        if (!el) return Promise.resolve();
         const layout = Object.assign({}, data.layout, layoutExtra, {
             paper_bgcolor: '#000',
             plot_bgcolor:  '#000',
         });
-        Plotly.newPlot(el, data.data, layout, {
+        // newPlot이 완료된 후 relayout → 순서 보장
+        return Plotly.newPlot(el, data.data, layout, {
             responsive: true,
             displayModeBar: false,
             scrollZoom: false,
+        }).then(function() {
+            return Plotly.relayout(el, _axisColors);
         });
-        // 축 색상만 별도로 덮어씌움 → 기존 설정(rangeslider, type, format 등) 보존
-        Plotly.relayout(el, _axisColors);
     }
 
     function _doRender() {

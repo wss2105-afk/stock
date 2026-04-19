@@ -42,48 +42,52 @@
         .new-badge { display: inline-block; background: #ef4444; color: #fff; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 3px; vertical-align: middle; margin-left: 6px; animation: pulse-badge 1.8s ease-in-out infinite; }
         @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
+        /* 로딩 오버레이 */
+        .search-loading { display: none; max-width: 560px; margin: 16px auto 0; padding: 14px 20px; background: #fff; border: 1.5px solid rgba(45,58,140,0.2); border-radius: 8px; box-shadow: 0 4px 20px rgba(45,58,140,0.1); text-align: center; }
+        .search-loading span { font-size: 0.88rem; color: #2d3a8c; font-weight: 500; letter-spacing: -0.1px; }
+        .loading-dots::after { content: ''; animation: dots 1.4s steps(4,end) infinite; }
+        @keyframes dots { 0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} 100%{content:''} }
+
         /* MA 반등 패널 */
-        .bounce-panel { width: 100%; max-width: 720px; margin: 22px auto 0; background: #fff; border: 1.5px solid rgba(255,180,0,0.35); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 16px rgba(255,180,0,0.08); }
-        .bounce-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: linear-gradient(90deg, #fff8e1 0%, #fff 100%); border-bottom: 1px solid rgba(255,180,0,0.15); }
-        .bounce-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #b45309; }
-        .bounce-date { font-size: 0.62rem; color: rgba(26,31,60,0.4); letter-spacing: 0.08em; }
-        .bounce-body { display: flex; flex-direction: column; gap: 1px; background: rgba(0,0,0,0.04); }
-        .bounce-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 10px; padding: 10px 18px; background: #fff; cursor: pointer; transition: background 0.15s; text-decoration: none; }
-        .bounce-row:hover { background: #fffbeb; }
-        .bounce-name { font-size: 0.88rem; color: #1a1f3c; font-weight: 600; }
-        .bounce-ticker { font-size: 0.62rem; color: rgba(26,31,60,0.38); font-family: 'Courier New', monospace; margin-left: 5px; }
+        .bounce-panel { width: 100%; max-width: 720px; margin: 22px auto 0; background: #fffdf5; border: 2px solid rgba(217,119,6,0.4); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 20px rgba(217,119,6,0.12); }
+        .bounce-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; background: linear-gradient(90deg, #fef3c7 0%, #fffdf5 100%); border-bottom: 1px solid rgba(217,119,6,0.18); }
+        .bounce-title { font-size: 0.73rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #92400e; }
+        .bounce-date { font-size: 0.62rem; color: rgba(146,64,14,0.55); letter-spacing: 0.08em; }
+        .bounce-body { display: flex; flex-direction: column; gap: 1px; background: rgba(217,119,6,0.07); }
+        .bounce-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 10px; padding: 11px 18px; background: #fffdf5; cursor: pointer; transition: background 0.15s; text-decoration: none; }
+        .bounce-row:hover { background: #fef9e7; }
+        .bounce-name { font-size: 0.90rem; color: #1c1917; font-weight: 700; }
+        .bounce-ticker { font-size: 0.62rem; color: rgba(92,64,14,0.5); font-family: 'Courier New', monospace; margin-left: 5px; }
         .bounce-ma-tags { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 3px; }
-        .bounce-ma-tag { font-size: 0.58rem; padding: 1px 5px; border: 1px solid rgba(180,83,9,0.35); color: #b45309; letter-spacing: 0.05em; border-radius: 2px; }
-        .bounce-chg { font-size: 0.82rem; font-weight: 700; color: #dc2626; white-space: nowrap; }
-        .bounce-vol { font-size: 0.70rem; color: rgba(26,31,60,0.45); white-space: nowrap; }
-        .bounce-price { font-size: 0.74rem; color: rgba(26,31,60,0.5); white-space: nowrap; }
-        .bounce-loading { padding: 20px 18px; font-size: 0.78rem; color: rgba(26,31,60,0.35); text-align: center; }
-        .bounce-empty { padding: 16px 18px; font-size: 0.78rem; color: rgba(26,31,60,0.3); text-align: center; }
+        .bounce-ma-tag { font-size: 0.60rem; padding: 2px 6px; background: rgba(217,119,6,0.12); border: 1px solid rgba(217,119,6,0.35); color: #92400e; letter-spacing: 0.04em; border-radius: 3px; font-weight: 600; }
+        .bounce-chg { font-size: 0.84rem; font-weight: 800; color: #b91c1c; white-space: nowrap; }
+        .bounce-vol { font-size: 0.70rem; color: #78716c; white-space: nowrap; }
+        .bounce-price { font-size: 0.76rem; color: #57534e; white-space: nowrap; font-weight: 500; }
+        .bounce-loading { padding: 22px 18px; font-size: 0.80rem; color: #a16207; text-align: center; }
+        .bounce-empty { padding: 18px 18px; font-size: 0.78rem; color: rgba(92,64,14,0.4); text-align: center; }
 
         /* 과매도/과매수 패널 */
-        .osc-panel { width: 100%; max-width: 720px; margin: 12px auto 0; background: #fff; border: 1.5px solid rgba(45,58,140,0.18); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 16px rgba(45,58,140,0.07); }
-        .osc-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: linear-gradient(90deg, #eef1ff 0%, #fff 100%); border-bottom: 1px solid rgba(45,58,140,0.1); }
-        .osc-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; }
-        .osc-title.over  { color: #b45309; }
-        .osc-title.under { color: #1d4ed8; }
-        .osc-updated { font-size: 0.6rem; color: rgba(26,31,60,0.38); }
-        .osc-tabs { display: flex; gap: 1px; background: rgba(0,0,0,0.05); }
-        .osc-tab { flex: 1; padding: 8px; text-align: center; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; cursor: pointer; transition: background 0.15s; border: none; }
-        .osc-tab.oversold   { color: #b45309; background: rgba(255,237,213,0.7); }
-        .osc-tab.overbought { color: #1d4ed8; background: rgba(219,234,254,0.7); }
+        .osc-panel { width: 100%; max-width: 720px; margin: 14px auto 0; background: #f8faff; border: 2px solid rgba(37,99,235,0.25); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 20px rgba(37,99,235,0.1); }
+        .osc-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; background: linear-gradient(90deg, #dbeafe 0%, #f8faff 100%); border-bottom: 1px solid rgba(37,99,235,0.12); }
+        .osc-title { font-size: 0.73rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #1e3a8a; }
+        .osc-updated { font-size: 0.6rem; color: rgba(30,58,138,0.5); }
+        .osc-tabs { display: flex; gap: 1px; background: rgba(37,99,235,0.08); }
+        .osc-tab { flex: 1; padding: 9px; text-align: center; font-size: 0.70rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; transition: background 0.15s; border: none; }
+        .osc-tab.oversold   { color: #92400e; background: #fef3c7; }
+        .osc-tab.overbought { color: #1e3a8a; background: #dbeafe; }
         .osc-tab.active     { opacity: 1; }
-        .osc-tab:not(.active) { opacity: 0.45; }
-        .osc-body { display: flex; flex-direction: column; gap: 1px; background: rgba(0,0,0,0.04); }
-        .osc-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 9px 18px; background: #fff; cursor: pointer; transition: background 0.15s; text-decoration: none; }
-        .osc-row:hover { background: #f8f9ff; }
-        .osc-name { font-size: 0.86rem; color: #1a1f3c; font-weight: 600; }
-        .osc-ticker-s { font-size: 0.62rem; color: rgba(26,31,60,0.38); font-family: 'Courier New', monospace; margin-left: 5px; }
+        .osc-tab:not(.active) { opacity: 0.4; }
+        .osc-body { display: flex; flex-direction: column; gap: 1px; background: rgba(37,99,235,0.06); }
+        .osc-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 10px 18px; background: #f8faff; cursor: pointer; transition: background 0.15s; text-decoration: none; }
+        .osc-row:hover { background: #eff6ff; }
+        .osc-name { font-size: 0.88rem; color: #0f172a; font-weight: 700; }
+        .osc-ticker-s { font-size: 0.62rem; color: rgba(15,23,42,0.4); font-family: 'Courier New', monospace; margin-left: 5px; }
         .osc-tags { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 2px; }
-        .osc-tag-os { font-size: 0.58rem; padding: 1px 5px; border: 1px solid rgba(180,83,9,0.4); color: #b45309; border-radius: 2px; }
-        .osc-tag-ob { font-size: 0.58rem; padding: 1px 5px; border: 1px solid rgba(29,78,216,0.4); color: #1d4ed8; border-radius: 2px; }
-        .osc-score { font-size: 0.8rem; font-weight: 700; }
-        .osc-price-s { font-size: 0.72rem; color: rgba(26,31,60,0.5); white-space: nowrap; }
-        .osc-loading { padding: 18px; font-size: 0.75rem; color: rgba(26,31,60,0.35); text-align: center; }
+        .osc-tag-os { font-size: 0.60rem; padding: 2px 6px; background: rgba(217,119,6,0.1); border: 1px solid rgba(217,119,6,0.35); color: #92400e; border-radius: 3px; font-weight: 600; }
+        .osc-tag-ob { font-size: 0.60rem; padding: 2px 6px; background: rgba(37,99,235,0.1); border: 1px solid rgba(37,99,235,0.35); color: #1e3a8a; border-radius: 3px; font-weight: 600; }
+        .osc-score { font-size: 0.82rem; font-weight: 800; }
+        .osc-price-s { font-size: 0.74rem; color: #475569; white-space: nowrap; font-weight: 500; }
+        .osc-loading { padding: 20px; font-size: 0.78rem; color: #3b82f6; text-align: center; }
 
         /* STATS */
         .stats { background: #2d3a8c; padding: 48px 24px; }
@@ -146,6 +150,9 @@
             <div class="suggest-box" id="suggestBox"></div>
         </div>
     </form>
+    <div class="search-loading" id="searchLoading">
+        <span>🔍 <span class="loading-dots">분석 중</span></span>
+    </div>
     <a href="/recommend" class="recommend-btn">
         추천 종목 TOP 20 자동 스캔 →
         <span id="pickRec" style="display:none;float:right;font-size:0.7rem;color:#FFC000;"></span>
@@ -369,6 +376,14 @@ function showOsc(kind) {
         active = (i + els.length) % els.length;
         if (els[active]) { els[active].classList.add('active'); input.value = items[active].name; }
     }
+
+    // 폼 제출 시 로딩 표시
+    form.addEventListener('submit', function() {
+        const loading = document.getElementById('searchLoading');
+        const btn = form.querySelector('button[type="submit"]');
+        if (loading) loading.style.display = 'block';
+        if (btn) { btn.textContent = '검색 중...'; btn.disabled = true; }
+    });
 
     input.addEventListener('input', function () {
         clearTimeout(debounce);
