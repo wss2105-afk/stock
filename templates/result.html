@@ -834,19 +834,25 @@
 
     function _plotChart(id, data, layoutExtra) {
         const el = document.getElementById(id);
-        if (!el) return Promise.resolve();
-        const layout = Object.assign({}, data.layout, layoutExtra, {
-            paper_bgcolor: '#000',
-            plot_bgcolor:  '#000',
-        });
-        // newPlot이 완료된 후 relayout → 순서 보장
-        return Plotly.newPlot(el, data.data, layout, {
-            responsive: true,
-            displayModeBar: false,
-            scrollZoom: false,
-        }).then(function() {
-            return Plotly.relayout(el, _axisColors);
-        });
+        if (!el || !data) return Promise.resolve();
+        try {
+            const layout = Object.assign({}, data.layout, layoutExtra, {
+                paper_bgcolor: '#000',
+                plot_bgcolor:  '#000',
+            });
+            return Plotly.newPlot(el, data.data, layout, {
+                responsive: true,
+                displayModeBar: false,
+                scrollZoom: false,
+            }).then(function() {
+                return Plotly.relayout(el, _axisColors);
+            }).catch(function(e) {
+                console.error('[chart]', id, e);
+            });
+        } catch(e) {
+            console.error('[chart-sync]', id, e);
+            return Promise.resolve();
+        }
     }
 
     function _doRender() {
@@ -854,64 +860,71 @@
         const isSmall  = window.innerWidth < 480;
         const fs = isMobile ? 9 : 10;
 
-        _plotChart('maChart', _maData, {
-            height: isMobile ? 240 : 360,
-            font: { color: '#969696', size: fs },
-            legend: { orientation: 'h', y: -0.22, x: 0, font: { size: fs }, bgcolor: 'rgba(0,0,0,0)' },
-            margin: isMobile ? {l:62,r:64,t:12,b:68} : {l:76,r:78,t:16,b:68},
+        Promise.all([
+            _plotChart('mainChart', _mainData, {
+                height: isSmall ? 260 : isMobile ? 320 : 520,
+                font: { color: '#969696', size: fs },
+                legend: { orientation: 'h', y: 1.02, font: { size: fs }, bgcolor: 'rgba(0,0,0,0)' },
+                margin: isSmall  ? {l:56,r:10,t:36,b:16}
+                      : isMobile ? {l:62,r:12,t:42,b:18}
+                      :            {l:76,r:24,t:55,b:18},
+            }),
+            _plotChart('maChart', _maData, {
+                height: isMobile ? 240 : 360,
+                font: { color: '#969696', size: fs },
+                legend: { orientation: 'h', y: -0.22, x: 0, font: { size: fs }, bgcolor: 'rgba(0,0,0,0)' },
+                margin: isMobile ? {l:62,r:64,t:12,b:68} : {l:76,r:78,t:16,b:68},
+            }),
+            {% if supply_chart %}
+            _plotChart('supplyChart', _supplyData, {
+                height: isMobile ? 190 : 260,
+                font: { color: '#969696', size: fs },
+                margin: isMobile ? {l:80,r:60,t:4,b:22} : {l:92,r:74,t:6,b:26},
+            }),
+            {% endif %}
+            {% if investor_chart %}
+            _plotChart('investorChart', _investorData, {
+                height: isMobile ? 340 : 480,
+                font: { color: '#969696', size: fs },
+                legend: { orientation: 'h', y: -0.08, x: 0, font: { size: fs }, bgcolor: 'rgba(0,0,0,0)' },
+                margin: isMobile ? {l:58,r:14,t:36,b:88} : {l:72,r:22,t:40,b:78},
+            }),
+            {% endif %}
+            Promise.resolve()
+        ]).then(function() {
+            // 렌더 완료 후 resize 이벤트로 Plotly responsive 크기 재조정
+            window.dispatchEvent(new Event('resize'));
         });
-
-        _plotChart('mainChart', _mainData, {
-            height: isSmall ? 260 : isMobile ? 320 : 520,
-            font: { color: '#969696', size: fs },
-            legend: { orientation: 'h', y: 1.02, font: { size: fs }, bgcolor: 'rgba(0,0,0,0)' },
-            margin: isSmall  ? {l:56,r:10,t:36,b:16}
-                  : isMobile ? {l:62,r:12,t:42,b:18}
-                  :            {l:76,r:24,t:55,b:18},
-        });
-
-        {% if supply_chart %}
-        _plotChart('supplyChart', _supplyData, {
-            height: isMobile ? 190 : 260,
-            font: { color: '#969696', size: fs },
-            margin: isMobile ? {l:80,r:60,t:4,b:22} : {l:92,r:74,t:6,b:26},
-        });
-        {% endif %}
-
-        {% if investor_chart %}
-        _plotChart('investorChart', _investorData, {
-            height: isMobile ? 340 : 480,
-            font: { color: '#969696', size: fs },
-            legend: { orientation: 'h', y: -0.08, x: 0, font: { size: fs }, bgcolor: 'rgba(0,0,0,0)' },
-            margin: isMobile ? {l:58,r:14,t:36,b:88} : {l:72,r:22,t:40,b:78},
-        });
-        {% endif %}
     }
 
-    // 컨테이너 너비가 실제로 확보된 뒤 렌더링 (최대 20회 재시도)
+    // 컨테이너 너비 확보 후 렌더링 (최대 30회 × 100ms = 3초)
+    // 너비 0이 지속되면 강제 렌더
     let _retries = 0;
     function _renderWhenReady() {
         const el = document.getElementById('mainChart');
         const w  = el ? el.getBoundingClientRect().width : 0;
-        if (w > 50) {
+        if (w > 10 || _retries >= 30) {
             _doRender();
-        } else if (_retries < 20) {
+        } else {
             _retries++;
-            setTimeout(_renderWhenReady, 80);
+            setTimeout(_renderWhenReady, 100);
         }
     }
 
     if (document.readyState === 'complete') {
-        _renderWhenReady();
+        // 이미 로드 완료 — 다음 프레임에서 렌더 (CSS 레이아웃 완료 보장)
+        requestAnimationFrame(function() { requestAnimationFrame(_renderWhenReady); });
     } else {
-        window.addEventListener('load', _renderWhenReady);
+        window.addEventListener('load', function() {
+            requestAnimationFrame(function() { requestAnimationFrame(_renderWhenReady); });
+        });
     }
 
-    // 창 크기 변경 시 재렌더링 (디바운스 200ms)
+    // 창 크기 변경 시 재렌더링 (디바운스 300ms)
     let _resizeTimer;
     window.addEventListener('resize', function () {
         clearTimeout(_resizeTimer);
-        _resizeTimer = setTimeout(_doRender, 200);
+        _resizeTimer = setTimeout(_doRender, 300);
     });
 </script>
 </body>
