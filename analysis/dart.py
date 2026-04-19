@@ -6,6 +6,8 @@ import time
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'), override=True)
 
 DART_API_KEY = os.environ.get('DART_API_KEY', '')
 _CORP_CACHE_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'dart_corp_codes.json')
@@ -15,7 +17,7 @@ _CACHE_TTL = 60 * 60 * 24  # 24시간
 
 def _load_corp_codes():
     """DART 고유번호 목록 로드 (24시간 캐시)"""
-    if os.path.exists(_CORP_CACHE_PATH):
+    if os.path.exists(_CORP_CACHE_PATH) and os.path.exists(_NAME_CACHE_PATH):
         mtime = os.path.getmtime(_CORP_CACHE_PATH)
         if time.time() - mtime < _CACHE_TTL:
             with open(_CORP_CACHE_PATH, encoding='utf-8') as f:
