@@ -47,6 +47,30 @@ def _auto_update_tickers():
 threading.Thread(target=_auto_update_tickers, daemon=True).start()
 
 
+_EXPORT_SCAN_PATH = os.path.join(os.path.dirname(__file__), 'data', 'export_scan_month.txt')
+
+def _auto_export_scan():
+    """매월 15일 수출주 자동 스캔"""
+    today = datetime.today()
+    if today.day != 15:
+        return
+    this_month = today.strftime('%Y-%m')
+    if os.path.exists(_EXPORT_SCAN_PATH):
+        with open(_EXPORT_SCAN_PATH) as f:
+            if f.read().strip() == this_month:
+                return
+    try:
+        from analysis.export_growth import scan_export_growth
+        scan_export_growth(growth_threshold=10)
+        with open(_EXPORT_SCAN_PATH, 'w') as f:
+            f.write(this_month)
+        print(f'[{this_month}] 수출주 자동 스캔 완료')
+    except Exception as e:
+        print(f'수출주 스캔 오류: {e}')
+
+threading.Thread(target=_auto_export_scan, daemon=True).start()
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -209,7 +233,7 @@ def export_surge():
 @app.route('/export-surge/refresh', methods=['POST'])
 def export_surge_refresh():
     """수동 재스캔 트리거"""
-    threading.Thread(target=scan_export_growth, daemon=True).start()
+    threading.Thread(target=lambda: scan_export_growth(growth_threshold=10), daemon=True).start()
     return jsonify({'status': 'scanning'})
 
 

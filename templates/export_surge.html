@@ -52,6 +52,10 @@
 
         .refresh-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase; color: #555; border: 1px solid #313131; background: none; cursor: pointer; transition: color 0.15s, border-color 0.15s; margin-bottom: 20px; }
         .refresh-btn:hover { color: #fc4c02; border-color: #fc4c02; }
+        .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+        .filter-btn { padding: 5px 14px; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; border: 1px solid #313131; background: none; color: #555; cursor: pointer; transition: all 0.15s; }
+        .filter-btn.active { border-color: #fc4c02; color: #fc4c02; background: rgba(252,76,2,0.06); }
+        .filter-btn:hover { color: #fc4c02; border-color: #fc4c02; }
 
         @media (max-width: 576px) {
             .topbar { padding: 10px 12px; }
@@ -90,10 +94,19 @@
         <div class="meta-item">조건 달성 <span>{{ total }}개 종목</span></div>
     </div>
 
-    <button class="refresh-btn" onclick="rescan()">↻ 재스캔</button>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+        <button class="refresh-btn" style="margin-bottom:0;" onclick="rescan()">↻ 재스캔</button>
+        <div class="filter-bar" style="margin-bottom:0;">
+            <button class="filter-btn active" onclick="setFilter(10, this)">10%↑</button>
+            <button class="filter-btn" onclick="setFilter(20, this)">20%↑</button>
+            <button class="filter-btn" onclick="setFilter(30, this)">30%↑</button>
+            <button class="filter-btn" onclick="setFilter(50, this)">50%↑</button>
+        </div>
+        <span id="visibleCount" style="font-size:0.65rem;color:#555;letter-spacing:0.1em;"></span>
+    </div>
 
     {% for s in results %}
-    <div class="stock-card" onclick="analyzeStock('{{ s.ticker }}')">
+    <div class="stock-card" data-growth="{{ s.max_growth }}" onclick="analyzeStock('{{ s.ticker }}')">
         <div class="rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">{{ loop.index }}</div>
         <div class="stock-info">
             <div class="stock-name">{{ s.name }}</div>
@@ -133,6 +146,33 @@ function rescan() {
             setTimeout(() => location.reload(), 30000);
         });
 }
+
+let currentFilter = 10;
+function setFilter(threshold, btn) {
+    currentFilter = threshold;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const cards = document.querySelectorAll('.stock-card[data-growth]');
+    let visible = 0;
+    cards.forEach((c, i) => {
+        const g = parseFloat(c.dataset.growth);
+        const show = g >= threshold;
+        c.style.display = show ? '' : 'none';
+        if (show) {
+            visible++;
+            // 순위 재번호
+            const rankEl = c.querySelector('.rank');
+            if (rankEl) {
+                rankEl.textContent = visible;
+                rankEl.className = 'rank' + (visible===1?' gold':visible===2?' silver':visible===3?' bronze':'');
+            }
+        }
+    });
+    const cnt = document.getElementById('visibleCount');
+    if (cnt) cnt.textContent = visible + '개 종목';
+}
+// 초기 카운트 표시
+window.addEventListener('DOMContentLoaded', () => setFilter(10, document.querySelector('.filter-btn')));
 </script>
 </body>
 </html>
