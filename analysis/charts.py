@@ -50,12 +50,25 @@ def make_main_chart(df, name, supply_df=None, current_price=None):
             else 'rgba(52,152,219,0.45)'
             for p in supply_df['price_mid']
         ]
+        def fmt_vol(v):
+            if v >= 100_000_000:
+                return f'{v/100_000_000:.1f}억'
+            elif v >= 10_000:
+                return f'{v/10_000:.0f}만'
+            return f'{v:,.0f}'
+
+        vol_labels = [fmt_vol(v) for v in supply_df['volume']]
+
         fig.add_trace(go.Bar(
             x=supply_df['volume'],
             y=supply_df['price_mid'],
             orientation='h',
             name='매물대',
             marker=dict(color=bar_colors, line_width=0),
+            text=vol_labels,
+            textposition='outside',
+            textfont=dict(size=8, color='rgba(200,200,200,0.75)'),
+            cliponaxis=False,
             showlegend=False,
             hovertemplate='%{y:,.0f}원<br>거래량: %{x:,.0f}<extra></extra>',
         ), row=1, col=2)
@@ -72,7 +85,7 @@ def make_main_chart(df, name, supply_df=None, current_price=None):
         height=550,
         xaxis_rangeslider_visible=False,
         legend=dict(orientation='h', y=1.02),
-        margin=dict(l=40, r=8, t=60, b=20),
+        margin=dict(l=40, r=36, t=60, b=20),
         bargap=0.08,
     )
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
