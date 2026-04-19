@@ -18,7 +18,7 @@ from datetime import datetime
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
 app = Flask(__name__)
 
-_TICKER_PATH = os.path.join(os.path.dirname(__file__), 'data', 'krx_tickers.json')
+_TICKER_PATH      = os.path.join(os.path.dirname(__file__), 'data', 'krx_tickers.json')
 _LAST_UPDATE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ticker_last_update.txt')
 
 
@@ -250,6 +250,25 @@ def export_surge_refresh():
     """수동 재스캔 트리거"""
     threading.Thread(target=lambda: scan_export_growth(growth_threshold=10), daemon=True).start()
     return jsonify({'status': 'scanning'})
+
+
+@app.route('/api/search-suggest')
+def search_suggest():
+    q = request.args.get('q', '').strip()
+    if len(q) < 1:
+        return jsonify([])
+    import json as _json
+    try:
+        with open(_TICKER_PATH, encoding='utf-8') as f:
+            db = _json.load(f)
+        matches = [
+            {'name': name, 'ticker': ticker}
+            for name, ticker in db.items()
+            if q in name or q in ticker
+        ][:10]
+    except Exception:
+        matches = []
+    return jsonify(matches)
 
 
 @app.route('/api/company-desc')
