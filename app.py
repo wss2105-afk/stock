@@ -777,11 +777,31 @@ def debug_fundamental(ticker):
 
 @app.route('/api/debug/reports/<ticker>')
 def debug_reports(ticker):
-    """증권사 리포트 + FnGuide 목표주가 확인"""
+    """개별 리포트 페이지 구조 확인"""
+    import requests as _req
+    from bs4 import BeautifulSoup
     from analysis.news import get_research_reports
-    reports = get_research_reports(ticker, max_items=5)
-    t_min, t_max = _get_fnguide_target_range(ticker)
-    return jsonify({'reports': reports, 'target_min': t_min, 'target_max': t_max})
+    reports = get_research_reports(ticker, max_items=3)
+    # 첫 번째 리포트 페이지 원시 구조 확인
+    report_html = None
+    if reports:
+        try:
+            url = reports[0]['url']
+            res = _req.get(url, headers={'User-Agent': 'Mozilla/5.0',
+                           'Referer': 'https://finance.naver.com/'}, timeout=8)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            # th/td 쌍 전체 추출
+            pairs = []
+            for tr in soup.find_all('tr'):
+                ths = [th.get_text(strip=True) for th in tr.find_all('th')]
+                tds = [td.get_text(strip=True) for td in tr.find_all('td')]
+                if ths or tds:
+                    pairs.append({'th': ths, 'td': tds})
+            report_html = pairs[:20]
+        except Exception as e:
+            report_html = str(e)
+    return jsonify({'first_url': reports[0]['url'] if reports else None,
+                    'table_pairs': report_html})
 
 
 if __name__ == '__main__':
