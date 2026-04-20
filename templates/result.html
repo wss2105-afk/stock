@@ -241,43 +241,11 @@
 
             <!-- 기업소개 -->
             <div class="section-card">
-                <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
-                    기업소개
-                    <span id="bizInfoBtn" onclick="loadBizDesc()" style="font-size:0.62rem;color:#555;letter-spacing:0.1em;cursor:pointer;border:1px solid #333;padding:2px 8px;transition:color 0.2s,border-color 0.2s;" onmouseover="this.style.color='#FFC000';this.style.borderColor='#FFC000';" onmouseout="this.style.color='#555';this.style.borderColor='#333';">사업 소개 ⓘ</span>
-                </div>
-                <div class="profile-grid">
-                    <div class="profile-item">
-                        <div class="p-label">대표자</div>
-                        <div class="p-val">{{ company_info.get('ceo', 'N/A') }}</div>
-                    </div>
-                    <div class="profile-item">
-                        <div class="p-label">시장</div>
-                        <div class="p-val">{{ market_profile.market_type }}</div>
-                    </div>
-                    {% if company_info.get('listing_date') and company_info.listing_date|length == 8 %}
-                    <div class="profile-item">
-                        <div class="p-label">상장일</div>
-                        <div class="p-val">{{ company_info.listing_date[:4] }}.{{ company_info.listing_date[4:6] }}.{{ company_info.listing_date[6:] }}</div>
-                    </div>
-                    {% endif %}
-                    {% if company_info.get('employees') %}
-                    <div class="profile-item">
-                        <div class="p-label">직원 수</div>
-                        <div class="p-val">{{ company_info.employees }}</div>
-                    </div>
-                    {% endif %}
-                    {% if company_info.get('capital') %}
-                    <div class="profile-item">
-                        <div class="p-label">자본금</div>
-                        <div class="p-val">{{ company_info.capital }}</div>
-                    </div>
-                    {% endif %}
-                    {% if company_info.get('products') %}
-                    <div class="profile-item" style="grid-column: 1 / -1;">
-                        <div class="p-label">주요 제품</div>
-                        <div class="p-val" style="font-size:0.78rem;line-height:1.5;">{{ company_info.products }}</div>
-                    </div>
-                    {% endif %}
+                <div class="section-title">기업소개</div>
+
+                <!-- 사업 소개 인라인 -->
+                <div id="bizDescInline" style="font-size:0.82rem;color:#bbb;line-height:1.85;white-space:pre-wrap;margin-bottom:14px;min-height:48px;">
+                    <span style="color:#444;letter-spacing:0.1em;">불러오는 중...</span>
                 </div>
 
                 <!-- 시장 지표 -->
@@ -668,14 +636,6 @@
     </div>
 </div>
 
-<!-- 기업 사업소개 모달 -->
-<div id="bizModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;">
-    <div style="background:#202020;border:1px solid #FFC000;padding:28px;max-width:520px;width:90%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);">
-        <button onclick="document.getElementById('bizModal').style.display='none'" style="position:absolute;top:14px;right:16px;background:none;border:none;color:#7D7D7D;font-size:1.2rem;cursor:pointer;" onmouseover="this.style.color='#FFC000'" onmouseout="this.style.color='#7D7D7D'">✕</button>
-        <div style="font-size:0.85rem;font-weight:700;color:#FFC000;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:16px;">{{ name }} — 사업 소개</div>
-        <div id="bizDescBody" style="font-size:0.88rem;color:#e2e8f0;line-height:1.9;white-space:pre-wrap;"></div>
-    </div>
-</div>
 
 <!-- 설명 모달 -->
 <div id="descModal">
@@ -710,21 +670,14 @@
     function closeDesc() { document.getElementById('descModal').style.display = 'none'; }
     document.getElementById('descModal').addEventListener('click', function(e) { if (e.target === this) closeDesc(); });
 
-    let bizDescLoaded = false;
-    function loadBizDesc() {
-        const modal = document.getElementById('bizModal');
-        const body = document.getElementById('bizDescBody');
-        modal.style.display = 'block';
-        if (bizDescLoaded) return;
-        body.innerHTML = '<span style="color:#555;letter-spacing:0.1em;">불러오는 중...</span>';
+    // 사업소개 인라인 자동 로드
+    (function() {
+        const el = document.getElementById('bizDescInline');
         fetch(`/api/company-desc?ticker={{ ticker }}&name={{ name }}&industry={{ company_info.get('industry', '') }}`)
             .then(r => r.json())
-            .then(d => {
-                bizDescLoaded = true;
-                body.textContent = d.desc || d.error || '설명을 불러올 수 없습니다.';
-            })
-            .catch(() => { body.textContent = '오류가 발생했습니다.'; });
-    }
+            .then(d => { if (el) el.textContent = d.desc || d.error || '설명을 불러올 수 없습니다.'; })
+            .catch(() => { if (el) el.textContent = '사업소개를 불러올 수 없습니다.'; });
+    })();
     // AI 분석 지연 로딩
     const _aiTicker = {{ ticker | tojson }};
     const _aiName   = {{ name | tojson }};
@@ -813,10 +766,6 @@
 
         box.innerHTML = html || `<div class="ai-sec"><div class="ai-sec-body"><p>${esc(raw)}</p></div></div>`;
     }
-
-    document.getElementById('bizModal').addEventListener('click', function(e) {
-        if (e.target === this) this.style.display = 'none';
-    });
 
     // ── 차트 데이터 (JSON 파싱) ──────────────────────────────────────
     const _maData   = {{ ma_chart|safe }};
