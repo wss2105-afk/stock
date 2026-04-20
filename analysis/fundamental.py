@@ -50,11 +50,11 @@ def get_company_info_naver(ticker):
                     elif ('주요제품' in key or '주요 제품' in key or '사업' in key) and 'products' not in result:
                         result['products'] = val[:80] if val else ''
 
-        # 업종이 없으면 main 페이지 업종 링크에서 추출
+        # 업종이 없으면 main 페이지 업종 링크에서 추출 (main.naver는 UTF-8)
         if 'industry' not in result:
             main_url = f"https://finance.naver.com/item/main.naver?code={ticker}"
             main_res = requests.get(main_url, headers=HEADERS, timeout=5)
-            main_soup = BeautifulSoup(main_res.content.decode('euc-kr', errors='replace'), 'html.parser')
+            main_soup = BeautifulSoup(main_res.content.decode('utf-8', errors='replace'), 'html.parser')
             for a in main_soup.find_all('a', href=True):
                 if 'upjong' in a['href'] or 'type=upjong' in a['href']:
                     industry_text = a.get_text(strip=True)
@@ -96,10 +96,10 @@ def get_market_profile(ticker):
         pass
 
     try:
-        # 시가총액 & 시장구분 — 네이버 금융
+        # 시가총액 & 시장구분 — 네이버 금융 (main.naver는 UTF-8)
         url = f"https://finance.naver.com/item/main.naver?code={ticker}"
         res = requests.get(url, headers=HEADERS, timeout=5)
-        soup = BeautifulSoup(res.text, 'html.parser')
+        soup = BeautifulSoup(res.content.decode('utf-8', errors='replace'), 'html.parser')
 
         # 시가총액
         cap_el = soup.select_one('em#_market_sum')
@@ -125,13 +125,13 @@ def get_market_profile(ticker):
 
 
 def _decode(res):
-    """네이버 응답 디코딩 — EUC-KR 우선, 실패 시 UTF-8"""
-    for enc in ('euc-kr', 'utf-8'):
+    """네이버 응답 디코딩 — UTF-8 우선(main.naver), 실패 시 EUC-KR(coinfo.naver)"""
+    for enc in ('utf-8', 'euc-kr'):
         try:
             return res.content.decode(enc, errors='strict')
         except Exception:
             pass
-    return res.content.decode('utf-8', errors='replace')
+    return res.content.decode('euc-kr', errors='replace')
 
 
 def get_fundamental(ticker):
