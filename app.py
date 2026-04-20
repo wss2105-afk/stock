@@ -186,44 +186,41 @@ def _market_osc_scheduler():
 threading.Thread(target=_evening_scheduler, daemon=True).start()
 threading.Thread(target=_market_osc_scheduler, daemon=True).start()
 
-_EXPORT_SCAN_PATH = os.path.join(os.path.dirname(__file__), 'data', 'export_scan_month.txt')
+_EXPORT_SCAN_DATE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'export_scan_date.txt')
 
 def _run_export_scan():
-    """수출주 스캔 실행 후 완료 월 기록"""
-    this_month = datetime.today().strftime('%Y-%m')
+    """수출주 스캔 실행 후 완료 날짜 기록"""
+    today_str = datetime.today().strftime('%Y-%m-%d')
     try:
         scan_export_growth(growth_threshold=10)
-        with open(_EXPORT_SCAN_PATH, 'w') as f:
-            f.write(this_month)
-        print(f'[{this_month}] 수출주 자동 스캔 완료')
+        with open(_EXPORT_SCAN_DATE_PATH, 'w') as f:
+            f.write(today_str)
+        print(f'[{today_str}] 수출주 자동 스캔 완료')
     except Exception as e:
         print(f'수출주 스캔 오류: {e}')
 
 def _export_scan_scheduler():
-    """매월 15일 06:00 수출주 자동 스캔 (루프 방식)"""
+    """3일마다 자정(00:00) 수출주 자동 스캔"""
     import time as _time
-    # 앱 시작 시 이번 달 15일 스캔이 아직 안 됐으면 즉시 실행
-    today = datetime.today()
-    this_month = today.strftime('%Y-%m')
-    already_done = False
-    if os.path.exists(_EXPORT_SCAN_PATH):
-        with open(_EXPORT_SCAN_PATH) as f:
-            already_done = f.read().strip() == this_month
-    if not already_done and today.day >= 15:
-        _run_export_scan()
+    # 캐시 없으면 시작 시 즉시 실행
+    if load_export_cache() is None:
+        threading.Thread(target=_run_export_scan, daemon=True).start()
 
     while True:
         now = datetime.today()
-        # 다음 15일 06:00 KST(= UTC-9) 계산
-        year, month = now.year, now.month
-        if now.day > 15 or (now.day == 15 and now.hour >= 6):
-            month += 1
-            if month > 12:
-                month = 1
-                year += 1
-        next_run = now.replace(year=year, month=month, day=15, hour=6, minute=0, second=0, microsecond=0)
-        _time.sleep((next_run - now).total_seconds())
-        _run_export_scan()
+        # 오늘 자정 00:00 이후면 내일 자정, 아니면 오늘 자정
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if now >= midnight:
+            midnight += timedelta(days=1)
+        _time.sleep((midnight - now).total_seconds())
+        # 자정 도달 — 3일 주기 체크
+        last_date = None
+        if os.path.exists(_EXPORT_SCAN_DATE_PATH):
+            with open(_EXPORT_SCAN_DATE_PATH) as f:
+                last_date = f.read().strip()
+        today_str = datetime.today().strftime('%Y-%m-%d')
+        if last_date is None or (datetime.today() - datetime.strptime(last_date, '%Y-%m-%d')).days >= 3:
+            _run_export_scan()
 
 threading.Thread(target=_export_scan_scheduler, daemon=True).start()
 
@@ -603,8 +600,7 @@ def supply_leaders():
 def export_surge():
     cache = load_export_cache()
     if cache is None:
-        threading.Thread(target=scan_export_growth, daemon=True).start()
-        return render_template('export_surge.html', high=[], moderate=[], scanning=True,
+        return render_template('export_surge.html', high=[], moderate=[], scanning=False,
                                updated_at=None, total=0, high_count=0, moderate_count=0)
     results = cache.get('results', [])
     high     = [r for r in results if r.get('tier') == 'high']

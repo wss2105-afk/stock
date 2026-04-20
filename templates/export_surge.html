@@ -94,23 +94,13 @@
     <div class="page-title">매출 급성장 수출주</div>
     <div class="page-sub">전년동기(YoY) · 전분기(QoQ) 대비 매출 성장률 분석 — 30%↑ 강한 성장 / 10~30% 양호한 성장</div>
 
-    {% if scanning %}
-    <div class="scanning-box">
-        <div class="scanning-title">스캔 중<span class="dot-anim"></span></div>
-        <div class="progress-bar-wrap"><div class="progress-bar-fill"></div></div>
-        <div class="scanning-sub">
-            전체 종목 매출 데이터를 분석하고 있습니다.<br>
-            처음 실행 시 10~15분 소요됩니다. 잠시 후 새로고침해 주세요.
-        </div>
-    </div>
-    <script>setTimeout(() => location.reload(), 30000);</script>
-
+    {% if not updated_at %}
+    <div style="font-size:0.78rem;color:#666;margin-bottom:20px;">3일마다 자정에 스캔이 실행됩니다. 스캔 완료 후 표시됩니다.</div>
     {% else %}
     <div class="meta-bar">
-        {% if updated_at %}<div class="meta-item">업데이트 <span>{{ updated_at }}</span></div>{% endif %}
+        <div class="meta-item">업데이트 <span>{{ updated_at }}</span></div>
         <div class="meta-item">강한 성장 <span>{{ high_count }}개</span></div>
         <div class="meta-item">양호한 성장 <span>{{ moderate_count }}개</span></div>
-        <button class="refresh-btn" onclick="rescan()">↻ 재스캔</button>
     </div>
 
     <!-- ── 강한 성장 섹션 (30%↑) ── -->
