@@ -179,7 +179,7 @@ def get_fundamental(ticker):
                 elif 'PBR' in key and result['pbr'] == 'N/A':
                     result['pbr'] = val
 
-        # ── 2. ROE / 영업이익률 / 부채비율 / 매출액 / 영업이익 — FnGuide
+        # ── 2. 매출액 / 영업이익 — FnGuide SVD_Finance (재무제표 수치)
         try:
             fg_url = (f"https://comp.fnguide.com/SVO2/ASP/SVD_Finance.asp"
                       f"?pGB=1&gicode=A{ticker}&cID=&MenuYn=Y&ReportGB=D&NewMenuID=103&stkGb=701")
@@ -189,7 +189,6 @@ def get_fundamental(ticker):
 
             for tbl in fg_soup.find_all('table'):
                 for tr in tbl.find_all('tr'):
-                    # th 또는 첫 번째 td가 항목명
                     th = tr.find('th') or (tr.find_all('td')[0] if tr.find_all('td') else None)
                     if not th:
                         continue
@@ -198,20 +197,49 @@ def get_fundamental(ticker):
                     if not tds:
                         continue
                     vals = [td.get_text(strip=True).replace(',', '') for td in tds]
-                    non_empty = [v for v in vals if v and v != '-']
-                    last = non_empty[-1] if non_empty else 'N/A'
                     if '매출액' in key and not result['revenue']:
                         result['revenue'] = [v for v in vals[:4] if v]
                     elif '영업이익' in key and '률' not in key and not result['operating_profit']:
                         result['operating_profit'] = [v for v in vals[:4] if v]
-                    elif 'ROE' in key and result['roe'] == 'N/A':
-                        result['roe'] = last
-                    elif '영업이익률' in key and result['op_margin'] == 'N/A':
-                        result['op_margin'] = last
-                    elif '부채비율' in key and result['debt_ratio'] == 'N/A':
-                        result['debt_ratio'] = last
         except Exception as e:
-            print(f"FnGuide 수집 오류: {e}")
+            print(f"FnGuide 재무 수집 오류: {e}")
+
+        # 영업이익률 — 영업이익/매출액으로 직접 계산
+        try:
+            if result['operating_profit'] and result['revenue']:
+                op = float(result['operating_profit'][0].replace(',', ''))
+                rev = float(result['revenue'][0].replace(',', ''))
+                if rev > 0:
+                    result['op_margin'] = f"{op / rev * 100:.1f}"
+        except Exception:
+            pass
+
+        # ── 3. ROE / 부채비율 — FnGuide SVD_Main (주요 투자지표)
+        try:
+            main_url = (f"https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp"
+                        f"?pGB=1&gicode=A{ticker}&cID=&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701")
+            main_res2 = requests.get(main_url,
+                headers={**HEADERS, 'Referer': 'https://comp.fnguide.com/'}, timeout=8)
+            main_soup2 = BeautifulSoup(main_res2.content.decode('utf-8', errors='replace'), 'html.parser')
+
+            for tbl in main_soup2.find_all('table'):
+                for tr in tbl.find_all('tr'):
+                    th = tr.find('th')
+                    if not th:
+                        continue
+                    key = th.get_text(strip=True)
+                    tds = tr.find_all('td')
+                    non_empty = [td.get_text(strip=True).replace(',', '')
+                                 for td in tds if td.get_text(strip=True) not in ('', '-', 'N/A')]
+                    if not non_empty:
+                        continue
+                    last = non_empty[-1]
+                    if 'ROE' in key and result['roe'] == 'N/A':
+                        result['roe'] = _extract_num(last)
+                    elif '부채비율' in key and result['debt_ratio'] == 'N/A':
+                        result['debt_ratio'] = _extract_num(last)
+        except Exception as e:
+            print(f"FnGuide 투자지표 오류: {e}")
 
         # ── 3. Forward PER — FnGuide 컨센서스
         try:
