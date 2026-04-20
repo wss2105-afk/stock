@@ -636,43 +636,36 @@ def search_suggest():
 
 @app.route('/api/debug/dart/<ticker>')
 def debug_dart(ticker):
-    import os, zipfile, io, requests as _req, xml.etree.ElementTree as ET
-    from analysis.dart import DART_API_KEY, _CORP_CACHE_PATH, _NAME_CACHE_PATH
-    out = {
-        'dart_api_key_set': bool(DART_API_KEY),
-        'dart_api_key_prefix': DART_API_KEY[:6] + '...' if DART_API_KEY else None,
-        'cache_path': _CORP_CACHE_PATH,
-        'cache_exists': os.path.exists(_CORP_CACHE_PATH),
-        'data_dir_exists': os.path.exists(os.path.dirname(_CORP_CACHE_PATH)),
-    }
-    if not DART_API_KEY:
-        return jsonify(out)
-    # data 디렉토리 없으면 생성 후 재다운로드
-    data_dir = os.path.dirname(_CORP_CACHE_PATH)
-    os.makedirs(data_dir, exist_ok=True)
-    try:
-        url = f"https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key={DART_API_KEY}"
-        resp = _req.get(url, timeout=20)
-        out['http_status'] = resp.status_code
-        out['content_len'] = len(resp.content)
-        out['response_text'] = resp.content.decode('utf-8', errors='replace')[:300]
-        # 잘못된 캐시 삭제
-        if os.path.exists(_CORP_CACHE_PATH):
+    import os, requests as _req
+    from analysis.dart import DART_API_KEY, _CORP_CACHE_PATH, get_corp_code, get_disclosures
+    # 잘못된 캐시(빈 파일) 삭제
+    if os.path.exists(_CORP_CACHE_PATH):
+        try:
+            with open(_CORP_CACHE_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+            cache_valid = bool(data)
+        except Exception:
+            cache_valid = False
+        if not cache_valid:
             os.remove(_CORP_CACHE_PATH)
-            out['cache_deleted'] = True
-        z = zipfile.ZipFile(io.BytesIO(resp.content))
-        xml_data = z.read('CORPCODE.xml')
-        root = ET.fromstring(xml_data)
-        items = root.findall('list')
-        out['xml_items'] = len(items)
-        for item in items:
-            if item.findtext('stock_code', '').strip() == ticker:
-                out['found_corp_code'] = item.findtext('corp_code', '').strip()
-                out['found_corp_name'] = item.findtext('corp_name', '').strip()
-                break
-    except Exception as e:
-        out['error'] = str(e)
-    return jsonify(out)
+    # DART API 원시 응답 확인
+    raw_resp = None
+    if DART_API_KEY:
+        try:
+            r = _req.get(f"https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key={DART_API_KEY}",
+                         timeout=5)
+            raw_resp = {'status': r.status_code, 'len': len(r.content),
+                        'text': r.content.decode('utf-8', errors='replace')[:300]}
+        except Exception as e:
+            raw_resp = {'error': str(e)}
+    corp_code = get_corp_code(ticker)
+    disclosures = get_disclosures(ticker, days=30) if corp_code else []
+    return jsonify({
+        'key_set': bool(DART_API_KEY),
+        'corp_code': corp_code,
+        'disclosure_count': len(disclosures),
+        'raw_api_response': raw_resp,
+    })
 
 
 @app.route('/api/debug/investor/<ticker>')

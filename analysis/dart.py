@@ -17,35 +17,54 @@ _CACHE_TTL = 60 * 60 * 24  # 24시간
 
 def _load_corp_codes():
     """DART 고유번호 목록 로드 (24시간 캐시)"""
-    if os.path.exists(_CORP_CACHE_PATH) and os.path.exists(_NAME_CACHE_PATH):
+    os.makedirs(os.path.dirname(_CORP_CACHE_PATH), exist_ok=True)
+
+    # 유효한 캐시가 있으면 바로 반환
+    def _read_cache():
+        if os.path.exists(_CORP_CACHE_PATH):
+            with open(_CORP_CACHE_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+            if data:  # 비어있지 않은 경우만 유효
+                return data
+        return None
+
+    cached = _read_cache()
+    if cached:
         mtime = os.path.getmtime(_CORP_CACHE_PATH)
         if time.time() - mtime < _CACHE_TTL:
-            with open(_CORP_CACHE_PATH, encoding='utf-8') as f:
-                return json.load(f)
+            return cached  # 24시간 미만 → 바로 사용
 
-    url = f"https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key={DART_API_KEY}"
-    resp = requests.get(url, timeout=15)
-    z = zipfile.ZipFile(io.BytesIO(resp.content))
-    xml_data = z.read('CORPCODE.xml')
-    root = ET.fromstring(xml_data)
+    # 다운로드 시도
+    try:
+        url = f"https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key={DART_API_KEY}"
+        resp = requests.get(url, timeout=20)
+        z = zipfile.ZipFile(io.BytesIO(resp.content))
+        xml_data = z.read('CORPCODE.xml')
+        root = ET.fromstring(xml_data)
 
-    corp_map = {}   # stock_code → corp_code
-    name_map = {}   # corp_name → stock_code  (상장 종목만)
-    for item in root.findall('list'):
-        stock_code = item.findtext('stock_code', '').strip()
-        corp_code  = item.findtext('corp_code',  '').strip()
-        corp_name  = item.findtext('corp_name',  '').strip()
-        if stock_code:
-            corp_map[stock_code] = corp_code
-            if corp_name:
-                name_map[corp_name] = stock_code
+        corp_map = {}
+        name_map = {}
+        for item in root.findall('list'):
+            stock_code = item.findtext('stock_code', '').strip()
+            corp_code  = item.findtext('corp_code',  '').strip()
+            corp_name  = item.findtext('corp_name',  '').strip()
+            if stock_code:
+                corp_map[stock_code] = corp_code
+                if corp_name:
+                    name_map[corp_name] = stock_code
 
-    with open(_CORP_CACHE_PATH, 'w', encoding='utf-8') as f:
-        json.dump(corp_map, f, ensure_ascii=False)
-    with open(_NAME_CACHE_PATH, 'w', encoding='utf-8') as f:
-        json.dump(name_map, f, ensure_ascii=False)
+        with open(_CORP_CACHE_PATH, 'w', encoding='utf-8') as f:
+            json.dump(corp_map, f, ensure_ascii=False)
+        with open(_NAME_CACHE_PATH, 'w', encoding='utf-8') as f:
+            json.dump(name_map, f, ensure_ascii=False)
 
-    return corp_map
+        print(f'[DART] corp_codes 갱신 완료: {len(corp_map)}개')
+        return corp_map
+
+    except Exception as e:
+        print(f'[DART] corp_codes 다운로드 실패: {e} / 응답: {resp.content[:200] if "resp" in dir() else "N/A"}')
+        # 다운로드 실패 시 만료된 캐시라도 사용
+        return cached or {}
 
 
 def search_ticker_by_name(query):
