@@ -179,68 +179,59 @@ def get_fundamental(ticker):
                 elif 'PBR' in key and result['pbr'] == 'N/A':
                     result['pbr'] = val
 
-        # ── 2. 영업이익 / 매출액 / ROE / 영업이익률 / 부채비율
-        #       finsum_more AJAX 우선 → 실패 시 coinfo 전체 페이지 폴백
-        def _parse_finsum(soup):
-            for tbl in soup.find_all('table', class_='tb_type1'):
-                has_fin = any(
-                    tr.find('th') and any(k in (tr.find('th').get_text() or '')
-                                          for k in ('매출', '영업이익', 'ROE', '부채'))
-                    for tr in tbl.find_all('tr')
-                )
-                if not has_fin:
-                    continue
-                for row in tbl.find_all('tr'):
-                    th = row.find('th')
+        # ── 2. ROE / 영업이익률 / 부채비율 / 매출액 / 영업이익 — FnGuide
+        try:
+            fg_url = (f"https://comp.fnguide.com/SVO2/ASP/SVD_Finance.asp"
+                      f"?pGB=1&gicode=A{ticker}&cID=&MenuYn=Y&ReportGB=D&NewMenuID=103&stkGb=701")
+            fg_res = requests.get(fg_url,
+                headers={**HEADERS, 'Referer': 'https://comp.fnguide.com/'}, timeout=8)
+            fg_soup = BeautifulSoup(fg_res.content.decode('utf-8', errors='replace'), 'html.parser')
+
+            for tbl in fg_soup.find_all('table'):
+                for tr in tbl.find_all('tr'):
+                    # th 또는 첫 번째 td가 항목명
+                    th = tr.find('th') or (tr.find_all('td')[0] if tr.find_all('td') else None)
                     if not th:
                         continue
                     key = th.get_text(strip=True)
-                    tds = row.find_all('td')
+                    tds = tr.find_all('td')
                     if not tds:
                         continue
-                    vals4 = [td.get_text(strip=True).replace(',', '') for td in tds[:4]]
-                    last  = tds[-1].get_text(strip=True).replace(',', '')
-                    if '영업이익' in key and '률' not in key and not result['operating_profit']:
-                        result['operating_profit'] = vals4
-                    elif '매출액' in key and not result['revenue']:
-                        result['revenue'] = vals4
+                    vals = [td.get_text(strip=True).replace(',', '') for td in tds]
+                    non_empty = [v for v in vals if v and v != '-']
+                    last = non_empty[-1] if non_empty else 'N/A'
+                    if '매출액' in key and not result['revenue']:
+                        result['revenue'] = [v for v in vals[:4] if v]
+                    elif '영업이익' in key and '률' not in key and not result['operating_profit']:
+                        result['operating_profit'] = [v for v in vals[:4] if v]
                     elif 'ROE' in key and result['roe'] == 'N/A':
                         result['roe'] = last
                     elif '영업이익률' in key and result['op_margin'] == 'N/A':
                         result['op_margin'] = last
                     elif '부채비율' in key and result['debt_ratio'] == 'N/A':
                         result['debt_ratio'] = last
-                return  # 재무 테이블 찾았으면 종료
+        except Exception as e:
+            print(f"FnGuide 수집 오류: {e}")
 
-        # AJAX 엔드포인트 시도 (EUC-KR)
-        fin_res = requests.get(
-            f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=finsum_more",
-            headers=_coinfo_headers, timeout=5)
-        fin_soup = BeautifulSoup(fin_res.content.decode('euc-kr', errors='replace'), 'html.parser')
-        _parse_finsum(fin_soup)
-
-        # ROE 등 여전히 N/A이면 coinfo 전체 페이지 폴백
-        if result['roe'] == 'N/A':
-            full_res = requests.get(
-                f"https://finance.naver.com/item/coinfo.naver?code={ticker}",
-                headers=HEADERS, timeout=7)
-            full_soup = BeautifulSoup(full_res.content.decode('euc-kr', errors='replace'), 'html.parser')
-            _parse_finsum(full_soup)
-
-        # ── 3. Forward PER (컨센서스, EUC-KR)
-        con_res = requests.get(
-            f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=consensus",
-            headers=_coinfo_headers, timeout=5)
-        con_soup = BeautifulSoup(con_res.content.decode('euc-kr', errors='replace'), 'html.parser')
-
-        for tbl in con_soup.find_all('table', class_='tb_type1'):
-            for row in tbl.find_all('tr'):
-                th = row.find('th')
-                if th and 'PER' in th.get_text(strip=True):
-                    tds = row.find_all('td')
-                    if tds:
-                        result['forward_per'] = _extract_num(tds[-1].get_text(strip=True))
-                    break
+        # ── 3. Forward PER — FnGuide 컨센서스
+        try:
+            con_url = (f"https://comp.fnguide.com/SVO2/ASP/SVD_Consensus.asp"
+                       f"?pGB=1&gicode=A{ticker}&cID=&MenuYn=Y&ReportGB=&NewMenuID=7&stkGb=701")
+            con_res = requests.get(con_url,
+                headers={**HEADERS, 'Referer': 'https://comp.fnguide.com/'}, timeout=8)
+            con_soup = BeautifulSoup(con_res.content.decode('utf-8', errors='replace'), 'html.parser')
+            for tbl in con_soup.find_all('table'):
+                for tr in tbl.find_all('tr'):
+                    th = tr.find('th')
+                    if th and 'PER' in th.get_text(strip=True):
+                        tds = tr.find_all('td')
+                        non_empty = [td.get_text(strip=True).replace(',', '')
+                                     for td in tds if td.get_text(strip=True) not in ('', '-')]
+                        if non_empty:
+                            result['forward_per'] = _extract_num(non_empty[-1])
+                        break
+        except Exception as e:
+            print(f"FnGuide 컨센서스 오류: {e}")
 
     except Exception as e:
         print(f"펀더멘털 수집 오류: {e}")
