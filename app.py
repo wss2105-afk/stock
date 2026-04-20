@@ -156,6 +156,9 @@ def _market_osc_scheduler():
     - 앱 시작 시 자동 스캔 없음 (캐시 그대로 표시)
     """
     import time as _time
+    if _load_osc_cache() is None:
+        threading.Thread(target=_run_osc_scan, daemon=True).start()
+
     while True:
         now = datetime.today()
         # 다음 실행 시각 계산 (11:00 또는 13:00)
@@ -296,8 +299,14 @@ def _run_recommend_scan():
 
 
 def _recommend_scheduler():
-    """매일 07:00 추천 종목 자동 스캔 (앱 시작 시 자동 스캔 없음 — 캐시 표시만)"""
+    """매일 07:00 추천 종목 자동 스캔
+    - 앱 시작 시 캐시 없으면 1회 백그라운드 스캔 (재배포 후 빈 화면 방지)
+    - 페이지 방문 시 스캔 없음 — 캐시만 표시
+    """
     import time as _time
+    if _load_recommend_cache() is None:
+        threading.Thread(target=_run_recommend_scan, daemon=True).start()
+
     while True:
         now = datetime.today()
         next_run = now.replace(hour=7, minute=0, second=0, microsecond=0)
