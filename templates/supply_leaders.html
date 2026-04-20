@@ -85,8 +85,13 @@
     <div class="gold-line"></div>
     <div class="page-sub">
         외인+기관 동시 3거래일↑ 연속 매수 &nbsp;·&nbsp; 외인 또는 기관 10거래일 중 7일↑ 순매수<br>
-        총 {{ results|length }}개 종목 해당 · 클릭 시 상세 분석
+        매일 오전 9:30 · 오후 2:00 자동 스캔 · 클릭 시 상세 분석
     </div>
+    {% if scanned_at %}
+    <div style="font-size:0.62rem;color:#555;letter-spacing:0.12em;margin-bottom:20px;">스캔 기준: {{ scanned_at }} · 총 {{ results|length }}개 종목</div>
+    {% else %}
+    <div style="font-size:0.78rem;color:#666;margin-bottom:20px;">오전 9시 30분 또는 오후 2시에 스캔이 실행됩니다. 스캔 완료 후 표시됩니다.</div>
+    {% endif %}
 
     <div class="cond-legend">
         <span class="cond-tag tag-a">A — 외인+기관 동시 연속 3일↑</span>

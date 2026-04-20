@@ -83,6 +83,7 @@ threading.Thread(target=_auto_update_tickers, daemon=True).start()
 _SURGE_CACHE_PATH     = os.path.join(os.path.dirname(__file__), 'data', 'surge_cache.json')
 _OSC_CACHE_PATH       = os.path.join(os.path.dirname(__file__), 'data', 'osc_cache.json')
 _RECOMMEND_CACHE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'recommend_cache.json')
+_SUPPLY_CACHE_PATH    = os.path.join(os.path.dirname(__file__), 'data', 'supply_cache.json')
 
 def _load_surge_cache():
     if not os.path.exists(_SURGE_CACHE_PATH):
@@ -319,6 +320,60 @@ def _recommend_scheduler():
 threading.Thread(target=_recommend_scheduler, daemon=True).start()
 
 
+# ── 수급주도 종목 캐시 ────────────────────────────────────────────
+def _load_supply_cache():
+    if not os.path.exists(_SUPPLY_CACHE_PATH):
+        return None
+    try:
+        with open(_SUPPLY_CACHE_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _run_supply_scan():
+    try:
+        results = scan_supply_leaders(months=3)
+        scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
+        with open(_SUPPLY_CACHE_PATH, 'w', encoding='utf-8') as f:
+            json.dump({'scanned_at': scanned_at, 'results': results}, f, ensure_ascii=False)
+        print(f'[{scanned_at}] 수급주도 스캔 완료 — {len(results)}건')
+    except Exception as e:
+        print(f'수급주도 스캔 오류: {e}')
+
+
+def _supply_scheduler():
+    """평일 09:30 / 14:00 수급주도 종목 스캔
+    - 캐시 없으면 앱 시작 시 1회 백그라운드 스캔
+    - 페이지 방문 시 스캔 없음
+    """
+    import time as _time
+    if _load_supply_cache() is None:
+        threading.Thread(target=_run_supply_scan, daemon=True).start()
+
+    while True:
+        now = datetime.today()
+        candidates = []
+        for h, m in ((9, 30), (14, 0)):
+            t = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            if t > now:
+                candidates.append(t)
+        if candidates:
+            next_run = min(candidates)
+        else:
+            next_run = (now + timedelta(days=1)).replace(
+                hour=9, minute=30, second=0, microsecond=0)
+        while next_run.weekday() >= 5:
+            next_run += timedelta(days=1)
+            next_run = next_run.replace(hour=9, minute=30, second=0, microsecond=0)
+        _time.sleep((next_run - now).total_seconds())
+        if datetime.today().weekday() < 5:
+            _run_supply_scan()
+
+
+threading.Thread(target=_supply_scheduler, daemon=True).start()
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -538,8 +593,10 @@ def recommend():
 
 @app.route('/supply-leaders')
 def supply_leaders():
-    results = scan_supply_leaders(months=3)
-    return render_template('supply_leaders.html', results=results)
+    cache = _load_supply_cache()
+    results = cache.get('results', []) if cache else []
+    scanned_at = cache.get('scanned_at', '') if cache else ''
+    return render_template('supply_leaders.html', results=results, scanned_at=scanned_at)
 
 
 @app.route('/export-surge')
