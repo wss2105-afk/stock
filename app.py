@@ -655,12 +655,16 @@ def debug_dart(ticker):
         resp = _req.get(url, timeout=20)
         out['http_status'] = resp.status_code
         out['content_len'] = len(resp.content)
+        out['response_text'] = resp.content.decode('utf-8', errors='replace')[:300]
+        # 잘못된 캐시 삭제
+        if os.path.exists(_CORP_CACHE_PATH):
+            os.remove(_CORP_CACHE_PATH)
+            out['cache_deleted'] = True
         z = zipfile.ZipFile(io.BytesIO(resp.content))
         xml_data = z.read('CORPCODE.xml')
         root = ET.fromstring(xml_data)
         items = root.findall('list')
         out['xml_items'] = len(items)
-        # 005930 직접 검색
         for item in items:
             if item.findtext('stock_code', '').strip() == ticker:
                 out['found_corp_code'] = item.findtext('corp_code', '').strip()
