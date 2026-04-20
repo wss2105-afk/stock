@@ -259,22 +259,14 @@ def _run_recommend_scan():
 
 
 def _recommend_scheduler():
-    """매일 07:00 추천 종목 자동 스캔 (앱 시작 시 당일 캐시 없으면 즉시 실행)"""
+    """매일 07:00 추천 종목 자동 스캔 (앱 시작 시 자동 스캔 없음 — 캐시 표시만)"""
     import time as _time
-    # 앱 시작 시 오늘 캐시 없으면 즉시 실행
-    cache = _load_recommend_cache()
-    today = datetime.today().strftime('%Y-%m-%d')
-    if not cache or cache.get('date') != today:
-        _run_recommend_scan()
-
-    # 이후 매일 07:00 실행
     while True:
         now = datetime.today()
         next_run = now.replace(hour=7, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
-        sleep_sec = (next_run - now).total_seconds()
-        _time.sleep(sleep_sec)
+        _time.sleep((next_run - now).total_seconds())
         _run_recommend_scan()
 
 
@@ -500,13 +492,8 @@ def analyze():
 @app.route('/recommend')
 def recommend():
     cache = _load_recommend_cache()
-    if cache:
-        results    = cache.get('results', [])
-        scanned_at = cache.get('scanned_at', '')
-    else:
-        # 캐시 없으면 실시간 스캔 (첫 접속 시만)
-        results    = scan_top_stocks(top_n=20, months=6)
-        scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
+    results    = cache.get('results', []) if cache else []
+    scanned_at = cache.get('scanned_at', '') if cache else ''
     return render_template('recommend.html', results=results, scanned_at=scanned_at)
 
 
