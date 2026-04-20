@@ -202,13 +202,8 @@ def _scrape_dart_html(name, days=60):
 
 
 def get_disclosures(ticker, days=60):
-    """최근 공시 목록 반환"""
+    """최근 공시 목록 반환 (DART Open API 필요)"""
     if not DART_API_KEY:
-        # API 키 없으면 DART 웹 HTML 스크래핑
-        from analysis.data_fetcher import get_ticker as _get_ticker
-        _, name = _get_ticker(ticker)
-        if name:
-            return _scrape_dart_html(name, days)
         return []
 
     corp_code = get_corp_code(ticker)
