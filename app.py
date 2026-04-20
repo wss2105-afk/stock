@@ -62,7 +62,7 @@ def _load_surge_cache():
         return None
 
 def _run_surge_scan():
-    """MA 반등 종목 + 급등 종목 스캔 후 surge_cache 저장"""
+    """MA 반등 종목 + 급등 종목 스캔 후 surge_cache 저장 (pick_rec/sup는 각자 스케줄러 캐시 활용)"""
     global _surge_scanning
     _surge_scanning = True
     today = datetime.today().strftime('%Y-%m-%d')
@@ -73,16 +73,14 @@ def _run_surge_scan():
             surge = scan_surge_stocks(top_n=10)
         except Exception:
             surge = []
+
+        # pick_rec / pick_sup 는 별도 스케줄러 캐시에서 읽기 (중복 스캔 방지)
         try:
-            top_rec = scan_top_stocks(top_n=1, months=3)
-            pick_rec = top_rec[0] if top_rec else None
+            rec_cache = _load_recommend_cache()
+            rec_list = rec_cache.get('results', []) if rec_cache else []
+            pick_rec = rec_list[0] if rec_list else None
         except Exception:
             pick_rec = None
-        try:
-            top_sup = scan_supply_leaders(months=2)
-            pick_sup = top_sup[0] if top_sup else None
-        except Exception:
-            pick_sup = None
         try:
             exp_cache = load_export_cache()
             exp_list = exp_cache.get('results', []) if exp_cache else []
@@ -97,7 +95,7 @@ def _run_surge_scan():
                 'bounce':     bounce,
                 'results':    surge,
                 'pick_rec':   pick_rec,
-                'pick_sup':   pick_sup,
+                'pick_sup':   None,
                 'pick_exp':   pick_exp,
             }, f, ensure_ascii=False)
         print(f'[{scanned_at}] 반등/급등 스캔 완료 — 반등:{len(bounce)}건, 급등:{len(surge)}건')

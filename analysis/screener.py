@@ -300,7 +300,7 @@ def _check_ma_bounce(name, ticker):
         return None
 
 
-def scan_ma_bounce_stocks(top_n=20, max_workers=8):
+def scan_ma_bounce_stocks(top_n=20, max_workers=4):
     """5/10/20/30일선 바닥 터치 후 급반등 종목 스캔"""
     with open(_TICKER_DB_PATH, encoding='utf-8') as f:
         tickers = json.load(f)
@@ -455,7 +455,7 @@ def _check_surge_one(name, ticker, days_back=5):
         return None
 
 
-def scan_surge_stocks(top_n=20, days_back=5, max_workers=8):
+def scan_surge_stocks(top_n=20, days_back=5, max_workers=4):
     """거래량 동반 급등 종목 스캔 (5일 내 거래량 1.5배+, 가격 3%+ 상승)"""
     with open(_TICKER_DB_PATH, encoding='utf-8') as f:
         tickers = json.load(f)
