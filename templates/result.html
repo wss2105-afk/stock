@@ -101,6 +101,7 @@
 
         /* 펀더멘털 */
         .fund-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #313131; }
+        @media (min-width: 768px) { .fund-grid { grid-template-columns: repeat(5, 1fr); } }
         .fund-item { background: #202020; padding: 14px 8px; text-align: center; cursor: pointer; transition: background 0.15s; }
         .fund-item:hover { background: #2a2a2a; }
         .fund-item .label { font-size: 0.6rem; color: #7D7D7D; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 6px; }
@@ -493,16 +494,26 @@
             <div class="section-card">
                 <div class="section-title">펀더멘털 <span style="color:#555;font-size:0.6rem;">클릭 시 설명</span></div>
                 <div class="fund-grid">
-                    <div class="fund-item" onclick="showDesc('per')"><div class="label">PER ⓘ</div><div class="val">{{ fundamental.per }}</div></div>
-                    <div class="fund-item" onclick="showDesc('fper')"><div class="label">Fwd PER ⓘ</div><div class="val">{{ fundamental.forward_per }}</div></div>
-                    <div class="fund-item" onclick="showDesc('pbr')"><div class="label">PBR ⓘ</div><div class="val">{{ fundamental.pbr }}</div></div>
+                    <div class="fund-item" onclick="showDesc('per')"><div class="label">PER ⓘ</div><div class="val">{{ fundamental.per }}<span style="font-size:0.6rem;color:#888;">배</span></div></div>
+                    <div class="fund-item" onclick="showDesc('pbr')"><div class="label">PBR ⓘ</div><div class="val">{{ fundamental.pbr }}<span style="font-size:0.6rem;color:#888;">배</span></div></div>
+                    <div class="fund-item" onclick="showDesc('roe')"><div class="label">ROE ⓘ</div><div class="val">{{ fundamental.roe }}<span style="font-size:0.6rem;color:#888;">%</span></div></div>
+                    <div class="fund-item" onclick="showDesc('opm')"><div class="label">영업이익률 ⓘ</div><div class="val">{{ fundamental.op_margin }}<span style="font-size:0.6rem;color:#888;">%</span></div></div>
+                    <div class="fund-item" onclick="showDesc('debt')"><div class="label">부채비율 ⓘ</div><div class="val">{{ fundamental.debt_ratio }}<span style="font-size:0.6rem;color:#888;">%</span></div></div>
+                    {% if fundamental.forward_per != 'N/A' %}
+                    <div class="fund-item" onclick="showDesc('fper')"><div class="label">Fwd PER ⓘ</div><div class="val">{{ fundamental.forward_per }}<span style="font-size:0.6rem;color:#888;">배</span></div></div>
+                    {% endif %}
                 </div>
                 {% if fundamental.operating_profit %}
                 <div style="margin-top:12px;">
                     <div style="font-size:0.6rem;color:#7D7D7D;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:8px;">영업이익 추이 (억원)</div>
-                    <div style="display:flex;gap:1px;flex-wrap:wrap;background:#313131;">
+                    <div style="display:flex;gap:1px;background:#313131;">
                         {% for val in fundamental.operating_profit %}
-                        <div class="profit-item">{{ val }}</div>
+                        {% if val %}
+                        <div class="profit-item" style="flex:1;text-align:center;padding:8px 4px;">
+                            <div style="font-size:0.58rem;color:#555;margin-bottom:3px;">{{ loop.index }}기</div>
+                            <div>{% if val and val != '' %}{{ '{:,}'.format(val|int) if val.lstrip('-').isdigit() else val }}{% else %}-{% endif %}</div>
+                        </div>
+                        {% endif %}
                         {% endfor %}
                     </div>
                 </div>
