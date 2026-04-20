@@ -125,12 +125,13 @@ def get_research_reports(ticker, max_items=6):
             tds = tr.find_all('td')
             if len(tds) < 5:
                 continue
-            title_a = tds[0].find('a')
+            # 컬럼 순서: 종목명(0) | 리포트제목(1, 링크) | 증권사(2) | 목표주가(3) | 날짜(4)
+            title_a = tds[1].find('a')
             if not title_a:
                 continue
             title    = title_a.get_text(strip=True)
-            firm     = tds[1].get_text(strip=True)
-            target   = tds[2].get_text(strip=True).replace('\xa0', '').strip()
+            firm     = tds[2].get_text(strip=True)
+            target   = tds[3].get_text(strip=True).replace('\xa0', '').strip()
             date_txt = tds[4].get_text(strip=True)
             href     = title_a.get('href', '')
             if href and not href.startswith('http'):
