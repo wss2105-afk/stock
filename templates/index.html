@@ -297,7 +297,7 @@ function showOsc(kind) {
 }
 
 // MA 반등 종목 패널 로드
-(function loadBounce(retry) {
+(function loadBounce() {
     const body   = document.getElementById('bounceBody');
     const dateEl = document.getElementById('bounceDate');
 
@@ -308,13 +308,9 @@ function showOsc(kind) {
             if (!list || list.length === 0) {
                 if (data.scanning) {
                     body.innerHTML = '<div class="bounce-loading">스캔 진행 중... 잠시 후 자동으로 업데이트됩니다.</div>';
-                    setTimeout(() => loadBounce(true), 30000);
-                } else if (!retry) {
-                    body.innerHTML = '<div class="bounce-loading">스캔 준비 중... 잠시 후 자동으로 업데이트됩니다.</div>';
-                    fetch('/api/surge-refresh', {method: 'POST'});
-                    setTimeout(() => loadBounce(true), 60000);
+                    setTimeout(loadBounce, 30000);
                 } else {
-                    body.innerHTML = '<div class="bounce-empty">오늘 스캔 데이터가 없습니다.</div>';
+                    body.innerHTML = '<div class="bounce-empty">매일 저녁 8시에 스캔이 실행됩니다.<br>오늘 데이터는 스캔 완료 후 표시됩니다.</div>';
                 }
                 return;
             }
@@ -360,7 +356,7 @@ function showOsc(kind) {
         .catch(() => {
             body.innerHTML = '<div class="bounce-empty">데이터를 불러올 수 없습니다.</div>';
         });
-})(false);
+})();
 
 (function () {
     const input = document.getElementById('searchInput');

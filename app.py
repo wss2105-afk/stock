@@ -107,17 +107,12 @@ def _run_surge_scan():
         _surge_scanning = False
 
 
-def _early_morning_scheduler():
-    """매일 04:00 반등/급등 스캔 (앱 시작 시 당일 캐시 없으면 즉시 실행)"""
+def _evening_scheduler():
+    """매일 20:00 반등/급등 스캔 (앱 시작 시 자동 스캔 없음 — 캐시 표시만)"""
     import time as _time
-    today = datetime.today().strftime('%Y-%m-%d')
-    surge_cache = _load_surge_cache()
-    if not surge_cache or surge_cache.get('date') != today:
-        threading.Thread(target=_run_surge_scan, daemon=True).start()
-
     while True:
         now = datetime.today()
-        next_run = now.replace(hour=4, minute=0, second=0, microsecond=0)
+        next_run = now.replace(hour=20, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
         _time.sleep((next_run - now).total_seconds())
@@ -149,7 +144,7 @@ def _market_osc_scheduler():
             _run_osc_scan()
 
 
-threading.Thread(target=_early_morning_scheduler, daemon=True).start()
+threading.Thread(target=_evening_scheduler, daemon=True).start()
 threading.Thread(target=_market_osc_scheduler, daemon=True).start()
 
 _EXPORT_SCAN_PATH = os.path.join(os.path.dirname(__file__), 'data', 'export_scan_month.txt')
