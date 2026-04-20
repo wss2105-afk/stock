@@ -636,23 +636,46 @@ def search_suggest():
 
 @app.route('/api/debug/investor/<ticker>')
 def debug_investor(ticker):
-    """수급 데이터 디버그 — 실제 TD 텍스트값 확인용"""
+    """수급 데이터 디버그 v3 — frgn TD값 + pykrx 직접 테스트"""
     import requests as _req
     from bs4 import BeautifulSoup
-    HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-    url = f"https://finance.naver.com/item/frgn.naver?code={ticker}&page=1"
-    res = _req.get(url, headers=HEADERS, timeout=10)
-    text = res.content.decode('euc-kr', errors='replace')
-    soup = BeautifulSoup(text, 'html.parser')
-    for tbl in soup.find_all('table'):
-        for tr in tbl.find_all('tr'):
-            tds = tr.find_all('td')
-            if len(tds) >= 5:
-                first = tds[0].get_text(strip=True)
-                if len(first) == 10 and first.count('.') == 2:
-                    td_vals = [td.get_text(strip=True) for td in tds]
-                    return jsonify({'td_count': len(td_vals), 'td_values': td_vals})
-    return jsonify({'error': 'no data row found'})
+    from pykrx import stock as _stock
+    from datetime import datetime, timedelta
+    out = {}
+
+    # 1) Naver frgn 페이지 첫 데이터 행 TD 텍스트
+    try:
+        HEADERS = {'User-Agent': 'Mozilla/5.0'}
+        res = _req.get(f"https://finance.naver.com/item/frgn.naver?code={ticker}&page=1",
+                       headers=HEADERS, timeout=10)
+        soup = BeautifulSoup(res.content.decode('euc-kr', errors='replace'), 'html.parser')
+        for tbl in soup.find_all('table'):
+            for tr in tbl.find_all('tr'):
+                tds = tr.find_all('td')
+                if len(tds) >= 5:
+                    first = tds[0].get_text(strip=True)
+                    if len(first) == 10 and first.count('.') == 2:
+                        out['frgn_td_count'] = len(tds)
+                        out['frgn_td_values'] = [td.get_text(strip=True) for td in tds]
+                        break
+            if 'frgn_td_values' in out:
+                break
+    except Exception as e:
+        out['frgn_error'] = str(e)
+
+    # 2) pykrx get_market_trading_volume_by_date 직접 테스트
+    try:
+        end = datetime.today().strftime('%Y%m%d')
+        start = (datetime.today() - timedelta(days=10)).strftime('%Y%m%d')
+        df = _stock.get_market_trading_volume_by_date(start, end, ticker, on='순매수')
+        out['pykrx_cols'] = list(df.columns)
+        out['pykrx_rows'] = len(df)
+        if not df.empty:
+            out['pykrx_sample'] = df.tail(2).fillna(0).astype(int).to_dict(orient='records')
+    except Exception as e:
+        out['pykrx_error'] = str(e)
+
+    return jsonify(out)
 
 
 @app.route('/api/company-desc')
