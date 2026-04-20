@@ -124,8 +124,18 @@ def get_market_profile(ticker):
     return result
 
 
+def _decode(res):
+    """네이버 응답 디코딩 — EUC-KR 우선, 실패 시 UTF-8"""
+    for enc in ('euc-kr', 'utf-8'):
+        try:
+            return res.content.decode(enc, errors='strict')
+        except Exception:
+            pass
+    return res.content.decode('utf-8', errors='replace')
+
+
 def get_fundamental(ticker):
-    """네이버 금융에서 PER, PBR, 영업이익, Forward PER 스크래핑"""
+    """네이버 금융에서 PER, PBR, 영업이익률, ROE, 부채비율, Forward PER 스크래핑"""
     result = {
         'per': 'N/A', 'forward_per': 'N/A', 'pbr': 'N/A',
         'operating_profit': [], 'eps': 'N/A',
@@ -134,76 +144,69 @@ def get_fundamental(ticker):
     }
 
     try:
-        url = f"https://finance.naver.com/item/main.naver?code={ticker}"
-        res = requests.get(url, headers=HEADERS, timeout=5)
-        soup = BeautifulSoup(res.text, 'html.parser')
+        # ── 1. PER / PBR (main 페이지)
+        main_res = requests.get(
+            f"https://finance.naver.com/item/main.naver?code={ticker}",
+            headers=HEADERS, timeout=5)
+        main_soup = BeautifulSoup(_decode(main_res), 'html.parser')
 
-        # PER, PBR
-        table = soup.select_one('table.per_table')
+        table = main_soup.select_one('table.per_table')
         if table:
-            rows = table.find_all('tr')
-            for row in rows:
+            for row in table.find_all('tr'):
                 th = row.find('th')
                 td = row.find('td')
-                if th and td:
-                    key = th.text.strip()
-                    val = td.text.strip().replace(',', '')
-                    if 'PER' in key and 'Forward' not in key:
-                        result['per'] = val
-                    elif 'PBR' in key:
-                        result['pbr'] = val
+                if not th or not td:
+                    continue
+                key = th.get_text(strip=True)
+                val = td.get_text(strip=True).replace(',', '')
+                if 'PER' in key and 'Forward' not in key and result['per'] == 'N/A':
+                    result['per'] = val
+                elif 'PBR' in key and result['pbr'] == 'N/A':
+                    result['pbr'] = val
 
-        # 영업이익 (연간 실적)
-        fin_url = f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=finsum_more"
-        fin_res = requests.get(fin_url, headers=HEADERS, timeout=5)
-        fin_soup = BeautifulSoup(fin_res.text, 'html.parser')
+        # ── 2. 영업이익 / 매출액 / ROE / 영업이익률 / 부채비율 (finsum_more — 1회 요청)
+        fin_res = requests.get(
+            f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=finsum_more",
+            headers=HEADERS, timeout=5)
+        fin_soup = BeautifulSoup(_decode(fin_res), 'html.parser')
 
-        table2 = fin_soup.select_one('table.tb_type1')
-        if table2:
-            rows = table2.find_all('tr')
-            for row in rows:
-                th = row.find('th')
-                if th and '영업이익' in th.text:
-                    tds = row.find_all('td')
-                    result['operating_profit'] = [td.text.strip().replace(',', '') for td in tds[:4]]
-                    break
-
-        # ROE, 부채비율, 영업이익률
-        ratio_url = f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=finsum_more"
-        ratio_res = requests.get(ratio_url, headers=HEADERS, timeout=5)
-        ratio_soup = BeautifulSoup(ratio_res.text, 'html.parser')
-        ratio_table = ratio_soup.select_one('table.tb_type1')
-        if ratio_table:
-            for row in ratio_table.find_all('tr'):
+        fin_table = fin_soup.select_one('table.tb_type1')
+        if fin_table:
+            for row in fin_table.find_all('tr'):
                 th = row.find('th')
                 if not th:
                     continue
-                key = th.text.strip()
+                key = th.get_text(strip=True)
                 tds = row.find_all('td')
-                last_val = tds[-1].text.strip().replace(',', '') if tds else 'N/A'
-                if 'ROE' in key:
-                    result['roe'] = last_val
-                elif '영업이익률' in key:
-                    result['op_margin'] = last_val
-                elif '부채비율' in key:
-                    result['debt_ratio'] = last_val
+                if not tds:
+                    continue
+                vals4 = [td.get_text(strip=True).replace(',', '') for td in tds[:4]]
+                last  = tds[-1].get_text(strip=True).replace(',', '')
+                if '영업이익' in key and '률' not in key and not result['operating_profit']:
+                    result['operating_profit'] = vals4
                 elif '매출액' in key and not result['revenue']:
-                    result['revenue'] = [td.text.strip().replace(',', '') for td in tds[:4]]
+                    result['revenue'] = vals4
+                elif 'ROE' in key and result['roe'] == 'N/A':
+                    result['roe'] = last
+                elif '영업이익률' in key and result['op_margin'] == 'N/A':
+                    result['op_margin'] = last
+                elif '부채비율' in key and result['debt_ratio'] == 'N/A':
+                    result['debt_ratio'] = last
 
-        # Forward PER (컨센서스)
-        consensus_url = f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=consensus"
-        con_res = requests.get(consensus_url, headers=HEADERS, timeout=5)
-        con_soup = BeautifulSoup(con_res.text, 'html.parser')
+        # ── 3. Forward PER (컨센서스)
+        con_res = requests.get(
+            f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=consensus",
+            headers=HEADERS, timeout=5)
+        con_soup = BeautifulSoup(_decode(con_res), 'html.parser')
 
         con_table = con_soup.select_one('table.tb_type1')
         if con_table:
-            rows = con_table.find_all('tr')
-            for row in rows:
+            for row in con_table.find_all('tr'):
                 th = row.find('th')
-                if th and 'PER' in th.text:
+                if th and 'PER' in th.get_text(strip=True):
                     tds = row.find_all('td')
                     if tds:
-                        result['forward_per'] = tds[-1].text.strip().replace(',', '')
+                        result['forward_per'] = tds[-1].get_text(strip=True).replace(',', '')
                     break
 
     except Exception as e:
