@@ -151,11 +151,7 @@ def get_fundamental(ticker):
         'revenue': [],
     }
 
-    _coinfo_headers = {
-        **HEADERS,
-        'Referer': f'https://finance.naver.com/item/coinfo.naver?code={ticker}',
-        'X-Requested-With': 'XMLHttpRequest',
-    }
+    _fg_headers = {**HEADERS, 'Referer': 'https://comp.fnguide.com/'}
 
     try:
         # ── 1. PER / PBR (main 페이지, UTF-8)
@@ -184,7 +180,7 @@ def get_fundamental(ticker):
             fg_url = (f"https://comp.fnguide.com/SVO2/ASP/SVD_Finance.asp"
                       f"?pGB=1&gicode=A{ticker}&cID=&MenuYn=Y&ReportGB=D&NewMenuID=103&stkGb=701")
             fg_res = requests.get(fg_url,
-                headers={**HEADERS, 'Referer': 'https://comp.fnguide.com/'}, timeout=8)
+                headers=_fg_headers, timeout=8)
             fg_soup = BeautifulSoup(fg_res.content.decode('utf-8', errors='replace'), 'html.parser')
 
             for tbl in fg_soup.find_all('table'):
@@ -219,7 +215,7 @@ def get_fundamental(ticker):
             main_url = (f"https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp"
                         f"?pGB=1&gicode=A{ticker}&cID=&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701")
             main_res2 = requests.get(main_url,
-                headers={**HEADERS, 'Referer': 'https://comp.fnguide.com/'}, timeout=8)
+                headers=_fg_headers, timeout=8)
             main_soup2 = BeautifulSoup(main_res2.content.decode('utf-8', errors='replace'), 'html.parser')
 
             for tbl in main_soup2.find_all('table'):
@@ -246,7 +242,7 @@ def get_fundamental(ticker):
             con_url = (f"https://comp.fnguide.com/SVO2/ASP/SVD_Consensus.asp"
                        f"?pGB=1&gicode=A{ticker}&cID=&MenuYn=Y&ReportGB=&NewMenuID=7&stkGb=701")
             con_res = requests.get(con_url,
-                headers={**HEADERS, 'Referer': 'https://comp.fnguide.com/'}, timeout=8)
+                headers=_fg_headers, timeout=8)
             con_soup = BeautifulSoup(con_res.content.decode('utf-8', errors='replace'), 'html.parser')
             for tbl in con_soup.find_all('table'):
                 for tr in tbl.find_all('tr'):
