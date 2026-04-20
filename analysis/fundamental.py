@@ -134,6 +134,14 @@ def _decode(res):
     return res.content.decode('euc-kr', errors='replace')
 
 
+def _extract_num(text):
+    """'32.68배\n6564원' 같은 셀에서 숫자 부분만 추출"""
+    import re
+    # '배' 앞의 숫자만 추출 (PER/PBR)
+    m = re.match(r'[\d.]+', text.replace(',', '').strip())
+    return m.group(0) if m else text.strip()
+
+
 def get_fundamental(ticker):
     """네이버 금융에서 PER, PBR, 영업이익률, ROE, 부채비율, Forward PER 스크래핑"""
     result = {
@@ -143,12 +151,18 @@ def get_fundamental(ticker):
         'revenue': [],
     }
 
+    _coinfo_headers = {
+        **HEADERS,
+        'Referer': f'https://finance.naver.com/item/coinfo.naver?code={ticker}',
+        'X-Requested-With': 'XMLHttpRequest',
+    }
+
     try:
-        # ── 1. PER / PBR (main 페이지)
+        # ── 1. PER / PBR (main 페이지, UTF-8)
         main_res = requests.get(
             f"https://finance.naver.com/item/main.naver?code={ticker}",
             headers=HEADERS, timeout=5)
-        main_soup = BeautifulSoup(_decode(main_res), 'html.parser')
+        main_soup = BeautifulSoup(main_res.content.decode('utf-8', errors='replace'), 'html.parser')
 
         table = main_soup.select_one('table.per_table')
         if table:
@@ -158,55 +172,74 @@ def get_fundamental(ticker):
                 if not th or not td:
                     continue
                 key = th.get_text(strip=True)
-                val = td.get_text(strip=True).replace(',', '')
+                raw = td.get_text(strip=True).replace(',', '')
+                val = _extract_num(raw)
                 if 'PER' in key and 'Forward' not in key and result['per'] == 'N/A':
                     result['per'] = val
                 elif 'PBR' in key and result['pbr'] == 'N/A':
                     result['pbr'] = val
 
-        # ── 2. 영업이익 / 매출액 / ROE / 영업이익률 / 부채비율 (finsum_more — 1회 요청)
+        # ── 2. 영업이익 / 매출액 / ROE / 영업이익률 / 부채비율
+        #       finsum_more AJAX 우선 → 실패 시 coinfo 전체 페이지 폴백
+        def _parse_finsum(soup):
+            for tbl in soup.find_all('table', class_='tb_type1'):
+                has_fin = any(
+                    tr.find('th') and any(k in (tr.find('th').get_text() or '')
+                                          for k in ('매출', '영업이익', 'ROE', '부채'))
+                    for tr in tbl.find_all('tr')
+                )
+                if not has_fin:
+                    continue
+                for row in tbl.find_all('tr'):
+                    th = row.find('th')
+                    if not th:
+                        continue
+                    key = th.get_text(strip=True)
+                    tds = row.find_all('td')
+                    if not tds:
+                        continue
+                    vals4 = [td.get_text(strip=True).replace(',', '') for td in tds[:4]]
+                    last  = tds[-1].get_text(strip=True).replace(',', '')
+                    if '영업이익' in key and '률' not in key and not result['operating_profit']:
+                        result['operating_profit'] = vals4
+                    elif '매출액' in key and not result['revenue']:
+                        result['revenue'] = vals4
+                    elif 'ROE' in key and result['roe'] == 'N/A':
+                        result['roe'] = last
+                    elif '영업이익률' in key and result['op_margin'] == 'N/A':
+                        result['op_margin'] = last
+                    elif '부채비율' in key and result['debt_ratio'] == 'N/A':
+                        result['debt_ratio'] = last
+                return  # 재무 테이블 찾았으면 종료
+
+        # AJAX 엔드포인트 시도 (EUC-KR)
         fin_res = requests.get(
             f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=finsum_more",
-            headers=HEADERS, timeout=5)
-        fin_soup = BeautifulSoup(_decode(fin_res), 'html.parser')
+            headers=_coinfo_headers, timeout=5)
+        fin_soup = BeautifulSoup(fin_res.content.decode('euc-kr', errors='replace'), 'html.parser')
+        _parse_finsum(fin_soup)
 
-        fin_table = fin_soup.select_one('table.tb_type1')
-        if fin_table:
-            for row in fin_table.find_all('tr'):
-                th = row.find('th')
-                if not th:
-                    continue
-                key = th.get_text(strip=True)
-                tds = row.find_all('td')
-                if not tds:
-                    continue
-                vals4 = [td.get_text(strip=True).replace(',', '') for td in tds[:4]]
-                last  = tds[-1].get_text(strip=True).replace(',', '')
-                if '영업이익' in key and '률' not in key and not result['operating_profit']:
-                    result['operating_profit'] = vals4
-                elif '매출액' in key and not result['revenue']:
-                    result['revenue'] = vals4
-                elif 'ROE' in key and result['roe'] == 'N/A':
-                    result['roe'] = last
-                elif '영업이익률' in key and result['op_margin'] == 'N/A':
-                    result['op_margin'] = last
-                elif '부채비율' in key and result['debt_ratio'] == 'N/A':
-                    result['debt_ratio'] = last
+        # ROE 등 여전히 N/A이면 coinfo 전체 페이지 폴백
+        if result['roe'] == 'N/A':
+            full_res = requests.get(
+                f"https://finance.naver.com/item/coinfo.naver?code={ticker}",
+                headers=HEADERS, timeout=7)
+            full_soup = BeautifulSoup(full_res.content.decode('euc-kr', errors='replace'), 'html.parser')
+            _parse_finsum(full_soup)
 
-        # ── 3. Forward PER (컨센서스)
+        # ── 3. Forward PER (컨센서스, EUC-KR)
         con_res = requests.get(
             f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=consensus",
-            headers=HEADERS, timeout=5)
-        con_soup = BeautifulSoup(_decode(con_res), 'html.parser')
+            headers=_coinfo_headers, timeout=5)
+        con_soup = BeautifulSoup(con_res.content.decode('euc-kr', errors='replace'), 'html.parser')
 
-        con_table = con_soup.select_one('table.tb_type1')
-        if con_table:
-            for row in con_table.find_all('tr'):
+        for tbl in con_soup.find_all('table', class_='tb_type1'):
+            for row in tbl.find_all('tr'):
                 th = row.find('th')
                 if th and 'PER' in th.get_text(strip=True):
                     tds = row.find_all('td')
                     if tds:
-                        result['forward_per'] = tds[-1].get_text(strip=True).replace(',', '')
+                        result['forward_per'] = _extract_num(tds[-1].get_text(strip=True))
                     break
 
     except Exception as e:
