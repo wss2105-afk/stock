@@ -153,9 +153,62 @@ def _classify(report_nm):
     return '기타공시', False
 
 
+def _scrape_dart_html(name, days=60):
+    """DART 공시 목록 HTML 스크래핑 — API 키 없을 때 폴백"""
+    from bs4 import BeautifulSoup
+    end_dt   = datetime.today()
+    start_dt = end_dt - timedelta(days=days)
+    try:
+        resp = requests.get(
+            "https://dart.fss.or.kr/dsac001/searchResult.do",
+            params={
+                'currentPage': '1', 'maxResults': '20', 'maxLinks': '10',
+                'startPage': '1', 'textCrpCik': '', 'textCrpNm': name,
+                'startDt': start_dt.strftime('%Y%m%d'),
+                'endDt':   end_dt.strftime('%Y%m%d'),
+                'publicType': '',
+            },
+            headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://dart.fss.or.kr/'},
+            timeout=10
+        )
+        soup = BeautifulSoup(resp.content.decode('utf-8', errors='replace'), 'html.parser')
+        result = []
+        for tbl in soup.find_all('table'):
+            rows = tbl.find_all('tr')
+            for tr in rows:
+                tds = tr.find_all('td')
+                if len(tds) < 5:
+                    continue
+                report_a = tds[2].find('a') if len(tds) > 2 else None
+                if not report_a:
+                    continue
+                href = report_a.get('href', '')
+                rcp_no = href.split('rcpNo=')[-1].split('&')[0] if 'rcpNo=' in href else ''
+                report_nm = report_a.get_text(strip=True)
+                submitter = tds[3].get_text(strip=True) if len(tds) > 3 else ''
+                date_raw  = tds[4].get_text(strip=True).replace('.', '').replace('-', '') if len(tds) > 4 else ''
+                disc_type, important = _classify(report_nm)
+                result.append({
+                    'date': date_raw, 'title': report_nm,
+                    'type': disc_type, 'important': important,
+                    'url': f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcp_no}",
+                    'submitter': submitter,
+                })
+            if result:
+                break
+        return result
+    except Exception:
+        return []
+
+
 def get_disclosures(ticker, days=60):
     """최근 공시 목록 반환"""
     if not DART_API_KEY:
+        # API 키 없으면 DART 웹 HTML 스크래핑
+        from analysis.data_fetcher import get_ticker as _get_ticker
+        _, name = _get_ticker(ticker)
+        if name:
+            return _scrape_dart_html(name, days)
         return []
 
     corp_code = get_corp_code(ticker)

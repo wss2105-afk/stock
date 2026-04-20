@@ -259,9 +259,8 @@ function loadOsc() {
                 document.getElementById('oscBody').innerHTML = '<div class="osc-loading">🔍 전종목 스캔 중... (수분 소요, 자동 갱신)</div>';
                 setTimeout(loadOsc, 30000);  // 30초 후 재시도
             } else {
-                // 스캔은 끝났는데 결과가 없음 → 수동 재스캔 트리거 후 대기
-                document.getElementById('oscBody').innerHTML = '<div class="osc-loading">스캔 결과 없음 — 재시도 중...</div>';
-                fetch('/api/osc-refresh', {method:'POST'}).then(() => setTimeout(loadOsc, 60000));
+                // 캐시 없음 → 11:00/13:00 자동 업데이트 대기
+                document.getElementById('oscBody').innerHTML = '<div class="osc-loading">데이터 준비 중 — 평일 11:00, 13:00 자동 업데이트</div>';
             }
         })
         .catch(() => {

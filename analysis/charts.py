@@ -224,32 +224,44 @@ def make_investor_chart(investor_df):
         inst_total_vals = df[inst_col].fillna(0) if inst_col else None
         has_detail = False
 
-    # 값 크기에 따라 단위 자동 결정: 10억 이상이면 KRW로 간주
+    # 기관 데이터 유효성 확인 (Naver frgn 페이지는 기관 데이터 미제공)
+    if has_detail:
+        inst_nonzero = any(float(df[c].fillna(0).abs().max()) > 0 for c, _, _ in detail_cfg)
+    elif inst_total_vals is not None:
+        inst_nonzero = float(inst_total_vals.abs().max()) > 0
+    else:
+        inst_nonzero = False
+
+    # 값 크기에 따라 단위 자동 결정
     all_vals = []
     if foreign_col:
         all_vals.extend(df[foreign_col].fillna(0).abs().tolist())
-    if has_detail:
-        for col, _, _ in detail_cfg:
-            all_vals.extend(df[col].fillna(0).abs().tolist())
-    elif inst_total_vals is not None:
-        all_vals.extend(inst_total_vals.abs().tolist())
+    if inst_nonzero:
+        if has_detail:
+            for col, _, _ in detail_cfg:
+                all_vals.extend(df[col].fillna(0).abs().tolist())
+        elif inst_total_vals is not None:
+            all_vals.extend(inst_total_vals.abs().tolist())
     max_abs = max(all_vals) if all_vals else 0
 
-    if max_abs >= 1e12:        # 1조 이상 → 조원
+    if max_abs >= 1e12:
         scale = 1e12; unit = '조원'; fmt = ',.2f'; dec = 2
-    elif max_abs >= 1e9:       # 10억 이상 → 억원
+    elif max_abs >= 1e9:
         scale = 1e8;  unit = '억원'; fmt = ',.0f'; dec = 0
-    else:                      # 그 이하 → 주
+    else:
         scale = 1;    unit = '주';   fmt = ',.0f'; dec = 0
 
-    # 누적선과 막대가 스케일이 달라 막대가 납작해지는 문제 방지 → 누적선은 보조 y축(우측)
+    # 기관 데이터 없으면 외국인 패널 1개만
+    n_rows = 2 if inst_nonzero else 1
+    titles = [f'외국인 순매수 ({unit})'] + ([f'기관 순매수 ({unit})'] if inst_nonzero else [])
+
     fig = make_subplots(
-        rows=2, cols=1,
+        rows=n_rows, cols=1,
         shared_xaxes=True,
-        row_heights=[0.45, 0.55],
-        vertical_spacing=0.14,
-        subplot_titles=[f'외국인 순매수 ({unit})', f'기관 순매수 ({unit})'],
-        specs=[[{"secondary_y": True}], [{"secondary_y": True}]],
+        row_heights=[0.45, 0.55] if n_rows == 2 else [1.0],
+        vertical_spacing=0.14 if n_rows == 2 else 0,
+        subplot_titles=titles,
+        specs=[[{"secondary_y": True}]] * n_rows,
     )
 
     x = df.index
@@ -267,21 +279,20 @@ def make_investor_chart(investor_df):
             hovertemplate=f'%{{x|%m/%d}}<br>외국인 누적: %{{y:+,.{dec}f}}{unit}<extra></extra>',
         ), row=1, col=1, secondary_y=True)
 
-    if has_detail:
-        for col, label, color in detail_cfg:
+    if inst_nonzero:
+        if has_detail:
+            for col, label, color in detail_cfg:
+                fig.add_trace(go.Bar(
+                    x=x, y=df[col].fillna(0) / scale, name=label,
+                    marker_color=color,
+                    hovertemplate=f'%{{x|%m/%d}}<br>{label}: %{{y:+,.{dec}f}}{unit}<extra></extra>',
+                ), row=2, col=1, secondary_y=False)
+        else:
             fig.add_trace(go.Bar(
-                x=x, y=df[col].fillna(0) / scale, name=label,
-                marker_color=color,
-                hovertemplate=f'%{{x|%m/%d}}<br>{label}: %{{y:+,.{dec}f}}{unit}<extra></extra>',
+                x=x, y=inst_total_vals / scale, name='기관',
+                marker_color=['#2ecc71' if v >= 0 else '#9b59b6' for v in inst_total_vals / scale],
+                hovertemplate=f'%{{x|%m/%d}}<br>기관: %{{y:+,.{dec}f}}{unit}<extra></extra>',
             ), row=2, col=1, secondary_y=False)
-    elif inst_total_vals is not None:
-        fig.add_trace(go.Bar(
-            x=x, y=inst_total_vals / scale, name='기관',
-            marker_color=['#2ecc71' if v >= 0 else '#9b59b6' for v in inst_total_vals / scale],
-            hovertemplate=f'%{{x|%m/%d}}<br>기관: %{{y:+,.{dec}f}}{unit}<extra></extra>',
-        ), row=2, col=1, secondary_y=False)
-
-    if inst_total_vals is not None:
         scaled_inst = inst_total_vals / scale
         fig.add_trace(go.Scatter(
             x=x, y=scaled_inst.cumsum(), name='기관 누적',
@@ -290,7 +301,7 @@ def make_investor_chart(investor_df):
         ), row=2, col=1, secondary_y=True)
 
     fig.update_layout(
-        height=540,
+        height=540 if n_rows == 2 else 300,
         barmode='relative',
         hovermode='x unified',
         legend=dict(orientation='h', y=-0.12, x=0,
@@ -303,12 +314,10 @@ def make_investor_chart(investor_df):
         tickvals=df.index[::2],
         ticktext=[d.strftime('%m/%d') for d in df.index[::2]],
     )
-    fig.update_xaxes(title_text='날짜 (최근 20거래일)', row=2, col=1,
+    fig.update_xaxes(title_text='날짜 (최근 20거래일)', row=n_rows, col=1,
                      title_font=dict(size=10), title_standoff=4)
-    # 일별 막대 y축 (좌측)
     fig.update_yaxes(tickformat=fmt, ticksuffix=unit, zeroline=True,
                      zerolinewidth=1, secondary_y=False)
-    # 누적 y축 (우측) — 레이블 없이 눈금만
     fig.update_yaxes(tickformat=fmt, ticksuffix=unit, showgrid=False,
                      zeroline=False, secondary_y=True)
     _dark(fig)

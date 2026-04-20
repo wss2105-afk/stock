@@ -12,7 +12,7 @@ def get_company_info_naver(ticker):
     try:
         url = f"https://finance.naver.com/item/coinfo.naver?code={ticker}"
         res = requests.get(url, headers=HEADERS, timeout=6)
-        soup = BeautifulSoup(res.text, 'html.parser')
+        soup = BeautifulSoup(res.content.decode('euc-kr', errors='replace'), 'html.parser')
 
         # 여러 테이블 셀렉터 시도
         table = (soup.select_one('table.coinfo_t1') or
@@ -28,7 +28,7 @@ def get_company_info_naver(ticker):
                     if i >= len(tds):
                         continue
                     key = th.get_text(strip=True)
-                    td = tds[i]
+                    td  = tds[i]
                     val = td.get_text(strip=True)
                     if '업종' in key and 'industry' not in result:
                         result['industry'] = val
@@ -41,19 +41,40 @@ def get_company_info_naver(ticker):
                     elif '홈페이지' in key and 'website' not in result:
                         a_tag = td.find('a')
                         result['website'] = a_tag['href'] if a_tag else val
+                    elif ('상장일' in key or '상장' in key) and 'listing_date' not in result:
+                        result['listing_date'] = val.replace('.', '').replace('-', '') if val else ''
+                    elif '직원' in key and 'employees' not in result:
+                        result['employees'] = val
+                    elif '자본금' in key and 'capital' not in result:
+                        result['capital'] = val
+                    elif ('주요제품' in key or '주요 제품' in key or '사업' in key) and 'products' not in result:
+                        result['products'] = val[:80] if val else ''
 
-        # 업종이 없으면 main 페이지의 업종 링크에서 추출
+        # 업종이 없으면 main 페이지 업종 링크에서 추출
         if 'industry' not in result:
             main_url = f"https://finance.naver.com/item/main.naver?code={ticker}"
             main_res = requests.get(main_url, headers=HEADERS, timeout=5)
-            main_soup = BeautifulSoup(main_res.text, 'html.parser')
-            # 업종 링크 패턴: /sise/sise_group_detail.naver?type=upjong
+            main_soup = BeautifulSoup(main_res.content.decode('euc-kr', errors='replace'), 'html.parser')
             for a in main_soup.find_all('a', href=True):
                 if 'upjong' in a['href'] or 'type=upjong' in a['href']:
                     industry_text = a.get_text(strip=True)
                     if industry_text:
                         result['industry'] = industry_text
                         break
+
+        # 상장일·직원수·자본금이 없으면 KRX 정보 페이지 시도
+        if not result.get('listing_date') or not result.get('employees'):
+            try:
+                krx_url = f"https://kind.krx.co.kr/corpgeneral/corpList.do?method=searchCorpList&currentPageSize=5&pageIndex=1&comAbbrv={ticker}"
+                kr = requests.get(krx_url, headers=HEADERS, timeout=5)
+                ks = BeautifulSoup(kr.content.decode('utf-8', errors='replace'), 'html.parser')
+                for td in ks.find_all('td'):
+                    txt = td.get_text(strip=True)
+                    if len(txt) == 8 and txt.isdigit() and 'listing_date' not in result:
+                        result['listing_date'] = txt
+            except Exception:
+                pass
+
     except Exception:
         pass
     return result

@@ -104,15 +104,12 @@ def _run_surge_scan():
 
 
 def _early_morning_scheduler():
-    """매일 04:00 과매도/과매수 + 반등종목 스캔 (앱 시작 시 당일 캐시 없으면 즉시 실행)"""
+    """매일 04:00 반등/급등 스캔 (앱 시작 시 당일 캐시 없으면 즉시 실행)"""
     import time as _time
     today = datetime.today().strftime('%Y-%m-%d')
     surge_cache = _load_surge_cache()
-    osc_cache   = _load_osc_cache()
     if not surge_cache or surge_cache.get('date') != today:
         _run_surge_scan()
-    if osc_cache is None:
-        _run_osc_scan()
 
     while True:
         now = datetime.today()
@@ -121,10 +118,35 @@ def _early_morning_scheduler():
             next_run += timedelta(days=1)
         _time.sleep((next_run - now).total_seconds())
         _run_surge_scan()
-        _run_osc_scan()
+
+
+def _market_osc_scheduler():
+    """장중 11:00, 13:00 과매도/과매수 스캔 (평일만, 앱 시작 시 캐시 없으면 1회 즉시 실행)"""
+    import time as _time
+    if _load_osc_cache() is None:
+        threading.Thread(target=_run_osc_scan, daemon=True).start()
+
+    while True:
+        now = datetime.today()
+        # 다음 11:00 또는 13:00 계산
+        candidates = []
+        for h in (11, 13):
+            t = now.replace(hour=h, minute=0, second=0, microsecond=0)
+            if t > now:
+                candidates.append(t)
+        next_run = min(candidates) if candidates else (now + timedelta(days=1)).replace(
+            hour=11, minute=0, second=0, microsecond=0)
+        # 주말이면 다음 월요일로
+        while next_run.weekday() >= 5:
+            next_run += timedelta(days=1)
+        _time.sleep((next_run - now).total_seconds())
+        # 평일(월~금)만 실행
+        if datetime.today().weekday() < 5:
+            _run_osc_scan()
 
 
 threading.Thread(target=_early_morning_scheduler, daemon=True).start()
+threading.Thread(target=_market_osc_scheduler, daemon=True).start()
 
 _EXPORT_SCAN_PATH = os.path.join(os.path.dirname(__file__), 'data', 'export_scan_month.txt')
 

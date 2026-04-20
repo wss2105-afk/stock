@@ -275,6 +275,30 @@
                             {% else %}N/A{% endif %}
                         </div>
                     </div>
+                    {% if company_info.get('listing_date') and company_info.listing_date|length == 8 %}
+                    <div class="profile-item">
+                        <div class="p-label">상장일</div>
+                        <div class="p-val">{{ company_info.listing_date[:4] }}.{{ company_info.listing_date[4:6] }}.{{ company_info.listing_date[6:] }}</div>
+                    </div>
+                    {% endif %}
+                    {% if company_info.get('employees') %}
+                    <div class="profile-item">
+                        <div class="p-label">직원 수</div>
+                        <div class="p-val">{{ company_info.employees }}</div>
+                    </div>
+                    {% endif %}
+                    {% if company_info.get('capital') %}
+                    <div class="profile-item">
+                        <div class="p-label">자본금</div>
+                        <div class="p-val">{{ company_info.capital }}</div>
+                    </div>
+                    {% endif %}
+                    {% if company_info.get('products') %}
+                    <div class="profile-item" style="grid-column: 1 / -1;">
+                        <div class="p-label">주요 제품</div>
+                        <div class="p-val" style="font-size:0.78rem;line-height:1.5;">{{ company_info.products }}</div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- 시장 지표 -->
