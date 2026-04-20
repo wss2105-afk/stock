@@ -718,5 +718,63 @@ def company_desc():
     return jsonify({'desc': desc})
 
 
+@app.route('/api/debug/fundamental/<ticker>')
+def debug_fundamental(ticker):
+    """펀더멘털 스크래핑 원시 결과 확인"""
+    import requests as _req
+    from bs4 import BeautifulSoup
+    from analysis.fundamental import HEADERS, _decode
+    out = {}
+
+    # 1) finsum_more 테이블 행 목록
+    try:
+        res = _req.get(f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=finsum_more",
+                       headers=HEADERS, timeout=5)
+        soup = BeautifulSoup(_decode(res), 'html.parser')
+        tbl = soup.select_one('table.tb_type1')
+        if tbl:
+            rows = []
+            for tr in tbl.find_all('tr'):
+                th = tr.find('th')
+                tds = tr.find_all('td')
+                if th:
+                    rows.append({'key': th.get_text(strip=True),
+                                 'vals': [td.get_text(strip=True) for td in tds]})
+            out['finsum_rows'] = rows
+        else:
+            out['finsum_rows'] = None
+            out['finsum_html'] = res.content.decode('utf-8', errors='replace')[:500]
+    except Exception as e:
+        out['finsum_error'] = str(e)
+
+    # 2) consensus 테이블
+    try:
+        res2 = _req.get(f"https://finance.naver.com/item/coinfo.naver?code={ticker}&target=consensus",
+                        headers=HEADERS, timeout=5)
+        soup2 = BeautifulSoup(_decode(res2), 'html.parser')
+        tbl2 = soup2.select_one('table.tb_type1')
+        if tbl2:
+            rows2 = []
+            for tr in tbl2.find_all('tr'):
+                th = tr.find('th')
+                tds = tr.find_all('td')
+                if th:
+                    rows2.append({'key': th.get_text(strip=True),
+                                  'vals': [td.get_text(strip=True) for td in tds]})
+            out['consensus_rows'] = rows2
+        else:
+            out['consensus_rows'] = None
+    except Exception as e:
+        out['consensus_error'] = str(e)
+
+    # 3) 실제 get_fundamental 결과
+    try:
+        out['fundamental'] = get_fundamental(ticker)
+    except Exception as e:
+        out['fundamental_error'] = str(e)
+
+    return jsonify(out)
+
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
