@@ -454,13 +454,16 @@ def analyze():
     except Exception:
         investor_chart = None
 
-    # 증권사 목표가 min/max
+    # 증권사 목표가 min/max (정규식으로 숫자만 추출)
+    import re as _re
     target_prices = []
     for r in research_reports:
         try:
-            v = int(r.get('target', '').replace(',', '').replace('원', '').strip())
-            if v > 0:
-                target_prices.append(v)
+            m = _re.search(r'[\d,]+', r.get('target', ''))
+            if m:
+                v = int(m.group().replace(',', ''))
+                if v > 0:
+                    target_prices.append(v)
         except Exception:
             pass
     target_min = f"{min(target_prices):,}" if target_prices else None
