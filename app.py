@@ -20,36 +20,36 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
 app = Flask(__name__)
 
 
-def _get_fnguide_target_range(ticker):
-    """FnGuide 컨센서스에서 증권사별 목표주가 min/max 반환"""
+def _get_report_target_prices(reports):
+    """개별 리포트 페이지에서 목표주가 병렬 수집 — '목표가300,000|투자의견Buy' 패턴"""
     import requests as _req
     import re as _re
     from bs4 import BeautifulSoup
-    try:
-        url = (f"https://comp.fnguide.com/SVO2/ASP/SVD_Consensus.asp"
-               f"?pGB=1&gicode=A{ticker}&cID=&MenuYn=Y&ReportGB=&NewMenuID=7&stkGb=701")
-        res = _req.get(url, headers={'User-Agent': 'Mozilla/5.0',
-                                     'Referer': 'https://comp.fnguide.com/'}, timeout=8)
-        soup = BeautifulSoup(res.content.decode('utf-8', errors='replace'), 'html.parser')
-        prices = []
-        for tbl in soup.find_all('table'):
-            for tr in tbl.find_all('tr'):
-                th = tr.find('th')
-                if not th:
-                    continue
-                if '목표주가' not in th.get_text() and 'Target' not in th.get_text():
-                    continue
-                for td in tr.find_all('td'):
-                    m = _re.search(r'[\d,]+', td.get_text(strip=True))
-                    if m:
-                        v = int(m.group().replace(',', ''))
-                        if v > 1000:
-                            prices.append(v)
-        if prices:
-            return f"{min(prices):,}", f"{max(prices):,}"
-    except Exception as e:
-        print(f"FnGuide 목표주가 오류: {e}")
-    return None, None
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _fetch_one(url):
+        try:
+            res = _req.get(url, headers={'User-Agent': 'Mozilla/5.0',
+                           'Referer': 'https://finance.naver.com/'}, timeout=6)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            for td in soup.find_all('td'):
+                text = td.get_text(strip=True)
+                m = _re.search(r'목표가([\d,]+)', text)
+                if m:
+                    return int(m.group(1).replace(',', ''))
+        except Exception:
+            pass
+        return None
+
+    prices = []
+    urls = [r['url'] for r in reports if r.get('url')][:6]
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futures = [ex.submit(_fetch_one, u) for u in urls]
+        for f in as_completed(futures):
+            v = f.result()
+            if v and v > 1000:
+                prices.append(v)
+    return prices
 
 _TICKER_PATH      = os.path.join(os.path.dirname(__file__), 'data', 'krx_tickers.json')
 _LAST_UPDATE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ticker_last_update.txt')
@@ -486,8 +486,10 @@ def analyze():
     except Exception:
         investor_chart = None
 
-    # 증권사 목표가 min/max — FnGuide 컨센서스에서 수집
-    target_min, target_max = _get_fnguide_target_range(ticker)
+    # 증권사 목표가 min/max — 개별 리포트 페이지에서 병렬 수집
+    target_prices = _get_report_target_prices(research_reports)
+    target_min = f"{min(target_prices):,}" if target_prices else None
+    target_max = f"{max(target_prices):,}" if target_prices else None
 
     return render_template('result.html',
         disclosures=disclosures,
@@ -777,31 +779,16 @@ def debug_fundamental(ticker):
 
 @app.route('/api/debug/reports/<ticker>')
 def debug_reports(ticker):
-    """개별 리포트 페이지 구조 확인"""
-    import requests as _req
-    from bs4 import BeautifulSoup
+    """증권사 리포트 목표주가 수집 확인"""
     from analysis.news import get_research_reports
-    reports = get_research_reports(ticker, max_items=3)
-    # 첫 번째 리포트 페이지 원시 구조 확인
-    report_html = None
-    if reports:
-        try:
-            url = reports[0]['url']
-            res = _req.get(url, headers={'User-Agent': 'Mozilla/5.0',
-                           'Referer': 'https://finance.naver.com/'}, timeout=8)
-            soup = BeautifulSoup(res.text, 'html.parser')
-            # th/td 쌍 전체 추출
-            pairs = []
-            for tr in soup.find_all('tr'):
-                ths = [th.get_text(strip=True) for th in tr.find_all('th')]
-                tds = [td.get_text(strip=True) for td in tr.find_all('td')]
-                if ths or tds:
-                    pairs.append({'th': ths, 'td': tds})
-            report_html = pairs[:20]
-        except Exception as e:
-            report_html = str(e)
-    return jsonify({'first_url': reports[0]['url'] if reports else None,
-                    'table_pairs': report_html})
+    reports = get_research_reports(ticker, max_items=6)
+    prices = _get_report_target_prices(reports)
+    return jsonify({
+        'reports': [{'firm': r['firm'], 'title': r['title'], 'url': r['url']} for r in reports],
+        'target_prices': prices,
+        'target_min': f"{min(prices):,}" if prices else None,
+        'target_max': f"{max(prices):,}" if prices else None,
+    })
 
 
 if __name__ == '__main__':
