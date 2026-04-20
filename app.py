@@ -462,6 +462,18 @@ def analyze():
     except Exception:
         investor_chart = None
 
+    # 증권사 목표가 min/max
+    target_prices = []
+    for r in research_reports:
+        try:
+            v = int(r.get('target', '').replace(',', '').replace('원', '').strip())
+            if v > 0:
+                target_prices.append(v)
+        except Exception:
+            pass
+    target_min = f"{min(target_prices):,}" if target_prices else None
+    target_max = f"{max(target_prices):,}" if target_prices else None
+
     return render_template('result.html',
         disclosures=disclosures,
         company_info=company_info,
@@ -477,6 +489,7 @@ def analyze():
         news=news_result,
         research_reports=research_reports,
         research_summary=research_summary,
+        target_min=target_min, target_max=target_max,
         ai_comment=ai_comment,
         main_chart=main_chart,
         supply_chart=supply_chart,
