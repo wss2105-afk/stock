@@ -634,6 +634,23 @@ def search_suggest():
     return jsonify(matches)
 
 
+@app.route('/api/debug/dart/<ticker>')
+def debug_dart(ticker):
+    import os
+    from analysis.dart import get_corp_code, get_disclosures, DART_API_KEY
+    out = {
+        'dart_api_key_set': bool(DART_API_KEY),
+        'dart_api_key_prefix': DART_API_KEY[:6] + '...' if DART_API_KEY else None,
+    }
+    if DART_API_KEY:
+        corp_code = get_corp_code(ticker)
+        out['corp_code'] = corp_code
+        disclosures = get_disclosures(ticker, days=60)
+        out['disclosure_count'] = len(disclosures)
+        out['sample'] = disclosures[:2] if disclosures else []
+    return jsonify(out)
+
+
 @app.route('/api/debug/investor/<ticker>')
 def debug_investor(ticker):
     """수급 데이터 디버그 v3 — frgn TD값 + pykrx 직접 테스트"""
