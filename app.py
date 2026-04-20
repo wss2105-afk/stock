@@ -110,7 +110,7 @@ def _evening_scheduler():
     import time as _time
     while True:
         now = datetime.today()
-        next_run = now.replace(hour=20, minute=0, second=0, microsecond=0)
+        next_run = now.replace(hour=21, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
         _time.sleep((next_run - now).total_seconds())
