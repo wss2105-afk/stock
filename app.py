@@ -150,26 +150,31 @@ def _evening_scheduler():
 
 
 def _market_osc_scheduler():
-    """장중 11:00, 13:00 과매도/과매수 스캔 (평일만, 앱 시작 시 캐시 없으면 1회 즉시 실행)"""
+    """평일 11:00 / 13:00 과매도·과매수 스캔
+    - 11:00 결과 → 13:00까지 표시
+    - 13:00 결과 → 다음날 11:00까지 표시
+    - 앱 시작 시 자동 스캔 없음 (캐시 그대로 표시)
+    """
     import time as _time
-    if _load_osc_cache() is None:
-        threading.Thread(target=_run_osc_scan, daemon=True).start()
-
     while True:
         now = datetime.today()
-        # 다음 11:00 또는 13:00 계산
+        # 다음 실행 시각 계산 (11:00 또는 13:00)
         candidates = []
         for h in (11, 13):
             t = now.replace(hour=h, minute=0, second=0, microsecond=0)
             if t > now:
                 candidates.append(t)
-        next_run = min(candidates) if candidates else (now + timedelta(days=1)).replace(
-            hour=11, minute=0, second=0, microsecond=0)
-        # 주말이면 다음 월요일로
+        if candidates:
+            next_run = min(candidates)
+        else:
+            # 오늘 13:00 이후면 다음날 11:00
+            next_run = (now + timedelta(days=1)).replace(
+                hour=11, minute=0, second=0, microsecond=0)
+        # 주말이면 다음 월요일 11:00으로
         while next_run.weekday() >= 5:
             next_run += timedelta(days=1)
+            next_run = next_run.replace(hour=11, minute=0, second=0, microsecond=0)
         _time.sleep((next_run - now).total_seconds())
-        # 평일(월~금)만 실행
         if datetime.today().weekday() < 5:
             _run_osc_scan()
 
