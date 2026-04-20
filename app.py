@@ -636,18 +636,38 @@ def search_suggest():
 
 @app.route('/api/debug/dart/<ticker>')
 def debug_dart(ticker):
-    import os
-    from analysis.dart import get_corp_code, get_disclosures, DART_API_KEY
+    import os, zipfile, io, requests as _req, xml.etree.ElementTree as ET
+    from analysis.dart import DART_API_KEY, _CORP_CACHE_PATH, _NAME_CACHE_PATH
     out = {
         'dart_api_key_set': bool(DART_API_KEY),
         'dart_api_key_prefix': DART_API_KEY[:6] + '...' if DART_API_KEY else None,
+        'cache_path': _CORP_CACHE_PATH,
+        'cache_exists': os.path.exists(_CORP_CACHE_PATH),
+        'data_dir_exists': os.path.exists(os.path.dirname(_CORP_CACHE_PATH)),
     }
-    if DART_API_KEY:
-        corp_code = get_corp_code(ticker)
-        out['corp_code'] = corp_code
-        disclosures = get_disclosures(ticker, days=60)
-        out['disclosure_count'] = len(disclosures)
-        out['sample'] = disclosures[:2] if disclosures else []
+    if not DART_API_KEY:
+        return jsonify(out)
+    # data 디렉토리 없으면 생성 후 재다운로드
+    data_dir = os.path.dirname(_CORP_CACHE_PATH)
+    os.makedirs(data_dir, exist_ok=True)
+    try:
+        url = f"https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key={DART_API_KEY}"
+        resp = _req.get(url, timeout=20)
+        out['http_status'] = resp.status_code
+        out['content_len'] = len(resp.content)
+        z = zipfile.ZipFile(io.BytesIO(resp.content))
+        xml_data = z.read('CORPCODE.xml')
+        root = ET.fromstring(xml_data)
+        items = root.findall('list')
+        out['xml_items'] = len(items)
+        # 005930 직접 검색
+        for item in items:
+            if item.findtext('stock_code', '').strip() == ticker:
+                out['found_corp_code'] = item.findtext('corp_code', '').strip()
+                out['found_corp_name'] = item.findtext('corp_name', '').strip()
+                break
+    except Exception as e:
+        out['error'] = str(e)
     return jsonify(out)
 
 
