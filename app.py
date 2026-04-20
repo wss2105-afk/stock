@@ -636,13 +636,23 @@ def search_suggest():
 
 @app.route('/api/debug/investor/<ticker>')
 def debug_investor(ticker):
-    """수급 데이터 디버그 — 컬럼명·샘플값 확인용"""
-    from analysis.data_fetcher import get_investor_detail
-    df = get_investor_detail(ticker, months=1)
-    if df.empty:
-        return jsonify({'error': 'empty', 'cols': []})
-    sample = df.tail(3).fillna(0).astype(int).to_dict(orient='records')
-    return jsonify({'cols': list(df.columns), 'rows': sample, 'shape': list(df.shape)})
+    """수급 데이터 디버그 — 실제 TD 텍스트값 확인용"""
+    import requests as _req
+    from bs4 import BeautifulSoup
+    HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    url = f"https://finance.naver.com/item/frgn.naver?code={ticker}&page=1"
+    res = _req.get(url, headers=HEADERS, timeout=10)
+    text = res.content.decode('euc-kr', errors='replace')
+    soup = BeautifulSoup(text, 'html.parser')
+    for tbl in soup.find_all('table'):
+        for tr in tbl.find_all('tr'):
+            tds = tr.find_all('td')
+            if len(tds) >= 5:
+                first = tds[0].get_text(strip=True)
+                if len(first) == 10 and first.count('.') == 2:
+                    td_vals = [td.get_text(strip=True) for td in tds]
+                    return jsonify({'td_count': len(td_vals), 'td_values': td_vals})
+    return jsonify({'error': 'no data row found'})
 
 
 @app.route('/api/company-desc')
