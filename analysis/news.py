@@ -135,6 +135,8 @@ def get_research_reports(ticker, max_items=6):
             date_txt = tds[4].get_text(strip=True)
             href     = title_a.get('href', '')
             if href and not href.startswith('http'):
+                if not href.startswith('/'):
+                    href = '/research/' + href
                 href = 'https://finance.naver.com' + href
 
             if title and firm:

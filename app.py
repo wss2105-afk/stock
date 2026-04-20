@@ -19,6 +19,38 @@ from datetime import datetime, timedelta
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
 app = Flask(__name__)
 
+
+def _get_fnguide_target_range(ticker):
+    """FnGuide 컨센서스에서 증권사별 목표주가 min/max 반환"""
+    import requests as _req
+    import re as _re
+    from bs4 import BeautifulSoup
+    try:
+        url = (f"https://comp.fnguide.com/SVO2/ASP/SVD_Consensus.asp"
+               f"?pGB=1&gicode=A{ticker}&cID=&MenuYn=Y&ReportGB=&NewMenuID=7&stkGb=701")
+        res = _req.get(url, headers={'User-Agent': 'Mozilla/5.0',
+                                     'Referer': 'https://comp.fnguide.com/'}, timeout=8)
+        soup = BeautifulSoup(res.content.decode('utf-8', errors='replace'), 'html.parser')
+        prices = []
+        for tbl in soup.find_all('table'):
+            for tr in tbl.find_all('tr'):
+                th = tr.find('th')
+                if not th:
+                    continue
+                if '목표주가' not in th.get_text() and 'Target' not in th.get_text():
+                    continue
+                for td in tr.find_all('td'):
+                    m = _re.search(r'[\d,]+', td.get_text(strip=True))
+                    if m:
+                        v = int(m.group().replace(',', ''))
+                        if v > 1000:
+                            prices.append(v)
+        if prices:
+            return f"{min(prices):,}", f"{max(prices):,}"
+    except Exception as e:
+        print(f"FnGuide 목표주가 오류: {e}")
+    return None, None
+
 _TICKER_PATH      = os.path.join(os.path.dirname(__file__), 'data', 'krx_tickers.json')
 _LAST_UPDATE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ticker_last_update.txt')
 
@@ -454,20 +486,8 @@ def analyze():
     except Exception:
         investor_chart = None
 
-    # 증권사 목표가 min/max (정규식으로 숫자만 추출)
-    import re as _re
-    target_prices = []
-    for r in research_reports:
-        try:
-            m = _re.search(r'[\d,]+', r.get('target', ''))
-            if m:
-                v = int(m.group().replace(',', ''))
-                if v > 0:
-                    target_prices.append(v)
-        except Exception:
-            pass
-    target_min = f"{min(target_prices):,}" if target_prices else None
-    target_max = f"{max(target_prices):,}" if target_prices else None
+    # 증권사 목표가 min/max — FnGuide 컨센서스에서 수집
+    target_min, target_max = _get_fnguide_target_range(ticker)
 
     return render_template('result.html',
         disclosures=disclosures,
@@ -757,21 +777,11 @@ def debug_fundamental(ticker):
 
 @app.route('/api/debug/reports/<ticker>')
 def debug_reports(ticker):
-    """증권사 리포트 원시 TD 구조 확인"""
-    import requests as _req
-    from bs4 import BeautifulSoup
-    HEADERS = {'User-Agent': 'Mozilla/5.0'}
-    url = f"https://finance.naver.com/research/company_list.naver?searchType=itemCode&itemCode={ticker}"
-    res = _req.get(url, headers=HEADERS, timeout=8)
-    soup = BeautifulSoup(res.text, 'html.parser')
-    table = soup.select_one('table.type_1')
-    rows = []
-    if table:
-        for tr in table.select('tr'):
-            tds = tr.find_all('td')
-            if len(tds) >= 3:
-                rows.append([td.get_text(strip=True) for td in tds])
-    return jsonify({'rows': rows[:5]})
+    """증권사 리포트 + FnGuide 목표주가 확인"""
+    from analysis.news import get_research_reports
+    reports = get_research_reports(ticker, max_items=5)
+    t_min, t_max = _get_fnguide_target_range(ticker)
+    return jsonify({'reports': reports, 'target_min': t_min, 'target_max': t_max})
 
 
 if __name__ == '__main__':
