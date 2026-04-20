@@ -82,17 +82,14 @@ def _analyze_one(name, ticker, months=6):
         signals = get_latest_signals(df)
 
         try:
-            investor_df = get_investor_detail(ticker, months)
+            investor_df = get_investor_detail(ticker, months=2)
         except Exception:
             investor_df = pd.DataFrame()
 
-        try:
-            articles = search_naver_news(name, days=14)
-            news_result = analyze_news(articles)
-        except Exception:
-            news_result = {'total': 0, 'positive': 0, 'negative': 0, 'neutral': 0,
-                           'sentiment_score': 0, 'top_keywords': [], 'press_counts': {},
-                           'exclusive_count': 0, 'articles': []}
+        # 뉴스는 개별 종목 분석에서 로드 — 대량 스캔 시 제외하여 속도 향상
+        news_result = {'total': 0, 'positive': 0, 'negative': 0, 'neutral': 0,
+                       'sentiment_score': 0, 'top_keywords': [], 'press_counts': {},
+                       'exclusive_count': 0, 'articles': []}
 
         score, reasons = calc_score(ma_status, signals, investor_df, news_result)
         score_pct = max(0, min(100, round((score + 14) / 28 * 100)))
@@ -476,7 +473,7 @@ def scan_surge_stocks(top_n=20, days_back=5, max_workers=8):
     return results[:top_n]
 
 
-def scan_top_stocks(top_n=20, months=6, max_workers=8):
+def scan_top_stocks(top_n=20, months=6, max_workers=16):
     with open(_TICKER_DB_PATH, encoding='utf-8') as f:
         tickers = json.load(f)
 

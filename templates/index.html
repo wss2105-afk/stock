@@ -297,16 +297,25 @@ function showOsc(kind) {
 }
 
 // MA 반등 종목 패널 로드
-(function loadBounce() {
+(function loadBounce(retry) {
     const body   = document.getElementById('bounceBody');
     const dateEl = document.getElementById('bounceDate');
 
     fetch('/api/surge-picks')
         .then(r => r.json())
         .then(data => {
-            const list = data.bounce && data.bounce.length ? data.bounce : data.results;
+            const list = data.bounce && data.bounce.length ? data.bounce : null;
             if (!list || list.length === 0) {
-                body.innerHTML = '<div class="bounce-empty">오늘 스캔 데이터가 없습니다. 앱 시작 후 잠시 기다려 주세요.</div>';
+                if (data.scanning) {
+                    body.innerHTML = '<div class="bounce-loading">스캔 진행 중... 잠시 후 자동으로 업데이트됩니다.</div>';
+                    setTimeout(() => loadBounce(true), 30000);
+                } else if (!retry) {
+                    body.innerHTML = '<div class="bounce-loading">스캔 준비 중... 잠시 후 자동으로 업데이트됩니다.</div>';
+                    fetch('/api/surge-refresh', {method: 'POST'});
+                    setTimeout(() => loadBounce(true), 60000);
+                } else {
+                    body.innerHTML = '<div class="bounce-empty">오늘 스캔 데이터가 없습니다.</div>';
+                }
                 return;
             }
             if (data.scanned_at) dateEl.textContent = data.scanned_at + ' 기준';
@@ -351,7 +360,7 @@ function showOsc(kind) {
         .catch(() => {
             body.innerHTML = '<div class="bounce-empty">데이터를 불러올 수 없습니다.</div>';
         });
-})();
+})(false);
 
 (function () {
     const input = document.getElementById('searchInput');

@@ -254,27 +254,6 @@
                         <div class="p-label">시장</div>
                         <div class="p-val">{{ market_profile.market_type }}</div>
                     </div>
-                    <div class="profile-item">
-                        <div class="p-label">업종</div>
-                        <div class="p-val">{{ company_info.get('industry', 'N/A') }}</div>
-                    </div>
-                    <div class="profile-item">
-                        <div class="p-label">결산</div>
-                        <div class="p-val">{{ company_info.get('fiscal_month', 'N/A') }}</div>
-                    </div>
-                    <div class="profile-item">
-                        <div class="p-label">설립일</div>
-                        {% set fd = company_info.get('founded', '') %}
-                        <div class="p-val">{% if fd|length == 8 %}{{ fd[:4] }}.{{ fd[4:6] }}.{{ fd[6:] }}{% else %}N/A{% endif %}</div>
-                    </div>
-                    <div class="profile-item">
-                        <div class="p-label">홈페이지</div>
-                        <div class="p-val">
-                            {% if company_info.get('website') %}
-                            <a href="{{ company_info.website }}" target="_blank">바로가기 →</a>
-                            {% else %}N/A{% endif %}
-                        </div>
-                    </div>
                     {% if company_info.get('listing_date') and company_info.listing_date|length == 8 %}
                     <div class="profile-item">
                         <div class="p-label">상장일</div>

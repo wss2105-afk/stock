@@ -63,6 +63,8 @@ def _load_surge_cache():
 
 def _run_surge_scan():
     """MA 반등 종목 + 급등 종목 스캔 후 surge_cache 저장"""
+    global _surge_scanning
+    _surge_scanning = True
     today = datetime.today().strftime('%Y-%m-%d')
     scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
     try:
@@ -101,6 +103,8 @@ def _run_surge_scan():
         print(f'[{scanned_at}] 반등/급등 스캔 완료 — 반등:{len(bounce)}건, 급등:{len(surge)}건')
     except Exception as e:
         print(f'반등/급등 스캔 오류: {e}')
+    finally:
+        _surge_scanning = False
 
 
 def _early_morning_scheduler():
@@ -109,7 +113,7 @@ def _early_morning_scheduler():
     today = datetime.today().strftime('%Y-%m-%d')
     surge_cache = _load_surge_cache()
     if not surge_cache or surge_cache.get('date') != today:
-        _run_surge_scan()
+        threading.Thread(target=_run_surge_scan, daemon=True).start()
 
     while True:
         now = datetime.today()
@@ -216,6 +220,7 @@ def _load_osc_cache():
 
 
 _osc_scanning = False
+_surge_scanning = False
 
 def _run_osc_scan():
     """과매도/과매수 스캔 실행 후 캐시 저장"""
@@ -594,14 +599,15 @@ def surge_picks():
     rec_cache = _load_recommend_cache()
     recommend_date = rec_cache.get('scanned_at', '') if rec_cache else ''
     if cache:
-        return jsonify({**cache, 'recommend_date': recommend_date})
+        return jsonify({**cache, 'scanning': _surge_scanning, 'recommend_date': recommend_date})
     return jsonify({'date': '', 'bounce': [], 'results': [], 'pick_rec': None,
-                    'pick_sup': None, 'pick_exp': None, 'recommend_date': recommend_date})
+                    'pick_sup': None, 'pick_exp': None,
+                    'scanning': _surge_scanning, 'recommend_date': recommend_date})
 
 
 @app.route('/api/surge-refresh', methods=['POST'])
 def surge_refresh():
-    threading.Thread(target=_auto_surge_scan, daemon=True).start()
+    threading.Thread(target=_run_surge_scan, daemon=True).start()
     return jsonify({'status': 'scanning'})
 
 
