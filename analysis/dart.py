@@ -134,6 +134,25 @@ def get_company_info(ticker):
     return merged
 
 
+_IMPORTANT_KEYWORDS = (
+    '유상증자', '무상증자', '합병', '분할', '자사주', '배당',
+    '대량보유', '최대주주', '임원', '대표이사', '영업양도', '주요사항',
+    '취득', '처분', '상장폐지', '감자', '전환사채', '신주인수권',
+)
+
+
+def _classify(report_nm):
+    """공시 제목 키워드로 유형·중요도 분류"""
+    for kw in _IMPORTANT_KEYWORDS:
+        if kw in report_nm:
+            return '주요공시', True
+    if '사업보고서' in report_nm or '반기보고서' in report_nm or '분기보고서' in report_nm:
+        return '정기공시', False
+    if '감사보고서' in report_nm or '내부회계' in report_nm:
+        return '외부감사', False
+    return '기타공시', False
+
+
 def get_disclosures(ticker, days=60):
     """최근 공시 목록 반환"""
     if not DART_API_KEY:
@@ -169,14 +188,15 @@ def get_disclosures(ticker, days=60):
 
     result = []
     for item in data.get('list', []):
-        pblntf_ty = item.get('pblntf_ty', 'E')
-        rcp_no = item.get('rcp_no', '')
+        report_nm = item.get('report_nm', '')
+        rcept_no  = item.get('rcept_no', '')
+        disc_type, important = _classify(report_nm)
         result.append({
-            'date': item.get('rcept_dt', ''),
-            'title': item.get('report_nm', ''),
-            'type': _PBLNTF_LABELS.get(pblntf_ty, '기타'),
-            'important': pblntf_ty in _IMPORTANT_TYPES,
-            'url': f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcp_no}",
+            'date':      item.get('rcept_dt', ''),
+            'title':     report_nm,
+            'type':      disc_type,
+            'important': important,
+            'url':       f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}",
             'submitter': item.get('flr_nm', ''),
         })
 
