@@ -258,8 +258,8 @@ def make_investor_chart(investor_df):
     fig = make_subplots(
         rows=n_rows, cols=1,
         shared_xaxes=True,
-        row_heights=[0.45, 0.55] if n_rows == 2 else [1.0],
-        vertical_spacing=0.14 if n_rows == 2 else 0,
+        row_heights=[0.5, 0.5] if n_rows == 2 else [1.0],
+        vertical_spacing=0.10 if n_rows == 2 else 0,
         subplot_titles=titles,
         specs=[[{"secondary_y": True}]] * n_rows,
     )
@@ -301,12 +301,12 @@ def make_investor_chart(investor_df):
         ), row=2, col=1, secondary_y=True)
 
     fig.update_layout(
-        height=540 if n_rows == 2 else 300,
+        height=620 if n_rows == 2 else 300,
         barmode='relative',
         hovermode='x unified',
-        legend=dict(orientation='h', y=-0.12, x=0,
+        legend=dict(orientation='h', y=-0.16, x=0,
                     font=dict(size=10), bgcolor='rgba(0,0,0,0)'),
-        margin=dict(l=60, r=52, t=44, b=88),
+        margin=dict(l=60, r=52, t=44, b=110),
     )
     fig.update_xaxes(
         tickformat='%m/%d', tickangle=-45,
