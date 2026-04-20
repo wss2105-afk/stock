@@ -221,13 +221,14 @@ def _get_investor_naver(ticker, months=3):
                     first = tds[0].get_text(strip=True)
                     if len(first) == 10 and first.count('.') == 2:
                         n = len(tds)
-                        # 8TD: 날짜|종가|전일비|거래량|외국인순매수|보유주수|지분율|기관순매수
-                        # 9TD: 날짜|종가|▲img|전일비|거래량|외국인순매수|보유주수|지분율|기관순매수
-                        # 10TD: 위 9TD + 기타 컬럼
+                        # 실제 확인된 9TD 구조:
+                        # 날짜|종가|전일비|전일비율|거래량|외국인순매수|기관순매수|외국인보유|외국인지분율
+                        # 8TD 구조 (전일비율 없는 경우):
+                        # 날짜|종가|전일비|거래량|외국인순매수|기관순매수|외국인보유|외국인지분율
                         if n >= 9:
-                            foreign_idx = 5; inst_idx = 8
+                            foreign_idx = 5; inst_idx = 6
                         elif n == 8:
-                            foreign_idx = 4; inst_idx = 7
+                            foreign_idx = 4; inst_idx = 5
                         else:
                             foreign_idx = 4; inst_idx = None  # 기관 데이터 없음
                         print(f'[frgn] ticker={ticker} TD수={n} foreign={foreign_idx} inst={inst_idx}')
