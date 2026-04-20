@@ -757,27 +757,21 @@ def debug_fundamental(ticker):
 
 @app.route('/api/debug/reports/<ticker>')
 def debug_reports(ticker):
-    """증권사 리포트 원시 데이터 확인"""
-    from analysis.news import get_research_reports
-    import re as _re
-    reports = get_research_reports(ticker, max_items=10)
-    target_prices = []
-    for r in reports:
-        raw = r.get('target', '')
-        m = _re.search(r'[\d,]+', raw)
-        if m:
-            try:
-                v = int(m.group().replace(',', ''))
-                if v > 0:
-                    target_prices.append(v)
-            except Exception:
-                pass
-    return jsonify({
-        'reports': reports,
-        'target_prices': target_prices,
-        'target_min': f"{min(target_prices):,}" if target_prices else None,
-        'target_max': f"{max(target_prices):,}" if target_prices else None,
-    })
+    """증권사 리포트 원시 TD 구조 확인"""
+    import requests as _req
+    from bs4 import BeautifulSoup
+    HEADERS = {'User-Agent': 'Mozilla/5.0'}
+    url = f"https://finance.naver.com/research/company_list.naver?searchType=itemCode&itemCode={ticker}"
+    res = _req.get(url, headers=HEADERS, timeout=8)
+    soup = BeautifulSoup(res.text, 'html.parser')
+    table = soup.select_one('table.type_1')
+    rows = []
+    if table:
+        for tr in table.select('tr'):
+            tds = tr.find_all('td')
+            if len(tds) >= 3:
+                rows.append([td.get_text(strip=True) for td in tds])
+    return jsonify({'rows': rows[:5]})
 
 
 if __name__ == '__main__':
