@@ -634,6 +634,17 @@ def search_suggest():
     return jsonify(matches)
 
 
+@app.route('/api/debug/investor/<ticker>')
+def debug_investor(ticker):
+    """수급 데이터 디버그 — 컬럼명·샘플값 확인용"""
+    from analysis.data_fetcher import get_investor_detail
+    df = get_investor_detail(ticker, months=1)
+    if df.empty:
+        return jsonify({'error': 'empty', 'cols': []})
+    sample = df.tail(3).fillna(0).astype(int).to_dict(orient='records')
+    return jsonify({'cols': list(df.columns), 'rows': sample, 'shape': list(df.shape)})
+
+
 @app.route('/api/company-desc')
 def company_desc():
     ticker = request.args.get('ticker', '').strip()

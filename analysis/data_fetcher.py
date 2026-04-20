@@ -212,31 +212,26 @@ def _get_investor_naver(ticker, months=3):
             if target_table is None:
                 break
 
-            # 첫 페이지에서 헤더 기반으로 컬럼 인덱스 확정
-            if page == 1 or foreign_idx is None:
-                th_els = target_table.find_all('th')
-                if th_els:
-                    th_texts = [th.get_text(separator='', strip=True) for th in th_els]
-                    foreign_idx = _find_col_idx(th_texts, '외국인', '순매수')
-                    inst_idx    = _find_col_idx(th_texts, '기관', '순매수')
-                # 헤더를 못 찾으면 실제 데이터 행으로 TD 수 파악 후 기본값 적용
-                if foreign_idx is None:
-                    for tr in target_table.find_all('tr'):
-                        tds = tr.find_all('td')
-                        if tds and len(tds) >= 5:
-                            first = tds[0].get_text(strip=True)
-                            if len(first) == 10 and first.count('.') == 2:
-                                n = len(tds)
-                                # TD 수별 기본 오프셋
-                                # 8TD: 날짜|종가|전일비|거래량|외국인순매수|보유주수|지분율|기관순매수
-                                # 9TD: 날짜|종가|▲이미지|전일비숫자|거래량|외국인순매수|보유주수|지분율|기관순매수
-                                if n >= 9:
-                                    foreign_idx = 5
-                                    inst_idx    = 8
-                                else:
-                                    foreign_idx = 4
-                                    inst_idx    = 7
-                                break
+            # 첫 페이지에서 TD 수 기반으로 컬럼 인덱스 확정 (colspan 오염 없는 신뢰 방법)
+            if page == 1 or foreign_idx is None or inst_idx is None:
+                for tr in target_table.find_all('tr'):
+                    tds = tr.find_all('td')
+                    if not tds:
+                        continue
+                    first = tds[0].get_text(strip=True)
+                    if len(first) == 10 and first.count('.') == 2:
+                        n = len(tds)
+                        # 8TD: 날짜|종가|전일비|거래량|외국인순매수|보유주수|지분율|기관순매수
+                        # 9TD: 날짜|종가|▲img|전일비|거래량|외국인순매수|보유주수|지분율|기관순매수
+                        # 10TD: 위 9TD + 기타 컬럼
+                        if n >= 9:
+                            foreign_idx = 5; inst_idx = 8
+                        elif n == 8:
+                            foreign_idx = 4; inst_idx = 7
+                        else:
+                            foreign_idx = 4; inst_idx = None  # 기관 데이터 없음
+                        print(f'[frgn] ticker={ticker} TD수={n} foreign={foreign_idx} inst={inst_idx}')
+                        break
 
             if foreign_idx is None:
                 break
