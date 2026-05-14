@@ -194,6 +194,25 @@ def _load_osc_cache():
         return None
 
 
+_osc_scanning    = False
+_surge_scanning  = False
+
+def _run_osc_scan():
+    """과매도/과매수 스캔 실행 후 캐시 저장"""
+    global _osc_scanning
+    _osc_scanning = True
+    try:
+        result = scan_osc_stocks(top_n=30)
+        now = datetime.today().strftime('%Y-%m-%d %H:%M')
+        with open(_OSC_CACHE_PATH, 'w', encoding='utf-8') as f:
+            json.dump({'updated_at': now, **result}, f, ensure_ascii=False)
+        print(f'[{now}] 과매도/과매수 스캔 완료 — 과매도:{len(result["oversold"])} 과매수:{len(result["overbought"])}')
+    except Exception as e:
+        print(f'과매도/과매수 스캔 오류: {e}')
+    finally:
+        _osc_scanning = False
+
+
 threading.Thread(target=_evening_scheduler, daemon=True).start()
 threading.Thread(target=_market_osc_scheduler, daemon=True).start()
 
@@ -249,27 +268,6 @@ def _auto_build_cache():
         print(f'캐시 빌드 오류: {e}')
 
 threading.Thread(target=_auto_build_cache, daemon=True).start()
-
-
-_osc_scanning = False
-_surge_scanning = False
-
-def _run_osc_scan():
-    """과매도/과매수 스캔 실행 후 캐시 저장"""
-    global _osc_scanning
-    _osc_scanning = True
-    try:
-        result = scan_osc_stocks(top_n=30)
-        now = datetime.today().strftime('%Y-%m-%d %H:%M')
-        with open(_OSC_CACHE_PATH, 'w', encoding='utf-8') as f:
-            json.dump({'updated_at': now, **result}, f, ensure_ascii=False)
-        print(f'[{now}] 과매도/과매수 스캔 완료 — 과매도:{len(result["oversold"])} 과매수:{len(result["overbought"])}')
-    except Exception as e:
-        print(f'과매도/과매수 스캔 오류: {e}')
-    finally:
-        _osc_scanning = False
-
-
 
 
 # ── 추천 종목 TOP 20 일일 캐시 ───────────────────────────────────
