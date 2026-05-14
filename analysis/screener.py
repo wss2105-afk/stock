@@ -5,6 +5,7 @@ from analysis.data_fetcher import get_ohlcv, get_investor_detail
 from analysis.indicators import calc_indicators, get_ma_arrangement, get_latest_signals
 from analysis.news import search_naver_news, get_news_signal_score, analyze_news
 from analysis.signal import calc_score, get_recommendation
+from analysis.cache_manager import load_stock_cache
 
 _TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
 
@@ -74,17 +75,22 @@ def _calc_volume_surge(investor_df, days=20, surge_ratio=1.5):
 
 def _analyze_one(name, ticker, months=6):
     try:
-        ohlcv = get_ohlcv(ticker, months)
-        if ohlcv.empty or len(ohlcv) < 20:
+        cached = load_stock_cache(ticker)
+        if cached:
+            ohlcv = cached['ohlcv'].tail(max(months * 22, 60))
+            investor_df = cached['investor_df']
+        else:
+            ohlcv = get_ohlcv(ticker, months)
+            try:
+                investor_df = get_investor_detail(ticker, months=2)
+            except Exception:
+                investor_df = pd.DataFrame()
+
+        if ohlcv is None or ohlcv.empty or len(ohlcv) < 20:
             return None
         df = calc_indicators(ohlcv)
         ma_status = get_ma_arrangement(df)
         signals = get_latest_signals(df)
-
-        try:
-            investor_df = get_investor_detail(ticker, months=2)
-        except Exception:
-            investor_df = pd.DataFrame()
 
         # 뉴스는 개별 종목 분석에서 로드 — 대량 스캔 시 제외하여 속도 향상
         news_result = {'total': 0, 'positive': 0, 'negative': 0, 'neutral': 0,
