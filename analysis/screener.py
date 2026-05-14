@@ -228,12 +228,32 @@ def _check_supply_one(name, ticker, months=3):
             recent_weight_pct = 0
         concentration_signal = recent_weight_pct >= 50
 
-        # 종합 신호 점수 (정렬용)
-        signal_bonus = (
-            (surge_ratio * 5 if surge_signal else 0) +
-            (20 if reversal_signal else 0) +
-            (recent_weight_pct / 5 if concentration_signal else 0)
-        )
+        # ── 100점 만점 종합 점수 ──────────────────────────────
+        # ① 수급 지속성: 외인+기관 동시 연속 1일당 3점 (최대 30점)
+        score_streak   = min(joint_streak * 3, 30)
+        # ② 수급 빈도: 외인/기관 각 10점 (최대 20점)
+        score_freq_f   = min(foreign_days, 10)
+        score_freq_i   = min(inst_days, 10)
+        # ③ 수급 가속도: (배율-1)*10점, 최대 25점
+        score_surge    = min(round((surge_ratio - 1) * 10), 25) if surge_ratio >= 2.0 else 0
+        # ④ 수급 전환: 외인 +8점, 기관 +7점
+        score_rev_f    = 8 if bool(reversal_foreign) else 0
+        score_rev_i    = 7 if bool(reversal_inst) else 0
+        # ⑤ 최근 집중도: 비중%÷10점 (최대 10점)
+        score_conc     = min(round(recent_weight_pct / 10), 10) if concentration_signal else 0
+
+        supply_score = (score_streak + score_freq_f + score_freq_i +
+                        score_surge + score_rev_f + score_rev_i + score_conc)
+
+        score_breakdown = {
+            '수급지속성': score_streak,
+            '외인빈도':   score_freq_f,
+            '기관빈도':   score_freq_i,
+            '수급가속도': score_surge,
+            '외인전환':   score_rev_f,
+            '기관전환':   score_rev_i,
+            '최근집중도': score_conc,
+        }
 
         return {
             'name': name,
@@ -248,7 +268,6 @@ def _check_supply_one(name, ticker, months=3):
             'inst_net': i_net,
             'meets_a': meets_a,
             'meets_b': meets_b,
-            # 신규 신호
             'surge_ratio': surge_ratio,
             'surge_signal': bool(surge_signal),
             'reversal_foreign': bool(reversal_foreign),
@@ -256,7 +275,9 @@ def _check_supply_one(name, ticker, months=3):
             'reversal_signal': bool(reversal_signal),
             'recent_weight_pct': recent_weight_pct,
             'concentration_signal': bool(concentration_signal),
-            'sort_key': joint_streak * 3 + max(foreign_days, inst_days) + signal_bonus,
+            'supply_score': supply_score,
+            'score_breakdown': score_breakdown,
+            'sort_key': supply_score,
         }
     except Exception:
         return None

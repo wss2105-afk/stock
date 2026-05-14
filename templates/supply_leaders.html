@@ -65,9 +65,33 @@
 
         .price-col { font-size: 0.9rem; font-weight: 700; color: #fff; white-space: nowrap; flex-shrink: 0; min-width: 70px; text-align: right; }
 
-        .empty-msg { padding: 60px 20px; text-align: center; color: #555; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .score-col { display:flex; flex-direction:column; align-items:center; width:52px; flex-shrink:0; }
+        .score-num { font-size:1.5rem; font-weight:900; color:#FFC000; line-height:1; }
+        .score-lbl { font-size:0.52rem; color:#555; letter-spacing:0.1em; text-transform:uppercase; margin-top:2px; }
 
+        .empty-msg { padding: 60px 20px; text-align: center; color: #555; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; }
         .count-label { font-size: 0.65rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; }
+
+        /* 점수 모달 */
+        .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:200; align-items:center; justify-content:center; padding:16px; }
+        .modal-overlay.open { display:flex; }
+        .modal-box { background:#161616; border:1px solid #2a2a2a; max-width:420px; width:100%; padding:28px 24px; position:relative; }
+        .modal-close { position:absolute; top:14px; right:18px; background:none; border:none; color:#555; font-size:1.3rem; cursor:pointer; }
+        .modal-close:hover { color:#fff; }
+        .modal-name { font-size:1.1rem; font-weight:700; color:#fff; letter-spacing:0.05em; }
+        .modal-ticker { font-size:0.62rem; color:#555; letter-spacing:0.15em; margin-top:2px; margin-bottom:16px; }
+        .modal-total { display:flex; align-items:flex-end; gap:8px; margin-bottom:20px; }
+        .modal-total-num { font-size:3rem; font-weight:900; color:#FFC000; line-height:1; }
+        .modal-total-sub { font-size:0.62rem; color:#7D7D7D; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px; }
+        .score-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #1e1e1e; }
+        .score-row:last-child { border-bottom:none; }
+        .score-row-label { font-size:0.78rem; color:#ccc; }
+        .score-row-bar { flex:1; margin:0 12px; height:4px; background:#2a2a2a; border-radius:2px; overflow:hidden; }
+        .score-row-fill { height:100%; background:#FFC000; border-radius:2px; transition:width 0.4s; }
+        .score-row-val { font-size:0.82rem; font-weight:700; color:#FFC000; min-width:30px; text-align:right; }
+        .score-row-val.zero { color:#333; }
+        .modal-btn { display:block; width:100%; padding:12px; background:#FFC000; color:#000; border:none; font-size:0.72rem; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; cursor:pointer; margin-top:20px; text-align:center; text-decoration:none; }
+        .modal-btn:hover { background:#e6ac00; color:#000; }
 
         @media (max-width: 576px) {
             .topbar { padding: 10px 12px; }
@@ -126,7 +150,11 @@
              data-meets-bi="{{ 'true' if s.inst_days >= 7 else 'false' }}"
              data-surge="{{ 'true' if s.surge_signal is defined and s.surge_signal else 'false' }}"
              data-rev="{{ 'true' if s.reversal_signal is defined and s.reversal_signal else 'false' }}"
-             onclick="analyzeStock('{{ s.ticker }}')">
+             onclick="showScore('{{ s.ticker }}')"
+             data-score="{{ s.supply_score if s.supply_score is defined else 0 }}"
+             data-name="{{ s.name }}"
+             data-price="{{ s.price }}"
+             data-breakdown='{{ s.score_breakdown | tojson if s.score_breakdown is defined else "{}" }}'>
 
             <div class="stock-info">
                 <div class="stock-name">{{ s.name }}</div>
@@ -181,11 +209,40 @@
                 <div class="stat-lbl">동시연속</div>
             </div>
 
+            <div class="score-col">
+                <div class="score-num">{{ s.supply_score if s.supply_score is defined else '-' }}</div>
+                <div class="score-lbl">점</div>
+            </div>
             <div class="price-col">{{ s.price }}원</div>
         </div>
         {% else %}
         <div class="empty-msg">조건에 해당하는 종목이 없습니다</div>
         {% endfor %}
+    </div>
+</div>
+
+<!-- 점수 상세 모달 -->
+<div class="modal-overlay" id="scoreModal" onclick="closeModal(event)">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModalDirect()">✕</button>
+        <div class="modal-ticker" id="modalTicker"></div>
+        <div class="modal-name" id="modalName"></div>
+        <div class="modal-total">
+            <div>
+                <div class="modal-total-sub">종합 수급 점수</div>
+                <div class="modal-total-num" id="modalTotal"></div>
+            </div>
+            <div style="margin-bottom:6px;font-size:0.65rem;color:#555;">/ 100점</div>
+            <div style="margin-left:auto;text-align:right;margin-bottom:6px;">
+                <div style="font-size:0.62rem;color:#555;letter-spacing:0.1em;">현재가</div>
+                <div style="font-size:1rem;font-weight:700;color:#fff;" id="modalPrice"></div>
+            </div>
+        </div>
+
+        <div style="font-size:0.6rem;color:#555;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">점수 산출 내역</div>
+        <div id="modalBreakdown"></div>
+
+        <a class="modal-btn" id="modalDetailBtn" href="#">상세 분석 보기 →</a>
     </div>
 </div>
 
@@ -195,6 +252,52 @@
 </form>
 
 <script>
+const MAX_SCORES = {
+    '수급지속성': 30, '외인빈도': 10, '기관빈도': 10,
+    '수급가속도': 25, '외인전환': 8, '기관전환': 7, '최근집중도': 10
+};
+const SCORE_LABELS = {
+    '수급지속성': '외인+기관 동시 연속 (1일×3점)',
+    '외인빈도':   '외인 순매수 빈도 (10일 중)',
+    '기관빈도':   '기관 순매수 빈도 (10일 중)',
+    '수급가속도': '수급 가속도 (배율-1)×10점',
+    '외인전환':   '외인 수급 전환 (매도→매수)',
+    '기관전환':   '기관 수급 전환 (매도→매수)',
+    '최근집중도': '최근 10일 집중도 (비중%÷10)',
+};
+
+function showScore(ticker) {
+    const card = document.querySelector(`[data-meets-a][onclick*="${ticker}"]`);
+    if (!card) return;
+    const name = card.dataset.name;
+    const price = card.dataset.price;
+    const score = card.dataset.score;
+    const breakdown = JSON.parse(card.dataset.breakdown || '{}');
+
+    document.getElementById('modalTicker').textContent = ticker;
+    document.getElementById('modalName').textContent = name;
+    document.getElementById('modalTotal').textContent = score + '점';
+    document.getElementById('modalPrice').textContent = price + '원';
+
+    const rows = Object.entries(breakdown).map(([key, val]) => {
+        const max = MAX_SCORES[key] || 10;
+        const pct = max > 0 ? Math.round(val / max * 100) : 0;
+        const label = SCORE_LABELS[key] || key;
+        return `<div class="score-row">
+            <span class="score-row-label">${label}</span>
+            <div class="score-row-bar"><div class="score-row-fill" style="width:${pct}%"></div></div>
+            <span class="score-row-val ${val === 0 ? 'zero' : ''}">${val}점</span>
+        </div>`;
+    }).join('');
+    document.getElementById('modalBreakdown').innerHTML = rows;
+    document.getElementById('modalDetailBtn').href = '/analyze?query=' + ticker + '&months=3';
+    document.getElementById('scoreModal').classList.add('open');
+}
+
+function closeModal(e) { if (e.target.id === 'scoreModal') closeModalDirect(); }
+function closeModalDirect() { document.getElementById('scoreModal').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+
 function analyzeStock(ticker) {
     document.getElementById('formQuery').value = ticker;
     document.getElementById('analyzeForm').submit();
