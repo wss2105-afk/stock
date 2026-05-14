@@ -37,6 +37,29 @@
         .badge-neu { border-color: #444; color: #555; }
         .badge-sell { border-color: #29ABE2; color: #29ABE2; }
 
+        /* 모달 */
+        .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:200; align-items:center; justify-content:center; padding:16px; }
+        .modal-overlay.open { display:flex; }
+        .modal-box { background:#161616; border:1px solid #2a2a2a; max-width:480px; width:100%; padding:28px 24px; position:relative; }
+        .modal-close { position:absolute; top:14px; right:18px; background:none; border:none; color:#555; font-size:1.3rem; cursor:pointer; line-height:1; }
+        .modal-close:hover { color:#fff; }
+        .modal-stock-name { font-size:1.15rem; font-weight:700; color:#fff; letter-spacing:0.05em; text-transform:uppercase; }
+        .modal-ticker { font-size:0.65rem; color:#555; letter-spacing:0.15em; margin-top:2px; }
+        .modal-score-row { display:flex; align-items:flex-end; gap:12px; margin:18px 0 16px; }
+        .modal-score-num { font-size:3rem; font-weight:900; color:#FFC000; line-height:1; }
+        .modal-score-sub { font-size:0.65rem; color:#7D7D7D; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px; }
+        .modal-rec { padding:5px 12px; font-size:0.65rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; border:1px solid; }
+        .modal-divider { border:none; border-top:1px solid #2a2a2a; margin:16px 0; }
+        .modal-section-title { font-size:0.6rem; color:#555; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:10px; }
+        .reason-item { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid #1e1e1e; font-size:0.78rem; color:#ccc; }
+        .reason-item:last-child { border-bottom:none; }
+        .reason-point { font-weight:700; white-space:nowrap; margin-left:12px; }
+        .reason-point.pos { color:#FFC000; }
+        .reason-point.neg { color:#29ABE2; }
+        .reason-point.neu { color:#555; }
+        .modal-btn { display:block; width:100%; padding:12px; background:#FFC000; color:#000; border:none; font-size:0.75rem; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; cursor:pointer; margin-top:20px; text-align:center; text-decoration:none; }
+        .modal-btn:hover { background:#e6ac00; color:#000; }
+
         @media (max-width: 576px) {
             .topbar { padding: 10px 12px; }
             .main { padding: 16px 8px; }
@@ -99,15 +122,94 @@
     {% endfor %}
 </div>
 
-<form id="analyzeForm" method="POST" action="/analyze" style="display:none;">
-    <input type="hidden" name="query" id="formQuery">
-    <input type="hidden" name="months" value="6">
-</form>
+<!-- 점수 설명 모달 -->
+<div class="modal-overlay" id="scoreModal" onclick="closeModal(event)">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModalDirect()">✕</button>
+        <div class="modal-ticker" id="modalTicker"></div>
+        <div class="modal-stock-name" id="modalName"></div>
+        <div class="modal-score-row">
+            <div>
+                <div class="modal-score-sub">종합 점수</div>
+                <div class="modal-score-num" id="modalScore"></div>
+            </div>
+            <div class="modal-rec" id="modalRec"></div>
+            <div style="margin-left:auto;text-align:right;">
+                <div class="modal-score-sub">현재가</div>
+                <div style="font-size:1rem;font-weight:700;color:#fff;" id="modalPrice"></div>
+            </div>
+        </div>
+        <hr class="modal-divider">
+        <div class="modal-section-title">점수 산출 근거</div>
+        <div id="modalReasons"></div>
+        <a class="modal-btn" id="modalDetailBtn" href="#">상세 분석 보기 →</a>
+    </div>
+</div>
+
+<!-- 종목 데이터 (JSON) -->
 <script>
+const stockData = {
+    {% for s in results %}
+    "{{ s.ticker }}": {
+        name: {{ s.name | tojson }},
+        ticker: "{{ s.ticker }}",
+        score_pct: {{ s.score_pct }},
+        recommendation: {{ s.recommendation | tojson }},
+        rec_color: "{{ s.rec_color }}",
+        price: {{ s.price | tojson }},
+        reasons: {{ s.reasons | tojson }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+const recColorMap = {
+    danger: { border: '#FFC000', color: '#FFC000' },
+    warning: { border: '#917300', color: '#917300' },
+    info:    { border: '#29ABE2', color: '#29ABE2' },
+    primary: { border: '#29ABE2', color: '#29ABE2' },
+    secondary: { border: '#444', color: '#555' },
+    dark:    { border: '#555', color: '#555' }
+};
+
 function analyzeStock(ticker) {
-    document.getElementById('formQuery').value = ticker;
-    document.getElementById('analyzeForm').submit();
+    const s = stockData[ticker];
+    if (!s) return;
+
+    document.getElementById('modalTicker').textContent = s.ticker;
+    document.getElementById('modalName').textContent = s.name;
+    document.getElementById('modalScore').textContent = s.score_pct + '점';
+    document.getElementById('modalPrice').textContent = s.price + '원';
+
+    const recEl = document.getElementById('modalRec');
+    recEl.textContent = s.recommendation;
+    const c = recColorMap[s.rec_color] || recColorMap.secondary;
+    recEl.style.borderColor = c.border;
+    recEl.style.color = c.color;
+
+    const reasonsEl = document.getElementById('modalReasons');
+    reasonsEl.innerHTML = s.reasons.map(r => {
+        const m = r.match(/([+-]\d+)점/);
+        let pointHtml = '';
+        if (m) {
+            const v = parseInt(m[1]);
+            const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'neu';
+            pointHtml = `<span class="reason-point ${cls}">${m[1]}점</span>`;
+        }
+        const text = r.replace(/\s*\([+-]?\d+점\)/, '').replace(/([+-]\d+점)/, '').trim();
+        return `<div class="reason-item"><span>${text}</span>${pointHtml}</div>`;
+    }).join('');
+
+    document.getElementById('modalDetailBtn').href = '/analyze?query=' + ticker + '&months=6';
+    document.getElementById('scoreModal').classList.add('open');
 }
+
+function closeModal(e) {
+    if (e.target === document.getElementById('scoreModal')) closeModalDirect();
+}
+function closeModalDirect() {
+    document.getElementById('scoreModal').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
 </script>
 </body>
 </html>
