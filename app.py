@@ -184,6 +184,16 @@ def _market_osc_scheduler():
             _run_osc_scan()
 
 
+def _load_osc_cache():
+    if not os.path.exists(_OSC_CACHE_PATH):
+        return None
+    try:
+        with open(_OSC_CACHE_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 threading.Thread(target=_evening_scheduler, daemon=True).start()
 threading.Thread(target=_market_osc_scheduler, daemon=True).start()
 
@@ -239,16 +249,6 @@ def _auto_build_cache():
         print(f'캐시 빌드 오류: {e}')
 
 threading.Thread(target=_auto_build_cache, daemon=True).start()
-
-
-def _load_osc_cache():
-    if not os.path.exists(_OSC_CACHE_PATH):
-        return None
-    try:
-        with open(_OSC_CACHE_PATH, encoding='utf-8') as f:
-            return json.load(f)
-    except Exception:
-        return None
 
 
 _osc_scanning = False
