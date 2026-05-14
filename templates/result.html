@@ -151,6 +151,14 @@
         .ai-forecast-text { font-size: 0.83rem; color: #b8c4d0; line-height: 1.6; }
         @media(max-width:576px) { .ai-forecast { grid-template-columns: 1fr; } .ai-sec { padding: 14px; } }
 
+        /* 패턴 배지 */
+        .pattern-bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; background: #0d0d0d; border-bottom: 1px solid #1e1e1e; }
+        .pattern-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; border: 1px solid; white-space: nowrap; }
+        .pb-bull  { border-color: rgba(46,204,113,0.6); color: #2ecc71; background: rgba(46,204,113,0.07); }
+        .pb-bear  { border-color: rgba(231,76,60,0.6);  color: #e74c3c; background: rgba(231,76,60,0.07); }
+        .pb-conf  { font-size: 0.6rem; opacity: 0.7; }
+        .pb-label { font-size: 0.58rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; }
+
         /* 차트 컨테이너 */
         .chart-container { background: #000; margin-bottom: 1px; }
         #mainChart     { min-height: 280px; width: 100%; }
@@ -535,6 +543,18 @@
 
             <!-- 메인 차트 -->
             <div class="chart-container">
+                {% if patterns %}
+                <div class="pattern-bar">
+                    <span class="pb-label">패턴 탐지</span>
+                    {% for p in patterns %}
+                    <span class="pattern-badge {% if p.signal == 'bullish' %}pb-bull{% else %}pb-bear{% endif %}"
+                          title="{{ p.desc }}">
+                        {{ p.name }}
+                        <span class="pb-conf">{{ '(확인됨)' if p.confirmed else '(형성 중)' }}</span>
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
                 <div id="mainChart"></div>
             </div>
 

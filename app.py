@@ -8,6 +8,7 @@ from analysis.fundamental import get_fundamental
 from analysis.news import search_naver_news, analyze_news, get_research_reports
 from analysis.signal import calc_score, get_recommendation, get_ai_analysis, get_business_description, summarize_research
 from analysis.charts import make_main_chart, make_supply_zone_chart, make_investor_chart, make_ma_chart
+from analysis.patterns import detect_patterns, simplify_for_template as simplify_patterns
 from analysis.dart import get_disclosures, get_company_info
 from analysis.fundamental import get_market_profile
 from dotenv import load_dotenv
@@ -543,15 +544,21 @@ def analyze():
         supply_df = pd.DataFrame({'price_mid': [], 'volume': []})
 
     # 신호 계산
-    score, reasons = calc_score(ma_status, signals, investor_df, news_result)
+    score, reasons = calc_score(ma_status, signals, investor_df, news_result, df)
     recommendation, rec_color = get_recommendation(score)
-    score_pct = max(0, min(100, round((score + 14) / 28 * 100)))
+    score_pct = max(0, min(100, round((score + 14) / 34 * 100)))
 
     # AI 분석 — 별도 API로 지연 로딩 (페이지 속도 개선)
     ai_comment = None
 
+    # 차트 패턴 탐지
+    try:
+        detected_patterns = detect_patterns(df)
+    except Exception:
+        detected_patterns = []
+
     # 차트
-    main_chart = make_main_chart(df, name)
+    main_chart = make_main_chart(df, name, patterns=detected_patterns)
     ma_chart   = make_ma_chart(df, name)
     # 캔들차트와 동일한 y축 범위를 매물대에 전달 → 가격대 완전 일치
     chart_y_min = float(df['low'].min())  * 0.97
@@ -572,6 +579,7 @@ def analyze():
     target_max = f"{max(target_prices):,}" if target_prices else None
 
     return render_template('result.html',
+        patterns=simplify_patterns(detected_patterns),
         disclosures=disclosures,
         company_info=company_info,
         market_profile=market_profile,
@@ -696,7 +704,7 @@ def ai_comment_api():
         except: news_result = {'total':0,'positive':0,'negative':0,'neutral':0,'sentiment_score':0,'top_keywords':[],'press_counts':{},'exclusive_count':0,'articles':[]}
         try: fundamental = get_fundamental(ticker)
         except: fundamental = {'per':'N/A','forward_per':'N/A','pbr':'N/A','operating_profit':[],'roe':'N/A','op_margin':'N/A','debt_ratio':'N/A','revenue':[]}
-        score, reasons = calc_score(ma_status, signals, investor_df, news_result)
+        score, reasons = calc_score(ma_status, signals, investor_df, news_result, df)
         comment = get_ai_analysis(name, score, reasons, signals, fundamental, news_result)
         return jsonify({'comment': comment})
     except Exception as e:
@@ -893,6 +901,30 @@ def debug_reports(ticker):
         'target_min': f"{min(prices):,}" if prices else None,
         'target_max': f"{max(prices):,}" if prices else None,
     })
+
+
+@app.route('/api/debug/export/<ticker>')
+def debug_export(ticker):
+    """수출주 분기 매출 데이터 fetch 테스트 — 예: /api/debug/export/005930"""
+    from analysis.export_growth import _fetch_quarterly_revenue
+    try:
+        rev = _fetch_quarterly_revenue(ticker)
+        if len(rev) >= 4:
+            latest, prev_q, q2, q3 = rev[0], rev[1], rev[2], rev[3]
+            yoy = round((latest - q3) / q3 * 100, 1) if q3 > 0 else None
+            qoq = round((latest - prev_q) / prev_q * 100, 1) if prev_q > 0 else None
+        else:
+            yoy = qoq = None
+        return jsonify({
+            'ticker': ticker,
+            'revenue_quarters': rev,
+            'count': len(rev),
+            'yoy_growth': yoy,
+            'qoq_growth': qoq,
+            'status': 'ok' if len(rev) >= 4 else 'data_insufficient',
+        })
+    except Exception as e:
+        return jsonify({'ticker': ticker, 'error': str(e), 'status': 'error'})
 
 
 if __name__ == '__main__':

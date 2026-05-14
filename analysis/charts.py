@@ -25,8 +25,68 @@ def _dark(fig):
     return fig
 
 
-def make_main_chart(df, name):
-    """캔들차트 + 볼린저밴드 + 이동평균선"""
+_PATTERN_COLOR = {
+    'bullish': '#2ecc71',
+    'bearish': '#e74c3c',
+}
+
+
+def _add_pattern_annotations(fig, patterns):
+    """탐지된 패턴을 Plotly 어노테이션 / 선으로 차트에 표시"""
+    for p in patterns:
+        color = _PATTERN_COLOR.get(p['signal'], '#FFC000')
+        conf_mark = ' ✓' if p.get('confirmed') else ''
+
+        # 넥라인 / 지지·저항선 (dash 선)
+        if p.get('neckline'):
+            x0, y0, x1, y1 = p['neckline']
+            fig.add_shape(
+                type='line',
+                x0=x0, y0=y0, x1=x1, y1=y1,
+                line=dict(color=color, width=1.5, dash='dash'),
+                opacity=0.85,
+            )
+
+        # 주요 포인트 레이블 (좌어깨, 머리, 우어깨 등)
+        for pt_date, pt_price, pt_label in p.get('key_pts', []):
+            if not pt_label:
+                continue
+            above = p['signal'] == 'bearish'
+            fig.add_annotation(
+                x=pt_date, y=pt_price,
+                text=pt_label,
+                showarrow=False,
+                font=dict(size=8, color=color),
+                yanchor='bottom' if above else 'top',
+                yshift=6 if above else -6,
+                bgcolor='rgba(0,0,0,0.6)',
+                bordercolor=color,
+                borderwidth=0,
+                opacity=0.9,
+            )
+
+        # 패턴 이름 콜아웃 (마지막 key_pt 위치)
+        if p.get('key_pts'):
+            lbl_date, lbl_price, _ = p['key_pts'][-1]
+            above = p['signal'] == 'bearish'
+            ay_offset = -36 if above else 36
+            fig.add_annotation(
+                x=lbl_date, y=lbl_price,
+                text=f"<b>{p['name']}{conf_mark}</b>",
+                showarrow=True,
+                arrowhead=2, arrowsize=1, arrowwidth=1.5,
+                arrowcolor=color,
+                ax=0, ay=ay_offset,
+                font=dict(size=10, color=color),
+                bgcolor='rgba(0,0,0,0.75)',
+                bordercolor=color,
+                borderwidth=1,
+                borderpad=4,
+            )
+
+
+def make_main_chart(df, name, patterns=None):
+    """캔들차트 + 볼린저밴드 + 이동평균선 (+ 패턴 어노테이션)"""
     fig = go.Figure()
 
     fig.add_trace(go.Candlestick(
@@ -56,6 +116,9 @@ def make_main_chart(df, name):
         legend=dict(orientation='h', y=1.02, bgcolor='rgba(0,0,0,0)', font=dict(size=10)),
         margin=dict(l=72, r=20, t=52, b=18),
     )
+    if patterns:
+        _add_pattern_annotations(fig, patterns)
+
     fig.update_yaxes(tickformat=',', ticksuffix='원')
     _dark(fig)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)

@@ -48,19 +48,26 @@
         .loading-dots::after { content: ''; animation: dots 1.4s steps(4,end) infinite; }
         @keyframes dots { 0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} 100%{content:''} }
 
-        /* MA 반등 패널 */
+        /* MA 반등/5일선 타기 패널 */
         .bounce-panel { width: 100%; max-width: 720px; margin: 22px auto 0; background: #fffdf5; border: 2px solid rgba(217,119,6,0.4); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 20px rgba(217,119,6,0.12); }
         .bounce-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; background: linear-gradient(90deg, #fef3c7 0%, #fffdf5 100%); border-bottom: 1px solid rgba(217,119,6,0.18); }
         .bounce-title { font-size: 0.73rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #92400e; }
         .bounce-date { font-size: 0.62rem; color: rgba(146,64,14,0.55); letter-spacing: 0.08em; }
+        .bounce-section-hd { font-size: 0.63rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; padding: 7px 18px; border-bottom: 1px solid rgba(217,119,6,0.1); }
+        .bounce-section-hd.long-ma { background: rgba(217,119,6,0.06); color: #92400e; }
+        .bounce-section-hd.riding  { background: rgba(22,163,74,0.06); color: #166534; }
         .bounce-body { display: flex; flex-direction: column; gap: 1px; background: rgba(217,119,6,0.07); }
         .bounce-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 10px; padding: 11px 18px; background: #fffdf5; cursor: pointer; transition: background 0.15s; text-decoration: none; }
+        .bounce-row.riding-row { background: #f0fdf4; }
         .bounce-row:hover { background: #fef9e7; }
+        .bounce-row.riding-row:hover { background: #dcfce7; }
         .bounce-name { font-size: 0.90rem; color: #1c1917; font-weight: 700; }
         .bounce-ticker { font-size: 0.62rem; color: rgba(92,64,14,0.5); font-family: 'Courier New', monospace; margin-left: 5px; }
         .bounce-ma-tags { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 3px; }
         .bounce-ma-tag { font-size: 0.60rem; padding: 2px 6px; background: rgba(217,119,6,0.12); border: 1px solid rgba(217,119,6,0.35); color: #92400e; letter-spacing: 0.04em; border-radius: 3px; font-weight: 600; }
+        .bounce-ma-tag.riding { background: rgba(22,163,74,0.1); border-color: rgba(22,163,74,0.4); color: #166534; }
         .bounce-chg { font-size: 0.84rem; font-weight: 800; color: #b91c1c; white-space: nowrap; }
+        .bounce-chg.green { color: #16a34a; }
         .bounce-vol { font-size: 0.70rem; color: #78716c; white-space: nowrap; }
         .bounce-price { font-size: 0.76rem; color: #57534e; white-space: nowrap; font-weight: 500; }
         .bounce-loading { padding: 22px 18px; font-size: 0.80rem; color: #a16207; text-align: center; }
@@ -174,6 +181,7 @@
         <div class="osc-header">
             <span class="osc-title" id="oscPanelTitle">◎ 과매도 · 과매수 레이더</span>
             <span class="osc-updated" id="oscUpdated"></span>
+            <button id="oscScanBtn" onclick="triggerOscScan()" style="padding:4px 12px;background:#2d3a8c;color:#fff;border:none;font-size:0.62rem;font-weight:600;cursor:pointer;border-radius:3px;letter-spacing:0.05em;">지금 스캔</button>
         </div>
         <div class="osc-tabs">
             <button class="osc-tab oversold active"  onclick="showOsc('oversold')">📉 과매도 (매수 후보)</button>
@@ -184,15 +192,22 @@
         </div>
     </div>
 
-    <!-- MA 반등 종목 패널 -->
+    <!-- MA 반등/5일선 타기 패널 -->
     <div class="bounce-panel" id="bouncePanel">
         <div class="bounce-header">
-            <span class="bounce-title">↗ 이동평균선 바닥 반등 종목</span>
+            <span class="bounce-title">↗ 이동평균선 반등 · 상승타기 종목</span>
             <span class="bounce-date" id="bounceDate"></span>
+        </div>
+        <div id="bounceLongHd" class="bounce-section-hd long-ma" style="display:none;">
+            ▶ 10/20/60/120일선 바닥 반등
         </div>
         <div class="bounce-body" id="bounceBody">
             <div class="bounce-loading">스캔 데이터 로딩 중...</div>
         </div>
+        <div id="bounceRidingHd" class="bounce-section-hd riding" style="display:none;">
+            ▶ 5일선 타고 상승 중
+        </div>
+        <div class="bounce-body" id="ridingBody" style="display:none;"></div>
     </div>
 </div>
 
@@ -246,6 +261,16 @@
 let _oscData = null;
 let _oscActiveTab = 'oversold';
 
+function triggerOscScan() {
+    const btn = document.getElementById('oscScanBtn');
+    btn.disabled = true;
+    btn.textContent = '스캔 중...';
+    document.getElementById('oscBody').innerHTML = '<div class="osc-loading">🔍 전종목 스캔 중... (수 분 소요, 자동 갱신)</div>';
+    fetch('/api/osc-refresh', {method: 'POST'})
+        .then(() => { setTimeout(loadOsc, 30000); })
+        .catch(() => { btn.disabled = false; btn.textContent = '지금 스캔'; });
+}
+
 function loadOsc() {
     fetch('/api/osc-picks')
         .then(r => r.json())
@@ -296,10 +321,39 @@ function showOsc(kind) {
     }).join('');
 }
 
-// MA 반등 종목 패널 로드
+// MA 반등/5일선 타기 패널 로드
+function _renderBounceRow(r) {
+    const isRiding = r.type === 'riding';
+    const maTags = (r.touched_mas || []).map(m =>
+        `<span class="bounce-ma-tag${isRiding ? ' riding' : ''}">${m}선</span>`).join('');
+    let chg, chgClass;
+    if (isRiding) {
+        chg = r.chg_pct != null ? (r.chg_pct >= 0 ? '+' : '') + r.chg_pct + '%' : '';
+        chgClass = r.chg_pct >= 0 ? 'bounce-chg green' : 'bounce-chg';
+    } else {
+        chg = r.rebound_pct != null ? '+' + r.rebound_pct + '%' : '';
+        chgClass = 'bounce-chg';
+    }
+    const extra = isRiding
+        ? (r.ma5_slope != null ? `5일선 기울기 +${r.ma5_slope}%` : '')
+        : (r.vol_ratio != null ? `거래량 ${r.vol_ratio}배` : '');
+    return `<a class="bounce-row${isRiding ? ' riding-row' : ''}" href="/analyze?query=${encodeURIComponent(r.ticker)}&months=3">
+        <div>
+            <div><span class="bounce-name">${r.name}</span><span class="bounce-ticker">${r.ticker}</span></div>
+            ${maTags ? '<div class="bounce-ma-tags">' + maTags + '</div>' : ''}
+        </div>
+        <div class="${chgClass}">${chg}</div>
+        <div class="bounce-vol">${extra}</div>
+        <div class="bounce-price">${r.price}원</div>
+    </a>`;
+}
+
 (function loadBounce() {
-    const body   = document.getElementById('bounceBody');
-    const dateEl = document.getElementById('bounceDate');
+    const body      = document.getElementById('bounceBody');
+    const ridingDiv = document.getElementById('ridingBody');
+    const dateEl    = document.getElementById('bounceDate');
+    const longHd    = document.getElementById('bounceLongHd');
+    const ridingHd  = document.getElementById('bounceRidingHd');
 
     fetch('/api/surge-picks')
         .then(r => r.json())
@@ -317,23 +371,21 @@ function showOsc(kind) {
             if (data.scanned_at) dateEl.textContent = data.scanned_at + ' 기준';
             else if (data.date) dateEl.textContent = data.date + ' 기준';
 
-            body.innerHTML = list.slice(0, 10).map(r => {
-                const maTags = (r.touched_mas || []).map(m =>
-                    `<span class="bounce-ma-tag">${m}선</span>`).join('');
-                const chg = r.rebound_pct != null
-                    ? `+${r.rebound_pct}%`
-                    : (r.price_chg_pct != null ? `+${r.price_chg_pct}%` : '');
-                const vol = r.vol_ratio != null ? `거래량 ${r.vol_ratio}배` : '';
-                return `<a class="bounce-row" href="/analyze?query=${encodeURIComponent(r.ticker)}&months=3">
-                    <div>
-                        <div><span class="bounce-name">${r.name}</span><span class="bounce-ticker">${r.ticker}</span></div>
-                        ${maTags ? `<div class="bounce-ma-tags">${maTags}</div>` : ''}
-                    </div>
-                    <div class="bounce-chg">${chg}</div>
-                    <div class="bounce-vol">${vol}</div>
-                    <div class="bounce-price">${r.price}원</div>
-                </a>`;
-            }).join('');
+            const bounceItems = list.filter(r => r.type !== 'riding');
+            const ridingItems = list.filter(r => r.type === 'riding');
+
+            if (bounceItems.length > 0) {
+                longHd.style.display = '';
+                body.innerHTML = bounceItems.slice(0, 10).map(_renderBounceRow).join('');
+            } else {
+                body.innerHTML = '<div class="bounce-empty">해당 조건 종목 없음</div>';
+            }
+
+            if (ridingItems.length > 0) {
+                ridingHd.style.display = '';
+                ridingDiv.style.display = '';
+                ridingDiv.innerHTML = ridingItems.slice(0, 10).map(_renderBounceRow).join('');
+            }
 
             // 버튼 뱃지
             if (data.recommend_date) {
