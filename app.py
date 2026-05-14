@@ -605,6 +605,14 @@ def recommend():
     cache = _load_recommend_cache()
     results    = cache.get('results', []) if cache else []
     scanned_at = cache.get('scanned_at', '') if cache else ''
+    for r in results:
+        r.setdefault('foreign_streak', 0)
+        r.setdefault('inst_streak', 0)
+        r.setdefault('joint_star', False)
+        r.setdefault('joint_days', 0)
+        r.setdefault('buying_surge_star', False)
+        r.setdefault('volume_surge', False)
+        r.setdefault('score_pct', max(0, min(100, round((r.get('score', 0) + 14) / 50 * 100))))
     return render_template('recommend.html', results=results, scanned_at=scanned_at)
 
 
@@ -613,6 +621,14 @@ def supply_leaders():
     cache = _load_supply_cache()
     results = cache.get('results', []) if cache else []
     scanned_at = cache.get('scanned_at', '') if cache else ''
+    for r in results:
+        r.setdefault('foreign_streak', 0)
+        r.setdefault('inst_streak', 0)
+        r.setdefault('joint_star', False)
+        r.setdefault('joint_days', 0)
+        r.setdefault('buying_surge_star', False)
+        r.setdefault('volume_surge', False)
+        r.setdefault('score_pct', max(0, min(100, round((r.get('score', 0) + 14) / 50 * 100))))
     return render_template('supply_leaders.html', results=results, scanned_at=scanned_at)
 
 
