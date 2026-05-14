@@ -25,6 +25,9 @@
         .tag-a { border-color: #FFC000; color: #FFC000; }
         .tag-b-f { border-color: #2ecc71; color: #2ecc71; }
         .tag-b-i { border-color: #29ABE2; color: #29ABE2; }
+        .tag-surge { border-color: #FF6B35; color: #FF6B35; }
+        .tag-rev { border-color: #c084fc; color: #c084fc; }
+        .tag-conc { border-color: #2dd4bf; color: #2dd4bf; }
 
         /* 탭 */
         .tab-bar { display: flex; gap: 1px; background: #202020; margin-bottom: 1px; }
@@ -41,9 +44,12 @@
 
         .badge-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
         .s-badge { padding: 2px 8px; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid; white-space: nowrap; }
-        .b-a  { border-color: #FFC000; color: #FFC000; }
-        .b-bf { border-color: #2ecc71; color: #2ecc71; }
-        .b-bi { border-color: #29ABE2; color: #29ABE2; }
+        .b-a    { border-color: #FFC000; color: #FFC000; }
+        .b-bf   { border-color: #2ecc71; color: #2ecc71; }
+        .b-bi   { border-color: #29ABE2; color: #29ABE2; }
+        .b-surge { border-color: #FF6B35; color: #FF6B35; }
+        .b-rev  { border-color: #c084fc; color: #c084fc; }
+        .b-conc { border-color: #2dd4bf; color: #2dd4bf; }
 
         .stat-col { display: flex; flex-direction: column; align-items: center; min-width: 56px; flex-shrink: 0; }
         .stat-num { font-size: 1.3rem; font-weight: 700; line-height: 1; }
@@ -95,8 +101,11 @@
 
     <div class="cond-legend">
         <span class="cond-tag tag-a">A — 외인+기관 동시 연속 3일↑</span>
-        <span class="cond-tag tag-b-f">B-외 — 외인 10일 중 7일↑ 매수</span>
-        <span class="cond-tag tag-b-i">B-기 — 기관 10일 중 7일↑ 매수</span>
+        <span class="cond-tag tag-b-f">B-외 — 외인 10일 중 7일↑</span>
+        <span class="cond-tag tag-b-i">B-기 — 기관 10일 중 7일↑</span>
+        <span class="cond-tag tag-surge">수급급증 — 최근 5일 순매수 평시 2배↑</span>
+        <span class="cond-tag tag-rev">수급전환 — 매도→매수 전환</span>
+        <span class="cond-tag tag-conc">최근집중 — 3개월 중 최근 10일 비중 50%↑</span>
     </div>
 
     <!-- 탭 -->
@@ -105,6 +114,8 @@
         <button class="tab-btn" onclick="filterTab('a', this)">A조건 <span id="cnt-a"></span></button>
         <button class="tab-btn" onclick="filterTab('bf', this)">B-외인 <span id="cnt-bf"></span></button>
         <button class="tab-btn" onclick="filterTab('bi', this)">B-기관 <span id="cnt-bi"></span></button>
+        <button class="tab-btn" onclick="filterTab('surge', this)">수급급증 <span id="cnt-surge"></span></button>
+        <button class="tab-btn" onclick="filterTab('rev', this)">수급전환 <span id="cnt-rev"></span></button>
     </div>
 
     <div id="stockList">
@@ -113,6 +124,8 @@
              data-meets-a="{{ 'true' if s.meets_a else 'false' }}"
              data-meets-bf="{{ 'true' if s.foreign_days >= 7 else 'false' }}"
              data-meets-bi="{{ 'true' if s.inst_days >= 7 else 'false' }}"
+             data-surge="{{ 'true' if s.surge_signal is defined and s.surge_signal else 'false' }}"
+             data-rev="{{ 'true' if s.reversal_signal is defined and s.reversal_signal else 'false' }}"
              onclick="analyzeStock('{{ s.ticker }}')">
 
             <div class="stock-info">
@@ -122,6 +135,11 @@
                     {% if s.meets_a %}<span class="s-badge b-a">A · 동시 {{ s.joint_streak }}일 연속</span>{% endif %}
                     {% if s.foreign_days >= 7 %}<span class="s-badge b-bf">B-외 · {{ s.foreign_days }}/10일</span>{% endif %}
                     {% if s.inst_days >= 7 %}<span class="s-badge b-bi">B-기 · {{ s.inst_days }}/10일</span>{% endif %}
+                    {% if s.surge_signal is defined and s.surge_signal %}<span class="s-badge b-surge">수급급증 · {{ s.surge_ratio }}배</span>{% endif %}
+                    {% if s.reversal_signal is defined and s.reversal_signal %}
+                        <span class="s-badge b-rev">수급전환{% if s.reversal_foreign is defined and s.reversal_foreign %} 외인{% endif %}{% if s.reversal_inst is defined and s.reversal_inst %} 기관{% endif %}</span>
+                    {% endif %}
+                    {% if s.concentration_signal is defined and s.concentration_signal %}<span class="s-badge b-conc">최근집중 · {{ s.recent_weight_pct }}%</span>{% endif %}
                 </div>
             </div>
 
@@ -143,6 +161,18 @@
                     <span class="streak-label">기관 10일</span>
                     <span class="streak-val {% if s.inst_days >= 7 %}c-green{% endif %}">{{ s.inst_days }}/10</span>
                 </div>
+                {% if s.surge_signal is defined and s.surge_signal %}
+                <div class="streak-row" style="margin-top:3px;border-top:1px solid #282828;padding-top:3px;">
+                    <span class="streak-label">가속배율</span>
+                    <span class="streak-val" style="color:#FF6B35;">{{ s.surge_ratio }}x</span>
+                </div>
+                {% endif %}
+                {% if s.concentration_signal is defined and s.concentration_signal %}
+                <div class="streak-row">
+                    <span class="streak-label">최근비중</span>
+                    <span class="streak-val" style="color:#2dd4bf;">{{ s.recent_weight_pct }}%</span>
+                </div>
+                {% endif %}
             </div>
 
             <!-- 동시 연속 일수 -->
@@ -171,25 +201,24 @@ function analyzeStock(ticker) {
 }
 
 const cards = document.querySelectorAll('.stock-card');
-const cntAll = document.getElementById('cnt-all');
-const cntA   = document.getElementById('cnt-a');
-const cntBf  = document.getElementById('cnt-bf');
-const cntBi  = document.getElementById('cnt-bi');
-
-cntAll.textContent = '(' + cards.length + ')';
-cntA.textContent   = '(' + [...cards].filter(c => c.dataset.meetsA === 'true').length + ')';
-cntBf.textContent  = '(' + [...cards].filter(c => c.dataset.meetsBf === 'true').length + ')';
-cntBi.textContent  = '(' + [...cards].filter(c => c.dataset.meetsBi === 'true').length + ')';
+document.getElementById('cnt-all').textContent   = '(' + cards.length + ')';
+document.getElementById('cnt-a').textContent     = '(' + [...cards].filter(c => c.dataset.meetsA === 'true').length + ')';
+document.getElementById('cnt-bf').textContent    = '(' + [...cards].filter(c => c.dataset.meetsBf === 'true').length + ')';
+document.getElementById('cnt-bi').textContent    = '(' + [...cards].filter(c => c.dataset.meetsBi === 'true').length + ')';
+document.getElementById('cnt-surge').textContent = '(' + [...cards].filter(c => c.dataset.surge === 'true').length + ')';
+document.getElementById('cnt-rev').textContent   = '(' + [...cards].filter(c => c.dataset.rev === 'true').length + ')';
 
 function filterTab(type, btn) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     cards.forEach(c => {
         let show = false;
-        if (type === 'all') show = true;
-        else if (type === 'a')  show = c.dataset.meetsA === 'true';
-        else if (type === 'bf') show = c.dataset.meetsBf === 'true';
-        else if (type === 'bi') show = c.dataset.meetsBi === 'true';
+        if      (type === 'all')   show = true;
+        else if (type === 'a')     show = c.dataset.meetsA === 'true';
+        else if (type === 'bf')    show = c.dataset.meetsBf === 'true';
+        else if (type === 'bi')    show = c.dataset.meetsBi === 'true';
+        else if (type === 'surge') show = c.dataset.surge === 'true';
+        else if (type === 'rev')   show = c.dataset.rev === 'true';
         c.style.display = show ? '' : 'none';
     });
 }

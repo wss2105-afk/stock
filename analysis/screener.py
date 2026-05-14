@@ -193,6 +193,48 @@ def _check_supply_one(name, ticker, months=3):
         f_net = int(last10[foreign_col].sum())
         i_net = int(last10[inst_col].sum())
 
+        combined = investor_df[foreign_col] + investor_df[inst_col]
+
+        # ① 수급 가속도: 최근 5일 합산 vs 직전 20일 일평균
+        recent5 = combined.tail(5)
+        past20  = combined.iloc[-25:-5] if len(combined) >= 25 else combined.iloc[:-5]
+        past_avg = float(past20.mean()) if len(past20) > 0 else 0
+        recent5_sum = float(recent5.sum())
+        if past_avg > 0 and recent5_sum > 0:
+            surge_ratio = round(recent5_sum / (past_avg * 5), 1)
+        else:
+            surge_ratio = 0.0
+        surge_signal = surge_ratio >= 2.0
+
+        # ② 수급 전환: 직전 10~20일 순매도 → 최근 10일 순매수
+        prev_period = combined.iloc[-20:-10] if len(combined) >= 20 else pd.Series(dtype=float)
+        reversal_foreign = False
+        reversal_inst    = False
+        if not prev_period.empty:
+            prev_f  = float(investor_df[foreign_col].iloc[-20:-10].sum()) if len(investor_df) >= 20 else 0
+            prev_i  = float(investor_df[inst_col].iloc[-20:-10].sum())    if len(investor_df) >= 20 else 0
+            rec_f   = float(investor_df[foreign_col].tail(10).sum())
+            rec_i   = float(investor_df[inst_col].tail(10).sum())
+            reversal_foreign = prev_f < 0 and rec_f > 0
+            reversal_inst    = prev_i < 0 and rec_i > 0
+        reversal_signal = reversal_foreign or reversal_inst
+
+        # ③ 최근 집중 비중: 전체 3개월 중 최근 10일 순매수 비중
+        total_sum  = float(combined.sum())
+        recent10_sum = float(combined.tail(10).sum())
+        if total_sum > 0 and recent10_sum > 0:
+            recent_weight_pct = round(recent10_sum / total_sum * 100)
+        else:
+            recent_weight_pct = 0
+        concentration_signal = recent_weight_pct >= 50
+
+        # 종합 신호 점수 (정렬용)
+        signal_bonus = (
+            (surge_ratio * 5 if surge_signal else 0) +
+            (20 if reversal_signal else 0) +
+            (recent_weight_pct / 5 if concentration_signal else 0)
+        )
+
         return {
             'name': name,
             'ticker': ticker,
@@ -206,7 +248,15 @@ def _check_supply_one(name, ticker, months=3):
             'inst_net': i_net,
             'meets_a': meets_a,
             'meets_b': meets_b,
-            'sort_key': joint_streak * 3 + max(foreign_days, inst_days),
+            # 신규 신호
+            'surge_ratio': surge_ratio,
+            'surge_signal': bool(surge_signal),
+            'reversal_foreign': bool(reversal_foreign),
+            'reversal_inst': bool(reversal_inst),
+            'reversal_signal': bool(reversal_signal),
+            'recent_weight_pct': recent_weight_pct,
+            'concentration_signal': bool(concentration_signal),
+            'sort_key': joint_streak * 3 + max(foreign_days, inst_days) + signal_bonus,
         }
     except Exception:
         return None
