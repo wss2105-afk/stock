@@ -282,6 +282,8 @@ def _load_recommend_cache():
         return None
 
 
+_RECOMMEND_ERROR_PATH = '/data/recommend_error.txt'
+
 def _run_recommend_scan():
     """추천 종목 20선 스캔 후 캐시 저장"""
     try:
@@ -293,7 +295,19 @@ def _run_recommend_scan():
                       ensure_ascii=False)
         print(f'[{scanned_at}] 추천 종목 스캔 완료 — {len(results)}건')
     except Exception as e:
+        import traceback
+        err = traceback.format_exc()
         print(f'추천 종목 스캔 오류: {e}')
+        with open(_RECOMMEND_ERROR_PATH, 'w') as f:
+            f.write(err)
+
+
+@app.route('/api/recommend-error')
+def recommend_error():
+    if not os.path.exists(_RECOMMEND_ERROR_PATH):
+        return jsonify({'error': None})
+    with open(_RECOMMEND_ERROR_PATH) as f:
+        return jsonify({'error': f.read()})
 
 
 def _recommend_scheduler():
