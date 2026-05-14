@@ -636,6 +636,29 @@ def osc_refresh():
     return jsonify({'status': 'scanning'})
 
 
+@app.route('/api/recommend-refresh', methods=['POST'])
+def recommend_refresh():
+    threading.Thread(target=_run_recommend_scan, daemon=True).start()
+    return jsonify({'status': 'scanning'})
+
+
+@app.route('/api/supply-refresh', methods=['POST'])
+def supply_refresh():
+    threading.Thread(target=_run_supply_scan, daemon=True).start()
+    return jsonify({'status': 'scanning'})
+
+
+@app.route('/api/scan-all', methods=['POST'])
+def scan_all():
+    """모든 스캔 한 번에 실행"""
+    threading.Thread(target=_run_recommend_scan, daemon=True).start()
+    threading.Thread(target=_run_supply_scan, daemon=True).start()
+    threading.Thread(target=_run_osc_scan, daemon=True).start()
+    threading.Thread(target=_run_surge_scan, daemon=True).start()
+    threading.Thread(target=_run_export_scan, daemon=True).start()
+    return jsonify({'status': 'scanning', 'message': '모든 스캔 시작됨 — 완료까지 30~60분 소요'})
+
+
 @app.route('/api/ai-comment')
 def ai_comment_api():
     """AI 분석을 별도로 요청 (result 페이지에서 비동기 호출)"""
