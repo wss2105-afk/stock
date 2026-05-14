@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-_CACHE_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'export_cache.json')
+_CACHE_PATH = '/data/export_cache.json'
 _TICKER_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
 
 EXPORT_SECTORS = [
