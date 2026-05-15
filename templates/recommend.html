@@ -133,11 +133,13 @@
                 {% if s.joint_star %}<span style="color:#FFC000;font-size:1.1rem;" title="외인+기관 동시매수 20일 중 {{ s.joint_days }}일">★</span>{% endif %}
                 {% if s.buying_surge_star %}<span style="color:#FF6B35;font-size:1.1rem;" title="최근 10거래일 기관+외인 매수세 지난달 대비 2배 이상 증가">★</span>{% endif %}
                 {% if s.volume_surge %}<span style="color:#29ABE2;font-size:0.7rem;border:1px solid #29ABE2;padding:1px 6px;margin-left:4px;letter-spacing:0.1em;">수급급증</span>{% endif %}
+                {% if s.has_momentum %}<span style="background:#5b21b6;color:#ddd6fe;font-size:0.58rem;padding:2px 7px;margin-left:5px;font-weight:700;letter-spacing:0.08em;border-radius:2px;">MOMENTUM</span>{% endif %}
             </div>
             <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }}
                 {% if s.foreign_streak >= 3 %} · <span style="color:#FFC000;">외인 {{ s.foreign_streak }}일↑</span>{% endif %}
                 {% if s.inst_streak >= 3 %} · <span style="color:#29ABE2;">기관 {{ s.inst_streak }}일↑</span>{% endif %}
                 {% if s.joint_star %} · <span style="color:#FFC000;">동시매수 {{ s.joint_days }}/20일</span>{% endif %}
+                {% if s.momentum_tags %} · <span style="color:#a78bfa;">{{ s.momentum_tags[:2]|join(' · ') }}</span>{% endif %}
             </div>
             <div class="stock-reasons">{{ s.reasons | join(' / ') }}</div>
         </div>
@@ -186,7 +188,9 @@ const stockData = {
         recommendation: {{ s.recommendation | tojson }},
         rec_color: "{{ s.rec_color }}",
         price: {{ s.price | tojson }},
-        reasons: {{ s.reasons | tojson }}
+        reasons: {{ s.reasons | tojson }},
+        has_momentum: {{ 'true' if s.has_momentum else 'false' }},
+        momentum_tags: {{ (s.momentum_tags or []) | tojson }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
 };
@@ -228,6 +232,17 @@ function analyzeStock(ticker) {
         return `<div class="reason-item"><span>${text}</span>${pointHtml}</div>`;
     }).join('');
 
+    // 모멘텀 배지 (모달 내)
+    const existingMom = document.getElementById('modalMomentum');
+    if (existingMom) existingMom.remove();
+    if (s.has_momentum && s.momentum_tags.length) {
+        const momEl = document.createElement('div');
+        momEl.id = 'modalMomentum';
+        momEl.style.cssText = 'margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+        momEl.innerHTML = '<span style="background:#5b21b6;color:#ddd6fe;font-size:0.6rem;padding:3px 9px;font-weight:700;letter-spacing:0.1em;border-radius:2px;">MOMENTUM</span>'
+            + s.momentum_tags.map(t => `<span style="font-size:0.68rem;color:#a78bfa;border:1px solid #4c1d95;padding:2px 8px;border-radius:2px;">${t}</span>`).join('');
+        document.getElementById('modalReasons').before(momEl);
+    }
     document.getElementById('modalDetailBtn').href = '/analyze?query=' + ticker + '&months=6';
     document.getElementById('scoreModal').classList.add('open');
 }
@@ -460,6 +475,17 @@ function showCriteria() {
       <div class="cond-name">거래대금 · 가격 패턴</div>
       <div class="cond-detail">거래대금 2배↑ +2 / 20일선 위·상승 중 +1 / 조정 시 거래량 감소 +2 / 지지선 반등 +1</div>
     </div>
+  </div>
+  <div class="row" style="background:rgba(91,33,182,0.08);border-radius:4px;">
+    <div class="badge" style="background:#5b21b6;color:#ddd6fe;font-size:0.6rem;">M</div>
+    <div style="flex:1">
+      <div class="cond-name" style="color:#a78bfa;">모멘텀 보너스 <span style="background:#5b21b6;color:#ddd6fe;font-size:0.55rem;padding:1px 6px;border-radius:2px;margin-left:6px;font-weight:700;">MOMENTUM</span></div>
+      <div class="cond-detail">DART 최근 60일 공시 제목에서 탐지 · 최대 +10점<br>
+        수주·공급계약·납품계약·수출계약 +5 / 잠정실적·국책과제·과제선정·기술이전 +4 /<br>
+        이익증가·정부지원·R&D과제·신사업·설비증설 +3 / MOU·업무협약·전략제휴 +2
+      </div>
+    </div>
+    <div class="cond-val" style="color:#a78bfa;">최대 +10점</div>
   </div>
 </div>
 

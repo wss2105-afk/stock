@@ -1,6 +1,6 @@
 import json, os, requests, time
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from analysis.data_fetcher import get_ohlcv, get_investor_detail
@@ -20,6 +20,30 @@ _ETF_PATTERNS = [
 ]
 
 _TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
+
+# 실적·수주·정책 모멘텀 키워드 (DART 공시 제목 기반)
+# (탐지 키워드, 표시 태그, 보너스 점수)
+_MOMENTUM_KW = [
+    ('수주',         '수주',        5),
+    ('공급계약',     '공급계약',    5),
+    ('납품계약',     '납품계약',    5),
+    ('수출계약',     '수출계약',    5),
+    ('잠정실적',     '잠정실적',    4),
+    ('국책과제',     '국책과제',    4),
+    ('과제선정',     '과제선정',    4),
+    ('기술이전',     '기술이전',    4),
+    ('영업이익증가', '이익증가',    3),
+    ('매출증가',     '매출증가',    3),
+    ('정부지원',     '정부지원',    3),
+    ('보조금',       '보조금',      3),
+    ('R&D',          'R&D과제',     3),
+    ('신사업',       '신사업',      3),
+    ('증설',         '설비증설',    3),
+    ('MOU',          'MOU',         2),
+    ('업무협약',     '업무협약',    2),
+    ('전략적제휴',   '전략제휴',    2),
+    ('투자협약',     '투자협약',    2),
+]
 
 
 def _count_consecutive_buying(investor_df, col_keyword, days=5):
@@ -842,6 +866,48 @@ def _dart_quality_check(corp_code, dart_key):
     return True, meta
 
 
+def _dart_momentum_check(corp_code, dart_key, days=60):
+    """DART 공시 제목에서 실적·수주·정책 모멘텀 탐지.
+    반환: (bonus_score: int, tags: list[str])  bonus_score 최대 10점
+    """
+    if not corp_code or not dart_key:
+        return 0, []
+    end_dt   = datetime.now()
+    start_dt = end_dt - timedelta(days=days)
+    try:
+        r = requests.get(
+            'https://opendart.fss.or.kr/api/list.json',
+            params={
+                'crtfc_key':  dart_key,
+                'corp_code':  corp_code,
+                'bgn_de':     start_dt.strftime('%Y%m%d'),
+                'end_de':     end_dt.strftime('%Y%m%d'),
+                'page_count': 20,
+                'sort': 'date', 'sort_mth': 'desc',
+            },
+            timeout=8,
+        )
+        data = r.json()
+        if data.get('status') != '000':
+            return 0, []
+        disclosures = data.get('list', [])
+    except Exception:
+        return 0, []
+
+    seen = set()
+    hit_tags  = []
+    hit_score = 0
+    for disc in disclosures:
+        title = disc.get('report_nm', '')
+        for kw, tag, pts in _MOMENTUM_KW:
+            if kw in title and tag not in seen:
+                seen.add(tag)
+                hit_tags.append(tag)
+                hit_score += pts
+
+    return min(hit_score, 10), hit_tags
+
+
 def scan_top_stocks(top_n=20, months=6, max_workers=8):
     """추천 종목 스캔.
     캐시 기반 Phase1 → Naver 밸류필터 → 수급필터 → DART 펀더멘털 → 점수 정렬
@@ -1000,6 +1066,16 @@ def scan_top_stocks(top_n=20, months=6, max_workers=8):
             if not ok:
                 return None
             r.update(meta)
+            # 실적·수주·정책 모멘텀 보너스 (최대 +10점)
+            mom_score, mom_tags = _dart_momentum_check(corp, DART_API_KEY)
+            r['has_momentum']  = mom_score > 0
+            r['momentum_tags'] = mom_tags
+            if mom_score > 0:
+                r['score'] += mom_score
+                r['score_pct'] = max(0, min(100, round((r['score'] + 14) / 50 * 100)))
+                if mom_tags:
+                    tag_str = ', '.join(mom_tags[:2])
+                    r['reasons'] = r.get('reasons', []) + [f"모멘텀: {tag_str} (+{mom_score}점)"]
             return r
 
         phase4 = []
