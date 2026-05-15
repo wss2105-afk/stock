@@ -1,11 +1,23 @@
-import json, os
+import json, os, requests, time
 import pandas as pd
+from datetime import datetime
+from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from analysis.data_fetcher import get_ohlcv, get_investor_detail
 from analysis.indicators import calc_indicators, get_ma_arrangement, get_latest_signals
 from analysis.news import search_naver_news, get_news_signal_score, analyze_news
 from analysis.signal import calc_score, get_recommendation
 from analysis.cache_manager import load_stock_cache
+
+_NAVER_HDR = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
+# ETF·리츠·인덱스 펀드 이름 패턴 (수급주도·추천 스캔에서 제외)
+_ETF_PATTERNS = [
+    'KODEX','TIGER','RISE','ACE','KBSTAR','HANARO','KOSEF',
+    'ARIRANG','TIMEFOLIO','PLUS','SOL ','WOORI ETF','MASTER',
+    'FOCUS','SMART','KIM','TREX','DB','HANWHA','MIRAE',
+    'ETF','리츠','인프라펀드',
+]
 
 _TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
 
@@ -669,19 +681,265 @@ def scan_surge_stocks(top_n=20, days_back=5, max_workers=4):
     return results[:top_n]
 
 
-def scan_top_stocks(top_n=20, months=6, max_workers=16):
+def _is_etf(name):
+    return any(p in name for p in _ETF_PATTERNS)
+
+
+def _naver_market_info(ticker):
+    """Naver Finance에서 시총(억), PER, PBR, 관리종목 여부 반환"""
+    try:
+        url = f"https://finance.naver.com/item/main.naver?code={ticker}"
+        res = requests.get(url, headers=_NAVER_HDR, timeout=5)
+        soup = BeautifulSoup(res.content.decode('utf-8', errors='replace'), 'html.parser')
+
+        # 관리종목·투자유의 태그
+        is_admin = bool(soup.select_one('.blind') and
+                        any('관리' in el.text or '투자유의' in el.text
+                            for el in soup.select('.blind')))
+
+        market_cap = None
+        per = None
+        pbr = None
+
+        # 시가총액
+        cap_el = soup.select_one('#_market_sum')
+        if cap_el:
+            raw = cap_el.text.replace(',', '').strip()
+            try:
+                market_cap = int(raw)  # 억원
+            except Exception:
+                pass
+
+        # PER / PBR from per_table
+        table = soup.select_one('table.per_table')
+        if table:
+            for row in table.find_all('tr'):
+                cells = row.find_all(['th', 'td'])
+                for i, cell in enumerate(cells):
+                    key = cell.get_text(strip=True)
+                    if i + 1 >= len(cells):
+                        continue
+                    raw = cells[i + 1].get_text(strip=True).replace(',', '')
+                    try:
+                        val = float(raw)
+                    except Exception:
+                        continue
+                    if 'PER' in key and '업종' not in key and 'Forward' not in key and per is None:
+                        per = val
+                    elif 'PBR' in key and pbr is None:
+                        pbr = val
+
+        return {'market_cap': market_cap, 'per': per, 'pbr': pbr, 'is_admin': is_admin}
+    except Exception:
+        return {}
+
+
+def _dart_quality_check(corp_code, dart_key):
+    """DART 연간 재무제표로 품질 필터 체크.
+    반환: (pass: bool, meta: dict)
+    - 3년 연속 영업이익 흑자
+    - 부채비율 < 150%
+    - ROE > 10%
+    - 최근 매출·영업이익 YoY 증가
+    """
+    if not corp_code or not dart_key:
+        return False, {}
+
+    now = datetime.now()
+    base = now.year  # 2026
+
+    def _fetch(year):
+        url = 'https://opendart.fss.or.kr/api/fnlttSinglAcnt.json'
+        params = {'crtfc_key': dart_key, 'corp_code': corp_code,
+                  'bsns_year': str(year), 'reprt_code': '11011'}
+        try:
+            r = requests.get(url, params=params, timeout=8)
+            items = r.json().get('list', [])
+        except Exception:
+            return {}
+        d = {}
+        for it in items:
+            nm = it.get('account_nm', '')
+            raw = it.get('thstrm_amount', '').replace(',', '').strip()
+            try:
+                v = int(raw)
+            except Exception:
+                continue
+            if '매출' in nm and '증감' not in nm and '성장' not in nm and 'revenue' not in d:
+                d['revenue'] = v
+            elif '영업이익' in nm and '손실' not in nm and 'op' not in d:
+                d['op'] = v
+            elif '부채총계' in nm and 'liab' not in d:
+                d['liab'] = v
+            elif '자본총계' in nm and 'equity' not in d:
+                d['equity'] = v
+            elif '당기순이익' in nm and '손실' not in nm and 'net' not in d:
+                d['net'] = v
+        return d
+
+    # 최근 3개 사업연도 (base-1, base-2, base-3)
+    y1 = _fetch(base - 1)
+    y2 = _fetch(base - 2)
+    y3 = _fetch(base - 3)
+
+    # 3년 연속 영업이익 흑자
+    for d in (y1, y2, y3):
+        if not d or d.get('op', -1) <= 0:
+            return False, {}
+
+    # 부채비율 < 150%
+    liab, equity = y1.get('liab'), y1.get('equity')
+    if liab is None or equity is None or equity <= 0:
+        return False, {}
+    debt_ratio = liab / equity * 100
+    if debt_ratio >= 150:
+        return False, {}
+
+    # ROE > 10%
+    net = y1.get('net')
+    if net is None or equity <= 0:
+        return False, {}
+    roe = net / equity * 100
+    if roe < 10:
+        return False, {}
+
+    # 매출·영업이익 YoY 증가
+    if y2:
+        rev1, rev2 = y1.get('revenue'), y2.get('revenue')
+        op1, op2   = y1.get('op'),      y2.get('op')
+        if rev1 and rev2 and rev2 > 0 and rev1 <= rev2:
+            return False, {}
+        if op1 and op2 and op2 > 0 and op1 <= op2:
+            return False, {}
+
+    return True, {
+        'debt_ratio': round(debt_ratio, 1),
+        'roe':        round(roe, 1),
+        'revenue_yoy': round((y1['revenue'] - y2['revenue']) / y2['revenue'] * 100, 1)
+                       if y1.get('revenue') and y2.get('revenue') and y2['revenue'] > 0 else None,
+        'op_yoy':     round((y1['op'] - y2['op']) / y2['op'] * 100, 1)
+                       if y1.get('op') and y2.get('op') and y2['op'] > 0 else None,
+    }
+
+
+def scan_top_stocks(top_n=20, months=6, max_workers=8):
+    """추천 종목 스캔.
+    품질 필터(시총·거래대금·PBR·수급·DART 펀더멘털) → 기존 점수로 최종 랭킹.
+    """
+    from analysis.dart import DART_API_KEY, get_corp_code
+
     with open(_TICKER_DB_PATH, encoding='utf-8') as f:
         tickers = json.load(f)
 
-    results = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_analyze_one, name, ticker, months): name
-                   for name, ticker in tickers.items()}
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                results.append(result)
+    # ETF·펀드 사전 제거
+    ticker_list = [(n, t) for n, t in tickers.items() if not _is_etf(n)]
 
-    # 수급 보너스가 통합된 종합 점수 기준 정렬
+    # ── Phase 1: OHLCV + 기본 점수 계산 (병렬) ─────────────────────────
+    phase1 = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_analyze_one, n, t, months): (n, t)
+                   for n, t in ticker_list}
+        for future in as_completed(futures):
+            r = future.result()
+            if r:
+                phase1.append(r)
+
+    print(f'[추천스캔] Phase1 통과: {len(phase1)}개')
+
+    # ── Phase 2: Naver 시총·PER·PBR·관리종목 필터 (병렬) ─────────────
+    def _naver_filter(r):
+        info = _naver_market_info(r['ticker'])
+        if not info:
+            return r  # 정보 없으면 통과 (보수적)
+        if info.get('is_admin'):
+            return None
+        mc = info.get('market_cap')
+        if mc is not None and mc < 5000:   # 시총 5,000억 미만
+            return None
+        pbr = info.get('pbr')
+        if pbr is not None and pbr > 1.5:  # PBR 1.5 초과
+            return None
+        per = info.get('per')
+        if per is not None and (per <= 0 or per > 30):  # PER 유효 범위 이탈
+            return None
+        r['market_cap'] = mc
+        r['pbr_val']    = pbr
+        r['per_val']    = per
+        return r
+
+    phase2 = []
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futures = {ex.submit(_naver_filter, r): r for r in phase1}
+        for f in as_completed(futures):
+            r = f.result()
+            if r:
+                phase2.append(r)
+
+    print(f'[추천스캔] Phase2(시총·PBR·PER) 통과: {len(phase2)}개')
+
+    # ── Phase 3: 외인/기관 20일 누적 순매수 필터 ─────────────────────
+    phase3 = []
+    for r in phase2:
+        try:
+            cached = load_stock_cache(r['ticker'])
+            inv = cached['investor_df'] if cached else get_investor_detail(r['ticker'], months=1)
+            if inv.empty or len(inv) < 10:
+                continue
+            last20 = inv.tail(20)
+            foreign_col = next((c for c in last20.columns if '외국인' in c or '외인' in c), None)
+            inst_col    = next((c for c in last20.columns if '기관' in c
+                                and '금융' not in c and '연기금' not in c), None)
+            f_net = float(last20[foreign_col].sum()) if foreign_col else 0
+            i_net = float(last20[inst_col].sum())    if inst_col    else 0
+            if f_net <= 0 and i_net <= 0:
+                continue
+            r['f_net_20d'] = int(f_net)
+            r['i_net_20d'] = int(i_net)
+            phase3.append(r)
+        except Exception:
+            phase3.append(r)  # 수급 데이터 없으면 통과
+
+    print(f'[추천스캔] Phase3(외인/기관 수급) 통과: {len(phase3)}개')
+
+    # ── Phase 4: DART 펀더멘털 필터 (통과 종목만 API 호출) ───────────
+    if not DART_API_KEY:
+        print('[추천스캔] DART_API_KEY 없음 — 펀더멘털 필터 생략')
+        phase4 = phase3
+    else:
+        def _dart_filter(r):
+            corp = get_corp_code(r['ticker'])
+            ok, meta = _dart_quality_check(corp, DART_API_KEY)
+            if not ok:
+                return None
+            r.update(meta)
+            return r
+
+        phase4 = []
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            futures = {ex.submit(_dart_filter, r): r for r in phase3}
+            for f in as_completed(futures):
+                r = f.result()
+                if r:
+                    phase4.append(r)
+
+    print(f'[추천스캔] Phase4(DART 펀더멘털) 통과: {len(phase4)}개')
+
+    # ── 거래대금 50억↑ 최종 필터 + 점수 정렬 ─────────────────────────
+    results = []
+    for r in phase4:
+        # 거래대금 50억 필터 — ohlcv에서 재확인
+        try:
+            cached = load_stock_cache(r['ticker'])
+            ohlcv = cached['ohlcv'] if cached else get_ohlcv(r['ticker'], months=2)
+            avg_tv = (ohlcv['close'] * ohlcv['volume']).tail(20).mean()
+            if avg_tv < 5_000_000_000:  # 50억
+                continue
+            r['avg_trading_value_b'] = round(avg_tv / 1e8, 0)  # 억원
+        except Exception:
+            pass
+        results.append(r)
+
+    print(f'[추천스캔] 거래대금 50억↑ 최종: {len(results)}개')
+
     results.sort(key=lambda x: x['score'], reverse=True)
     return results[:top_n]
