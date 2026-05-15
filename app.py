@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from analysis.screener import scan_top_stocks, scan_supply_leaders, scan_surge_stocks, scan_ma_bounce_stocks, scan_osc_stocks
+from analysis.screener import scan_top_stocks, scan_supply_leaders, scan_surge_stocks, scan_ma_bounce_stocks, scan_osc_stocks, scan_buy_candidates
 from analysis.export_growth import load_cache as load_export_cache, scan_export_growth, is_new_update
 from analysis.data_fetcher import get_ticker, get_ohlcv, get_investor_detail, get_supply_zone, is_main_stock, get_today_price, append_today
 from analysis.cache_manager import load_stock_cache, build_all_cache, is_build_needed, get_build_status
@@ -84,10 +84,11 @@ threading.Thread(target=_auto_update_tickers, daemon=True).start()
 _DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 os.makedirs(_DATA_DIR, exist_ok=True)
 
-_SURGE_CACHE_PATH     = os.path.join(_DATA_DIR, 'surge_cache.json')
-_OSC_CACHE_PATH       = os.path.join(_DATA_DIR, 'osc_cache.json')
-_RECOMMEND_CACHE_PATH = os.path.join(_DATA_DIR, 'recommend_cache.json')
-_SUPPLY_CACHE_PATH    = os.path.join(_DATA_DIR, 'supply_cache.json')
+_SURGE_CACHE_PATH          = os.path.join(_DATA_DIR, 'surge_cache.json')
+_OSC_CACHE_PATH            = os.path.join(_DATA_DIR, 'osc_cache.json')
+_RECOMMEND_CACHE_PATH      = os.path.join(_DATA_DIR, 'recommend_cache.json')
+_SUPPLY_CACHE_PATH         = os.path.join(_DATA_DIR, 'supply_cache.json')
+_BUY_CANDIDATE_CACHE_PATH  = os.path.join(_DATA_DIR, 'buy_candidate_cache.json')
 
 def _load_surge_cache():
     if not os.path.exists(_SURGE_CACHE_PATH):
@@ -200,8 +201,9 @@ def _load_osc_cache():
         return None
 
 
-_osc_scanning    = False
-_surge_scanning  = False
+_osc_scanning             = False
+_surge_scanning           = False
+_buy_candidate_scanning   = False
 
 def _run_osc_scan():
     """과매도/과매수 스캔 실행 후 캐시 저장"""
@@ -388,6 +390,50 @@ def _supply_scheduler():
 
 
 threading.Thread(target=_supply_scheduler, daemon=True).start()
+
+
+# ── 매수후보(단기) 캐시 ───────────────────────────────────────
+def _load_buy_candidate_cache():
+    if not os.path.exists(_BUY_CANDIDATE_CACHE_PATH):
+        return None
+    try:
+        with open(_BUY_CANDIDATE_CACHE_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _run_buy_candidate_scan():
+    global _buy_candidate_scanning
+    _buy_candidate_scanning = True
+    try:
+        results = scan_buy_candidates(top_n=10)
+        scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
+        with open(_BUY_CANDIDATE_CACHE_PATH, 'w', encoding='utf-8') as f:
+            json.dump({'scanned_at': scanned_at, 'results': results}, f, ensure_ascii=False)
+        print(f'[{scanned_at}] 매수후보 스캔 완료 — {len(results)}건')
+    except Exception as e:
+        print(f'매수후보 스캔 오류: {e}')
+    finally:
+        _buy_candidate_scanning = False
+
+
+def _buy_candidate_scheduler():
+    """매일 07:30 매수후보(단기) 자동 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
+    import time as _time
+    if _load_buy_candidate_cache() is None:
+        threading.Thread(target=_run_buy_candidate_scan, daemon=True).start()
+
+    while True:
+        now = datetime.today()
+        next_run = now.replace(hour=7, minute=30, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        _time.sleep((next_run - now).total_seconds())
+        _run_buy_candidate_scan()
+
+
+threading.Thread(target=_buy_candidate_scheduler, daemon=True).start()
 
 
 @app.route('/')
@@ -649,6 +695,17 @@ def supply_leaders():
     return render_template('supply_leaders.html', results=results, scanned_at=scanned_at)
 
 
+@app.route('/buy-candidates')
+def buy_candidates():
+    cache = _load_buy_candidate_cache()
+    results    = cache.get('results', []) if cache else []
+    scanned_at = cache.get('scanned_at', '') if cache else ''
+    return render_template('buy_candidates.html',
+                           results=results,
+                           scanned_at=scanned_at,
+                           scanning=_buy_candidate_scanning)
+
+
 @app.route('/export-surge')
 def export_surge():
     cache = load_export_cache()
@@ -710,6 +767,20 @@ def supply_refresh():
     return jsonify({'status': 'scanning'})
 
 
+@app.route('/api/buy-candidate-picks')
+def buy_candidate_picks():
+    cache = _load_buy_candidate_cache()
+    if cache:
+        return jsonify({**cache, 'scanning': _buy_candidate_scanning})
+    return jsonify({'scanned_at': '', 'results': [], 'scanning': _buy_candidate_scanning})
+
+
+@app.route('/api/buy-candidate-refresh', methods=['POST'])
+def buy_candidate_refresh():
+    threading.Thread(target=_run_buy_candidate_scan, daemon=True).start()
+    return jsonify({'status': 'scanning'})
+
+
 @app.route('/api/scan-all', methods=['POST'])
 def scan_all():
     """모든 스캔 한 번에 실행"""
@@ -718,6 +789,7 @@ def scan_all():
     threading.Thread(target=_run_osc_scan, daemon=True).start()
     threading.Thread(target=_run_surge_scan, daemon=True).start()
     threading.Thread(target=_run_export_scan, daemon=True).start()
+    threading.Thread(target=_run_buy_candidate_scan, daemon=True).start()
     return jsonify({'status': 'scanning', 'message': '모든 스캔 시작됨 — 완료까지 30~60분 소요'})
 
 

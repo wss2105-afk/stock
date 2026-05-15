@@ -101,6 +101,8 @@
         .radar-btn:hover { box-shadow: 0 4px 18px rgba(37,99,235,0.2); border-color: rgba(37,99,235,0.5); background: rgba(219,234,254,0.7); }
         .bounce-btn { display: block; width: 100%; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 600; letter-spacing: -0.13px; color: #78350f; border: 1.5px solid rgba(217,119,6,0.35); border-radius: 8px; background: rgba(254,243,199,0.5); text-align: left; cursor: pointer; box-shadow: 0 2px 10px rgba(217,119,6,0.1); transition: box-shadow 0.15s, border-color 0.15s; }
         .bounce-btn:hover { box-shadow: 0 4px 18px rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); background: rgba(254,243,199,0.8); }
+        .buy-candidate-btn { display: block; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 700; letter-spacing: -0.13px; color: #fff; border: none; border-radius: 8px; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); text-align: center; text-decoration: none; box-shadow: 0 4px 14px rgba(22,163,74,0.35); transition: box-shadow 0.15s, transform 0.1s; position: relative; }
+        .buy-candidate-btn:hover { box-shadow: 0 6px 22px rgba(22,163,74,0.5); transform: translateY(-1px); color: #fff; }
 
         /* 모달 오버레이 */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
@@ -195,6 +197,11 @@
         <span id="bounceBtnBadge" style="display:none;float:right;font-size:0.7rem;color:#fde68a;"></span>
         <span style="float:right;opacity:0.5;">→</span>
     </button>
+    <a href="/buy-candidates" class="buy-candidate-btn">
+        <span style="font-size:1.05rem;margin-right:6px;">📈</span> 매수후보(단기)
+        <span id="buyCandidateDate" style="font-size:0.65rem;color:rgba(255,255,255,0.65);margin-left:6px;"></span>
+        <span style="float:right;opacity:0.7;">→</span>
+    </a>
 </div>
 
 
@@ -472,6 +479,14 @@ function _renderBounceRow(r) {
 
     document.addEventListener('click', e => { if (!form.contains(e.target)) box.style.display = 'none'; });
 })();
+
+// 매수후보 날짜 표시
+fetch('/api/buy-candidate-picks')
+    .then(r => r.json())
+    .then(data => {
+        const el = document.getElementById('buyCandidateDate');
+        if (el && data.scanned_at) el.textContent = data.scanned_at + ' 기준';
+    }).catch(() => {});
 
 // ── 모달 열기/닫기 ──────────────────────────────────────
 function openOscModal()    { document.getElementById('oscModal').classList.add('open');    }

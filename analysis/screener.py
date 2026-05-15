@@ -709,6 +709,227 @@ def _is_etf(name):
     return any(p in name for p in _ETF_PATTERNS)
 
 
+def _parse_op_val(v):
+    """영업이익 문자열을 float으로 변환 (FnGuide 형식: 콤마 없음, 음수 포함)"""
+    try:
+        return float(str(v).replace(',', '').strip())
+    except Exception:
+        return None
+
+
+def _check_buy_candidate(name, ticker):
+    """매수후보(단기) 13개 조건 캐시 기반 스캔"""
+    try:
+        cached = load_stock_cache(ticker)
+        if not cached:
+            return None
+
+        ohlcv       = cached['ohlcv']
+        investor_df = cached['investor_df']
+        fundamental = cached.get('fundamental', {}) or {}
+
+        if ohlcv is None or ohlcv.empty or len(ohlcv) < 65:
+            return None
+
+        df = calc_indicators(ohlcv)
+        last = df.iloc[-1]
+        cur  = float(last['close'])
+
+        # ── 1. 거래대금 50억↑ ───────────────────────────────────
+        avg_tv = (ohlcv['close'] * ohlcv['volume']).tail(20).mean()
+        if avg_tv < 5_000_000_000:
+            return None
+
+        # ── 2. 주가 60일선 위 ────────────────────────────────────
+        if 'ma60' not in df.columns or pd.isna(last['ma60']):
+            return None
+        ma60 = float(last['ma60'])
+        if cur <= ma60:
+            return None
+
+        # ── 3. 20일선·60일선 우상향 ─────────────────────────────
+        if 'ma20' not in df.columns or len(df) < 66:
+            return None
+        ma20_now = float(df['ma20'].iloc[-1])
+        ma20_6d  = float(df['ma20'].iloc[-7])
+        ma60_now = float(df['ma60'].iloc[-1])
+        ma60_6d  = float(df['ma60'].iloc[-7])
+        if pd.isna(ma20_now) or pd.isna(ma20_6d) or ma20_now <= ma20_6d:
+            return None
+        if pd.isna(ma60_now) or pd.isna(ma60_6d) or ma60_now <= ma60_6d:
+            return None
+
+        # ── 4. RSI 40~60 ─────────────────────────────────────────
+        if 'rsi' not in df.columns or pd.isna(last['rsi']):
+            return None
+        rsi = float(last['rsi'])
+        if not (40 <= rsi <= 60):
+            return None
+
+        # ── 5. Stochastic 20~30 반등 ─────────────────────────────
+        if 'stoch_k' not in df.columns:
+            return None
+        stoch_series = df['stoch_k'].tail(10).dropna()
+        if len(stoch_series) < 5:
+            return None
+        stoch_cur = float(stoch_series.iloc[-1])
+        stoch_min = float(stoch_series.min())
+        stoch_3d  = float(stoch_series.iloc[-4]) if len(stoch_series) >= 4 else stoch_cur
+        # 최근 10일 내 Stochastic이 35 이하까지 내려왔다가 현재 반등 중
+        if stoch_min > 35:
+            return None
+        if stoch_cur <= stoch_3d:          # 3일 전보다 낮으면 반등 아님
+            return None
+        if stoch_cur > 65:                 # 너무 올라갔으면 제외
+            return None
+
+        # ── 6. MACD 히스토그램 개선 ──────────────────────────────
+        if 'macd_hist' not in df.columns:
+            return None
+        hist_series = df['macd_hist'].tail(6).dropna()
+        if len(hist_series) < 4:
+            return None
+        hist_cur = float(hist_series.iloc[-1])
+        hist_4d  = float(hist_series.iloc[-4])
+        if hist_cur <= hist_4d:            # 4일 전보다 히스토그램이 개선 안 됨
+            return None
+
+        # ── 7. 거래량 증가 (최근 5일 > 직전 20일 평균) ──────────
+        vol5  = ohlcv['volume'].tail(5).mean()
+        vol20 = ohlcv['volume'].iloc[-25:-5].mean() if len(ohlcv) >= 25 else ohlcv['volume'].mean()
+        if vol5 <= vol20 * 0.9:
+            return None
+
+        # ── 8. 외국인 또는 기관 5~20일 순매수 ────────────────────
+        foreign_streak = _count_consecutive_buying(investor_df, '외국인')
+        if foreign_streak == 0:
+            foreign_streak = _count_consecutive_buying(investor_df, '외인')
+        inst_streak = _count_consecutive_buying(investor_df, '기관')
+        if foreign_streak < 5 and inst_streak < 5:
+            return None
+
+        # ── 9. 펀더멘털 — 캐시된 FnGuide 분기 데이터 ───────────
+        op_list = fundamental.get('operating_profit', [])
+        if op_list and len(op_list) >= 4:
+            # 최근 4분기 모두 흑자
+            parsed = [_parse_op_val(v) for v in op_list[:4]]
+            if any(v is not None and v <= 0 for v in parsed):
+                return None
+            # 실적 YoY 개선 (최신 분기 > 4분기 전)
+            if len(op_list) >= 4 and parsed[0] is not None and parsed[3] is not None:
+                if parsed[3] > 0 and parsed[0] < parsed[3]:
+                    return None
+
+        # 부채비율 200% 미만
+        debt_ratio_raw = fundamental.get('debt_ratio', 'N/A')
+        debt_ratio_val = None
+        if debt_ratio_raw != 'N/A':
+            try:
+                debt_ratio_val = float(str(debt_ratio_raw).replace('%', '').replace(',', ''))
+                if debt_ratio_val >= 200:
+                    return None
+            except Exception:
+                pass
+
+        # ── 여기까지 통과 → 태그 및 점수 계산 ───────────────────
+        tags = []
+        if foreign_streak >= 5:
+            tags.append(f'외인 {foreign_streak}일 매수')
+        if inst_streak >= 5:
+            tags.append(f'기관 {inst_streak}일 매수')
+        tags.append(f'RSI {round(rsi):.0f}')
+        tags.append(f'Stoch {round(stoch_cur):.0f}↑')
+        if hist_cur > 0:
+            tags.append('MACD+')
+
+        score = 0
+        if foreign_streak >= 10 or inst_streak >= 10: score += 3
+        elif foreign_streak >= 5  or inst_streak >= 5:  score += 2
+        if 45 <= rsi <= 55:   score += 2
+        if stoch_cur <= 45:   score += 2
+        if hist_cur > 0:      score += 2
+        if vol5 >= vol20 * 1.3: score += 2
+        if ma20_now > ma20_6d and ma60_now > ma60_6d: score += 2
+
+        return {
+            'name': name,
+            'ticker': ticker,
+            'price': f"{int(cur):,}",
+            'rsi': round(rsi, 1),
+            'stoch': round(stoch_cur, 1),
+            'macd_hist': round(hist_cur, 4),
+            'foreign_streak': foreign_streak,
+            'inst_streak': inst_streak,
+            'debt_ratio': debt_ratio_raw,
+            'avg_tv_b': round(avg_tv / 1e8, 0),
+            'tags': tags,
+            'score': score,
+            'sort_key': score + (foreign_streak + inst_streak) * 0.1,
+        }
+    except Exception:
+        return None
+
+
+def scan_buy_candidates(top_n=10, max_workers=8):
+    """매수 후보(단기) 스캔 — 캐시 기술·펀더멘털 → Naver 시총·관리종목 2단계 필터"""
+    with open(_TICKER_DB_PATH, encoding='utf-8') as f:
+        tickers = json.load(f)
+
+    ticker_list = [(n, t) for n, t in tickers.items() if not _is_etf(n)]
+
+    # Phase 1: 캐시 기반 기술·펀더멘털 필터
+    phase1 = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_check_buy_candidate, n, t): (n, t) for n, t in ticker_list}
+        for f in as_completed(futures):
+            r = f.result()
+            if r:
+                phase1.append(r)
+
+    print(f'[매수후보스캔] Phase1(기술·펀더멘털) 통과: {len(phase1)}개')
+
+    # Phase 2: Naver 시총 3,000억↑ + 투자주의·경고·위험 제외
+    def _naver_candidate_filter(r):
+        try:
+            url = f"https://finance.naver.com/item/main.naver?code={r['ticker']}"
+            res = requests.get(url, headers=_NAVER_HDR, timeout=5)
+            soup = BeautifulSoup(res.content.decode('utf-8', errors='replace'), 'html.parser')
+
+            # 투자주의·경고·위험·관리종목 제외
+            page_text = soup.get_text()
+            danger_keywords = ('관리종목', '투자주의', '투자경고', '투자위험', '불성실공시')
+            if any(kw in page_text for kw in danger_keywords):
+                return None
+
+            # 시총 3,000억↑
+            cap_el = soup.select_one('#_market_sum')
+            if cap_el:
+                raw = cap_el.text.replace(',', '').strip()
+                try:
+                    mc = int(raw)
+                    if mc < 3000:
+                        return None
+                    r['market_cap'] = mc
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return r
+
+    phase2 = []
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futures = {ex.submit(_naver_candidate_filter, r): r for r in phase1}
+        for f in as_completed(futures):
+            r = f.result()
+            if r:
+                phase2.append(r)
+
+    print(f'[매수후보스캔] Phase2(시총·관리종목) 통과: {len(phase2)}개')
+
+    phase2.sort(key=lambda x: x['sort_key'], reverse=True)
+    return phase2[:top_n]
+
+
 def _naver_market_info(ticker):
     """Naver Finance에서 시총(억), PER, PBR, 관리종목 여부 반환"""
     try:
