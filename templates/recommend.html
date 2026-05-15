@@ -115,6 +115,7 @@
         <div style="font-size:0.78rem;color:#666;">매일 오전 7시에 스캔이 실행됩니다.</div>
         {% endif %}
         <button id="recScanBtn" onclick="startRecScan()" style="padding:6px 16px;background:#FFC000;color:#000;border:none;font-size:0.65rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">지금 스캔</button>
+        <button onclick="showCriteria()" style="padding:6px 16px;background:none;color:#7D7D7D;border:1px solid #313131;font-size:0.65rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">검색조건설명</button>
         <span id="recScanMsg" style="font-size:0.65rem;color:#FFC000;display:none;">스캔 중… (수 분 소요, 완료 후 새로고침하세요)</span>
     </div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px;">
@@ -255,6 +256,223 @@ function closeModalDirect() {
     document.getElementById('scoreModal').classList.remove('open');
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+
+function showCriteria() {
+    const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>추천 종목 검색 조건</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0a; color: #ccc; font-family: 'Helvetica Neue', Arial, sans-serif; padding: 32px 24px; max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 1.1rem; font-weight: 400; letter-spacing: 0.2em; text-transform: uppercase; color: #fff; margin-bottom: 6px; }
+  .sub { font-size: 0.65rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 32px; }
+  .gold { width: 36px; height: 2px; background: #FFC000; margin-bottom: 28px; }
+  .section { margin-bottom: 28px; }
+  .section-title {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+    color: #FFC000; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #1e1e1e;
+  }
+  .row { display: flex; align-items: flex-start; gap: 16px; padding: 10px 0; border-bottom: 1px solid #141414; }
+  .row:last-child { border-bottom: none; }
+  .badge {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.6rem; font-weight: 700;
+  }
+  .badge-pass { background: #FFC000; color: #000; }
+  .badge-score { background: #29ABE2; color: #000; }
+  .cond-name { font-size: 0.8rem; color: #fff; font-weight: 400; min-width: 180px; }
+  .cond-detail { font-size: 0.72rem; color: #666; line-height: 1.6; }
+  .cond-val { font-size: 0.72rem; color: #FFC000; font-weight: 700; white-space: nowrap; margin-left: auto; }
+  .note { font-size: 0.68rem; color: #444; line-height: 1.7; padding: 16px; background: #111; border-left: 2px solid #222; margin-top: 8px; }
+  .tag { display: inline-block; padding: 2px 8px; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid #333; color: #555; margin-right: 4px; border-radius: 2px; }
+  .tag-filter { border-color: #FFC000; color: #FFC000; }
+  .tag-score { border-color: #29ABE2; color: #29ABE2; }
+</style>
+</head>
+<body>
+<h1>추천 종목 검색 조건</h1>
+<div class="sub">KOSPI · KOSDAQ 약 800개 종목 대상 · 매일 오전 7시 자동 스캔</div>
+<div class="gold"></div>
+
+<div style="display:flex;gap:12px;margin-bottom:28px;flex-wrap:wrap;">
+  <span><span class="tag tag-filter">필터</span> 이 조건을 통과해야 후보에 오름</span>
+  <span><span class="tag tag-score">점수</span> 통과 후 점수 산정에 사용</span>
+</div>
+
+<div class="section">
+  <div class="section-title">Phase 1 · 기초 필터</div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">ETF · 펀드 제외</div>
+      <div class="cond-detail">KODEX, TIGER, RISE, ACE 등 ETF 및 인덱스 펀드 이름 패턴으로 자동 제외</div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">관리종목 제외</div>
+      <div class="cond-detail">네이버 금융 기준 관리종목·투자유의 종목 자동 제외</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Phase 2 · 시장 규모 · 밸류에이션 필터</div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">시가총액</div>
+      <div class="cond-detail">유동성이 충분한 중대형주만 선별. 소형주·잡주 제외</div>
+    </div>
+    <div class="cond-val">5,000억↑</div>
+  </div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">PBR (주가순자산비율)</div>
+      <div class="cond-detail">장부가치 대비 지나치게 비싼 종목 제외. 고평가 거품주 필터링</div>
+    </div>
+    <div class="cond-val">1.5 이하</div>
+  </div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">PER (주가수익비율)</div>
+      <div class="cond-detail">적자(PER≤0) 또는 지나치게 고평가(PER>30) 종목 제외. 업종평균 이하 기준</div>
+    </div>
+    <div class="cond-val">0 초과 ~ 30 이하</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Phase 3 · 수급 필터</div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">외국인 또는 기관 20일 누적 순매수</div>
+      <div class="cond-detail">최근 20거래일 동안 외국인 또는 기관의 누적 순매수가 플러스(+)인 종목만. 스마트머니가 매집 중인 종목 선별</div>
+    </div>
+    <div class="cond-val">20일 합산 +</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Phase 4 · DART 펀더멘털 필터 (금융감독원 공시 기준)</div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">3년 연속 영업이익 흑자</div>
+      <div class="cond-detail">최근 3개 사업연도 모두 영업이익 양수(+). 일시적 수익이 아닌 지속적 이익 창출 능력 확인</div>
+    </div>
+    <div class="cond-val">3년 연속 흑자</div>
+  </div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">부채비율</div>
+      <div class="cond-detail">부채총계 ÷ 자본총계 × 100. 재무 안전성 확인. 과도한 레버리지 기업 제외</div>
+    </div>
+    <div class="cond-val">150% 이하</div>
+  </div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">ROE (자기자본이익률)</div>
+      <div class="cond-detail">당기순이익 ÷ 자본총계 × 100. 주주 자본을 얼마나 효율적으로 활용해 이익을 내는지 측정</div>
+    </div>
+    <div class="cond-val">10% 이상</div>
+  </div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">매출액 YoY 증가</div>
+      <div class="cond-detail">직전 사업연도 대비 최근 사업연도 매출액 증가. 외형 성장 확인</div>
+    </div>
+    <div class="cond-val">전년比 증가</div>
+  </div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">영업이익 YoY 증가</div>
+      <div class="cond-detail">직전 사업연도 대비 최근 사업연도 영업이익 증가. 수익성 개선 확인</div>
+    </div>
+    <div class="cond-val">전년比 증가</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Phase 5 · 최종 게이트 필터</div>
+  <div class="row">
+    <div class="badge badge-pass">✓</div>
+    <div style="flex:1">
+      <div class="cond-name">일평균 거래대금</div>
+      <div class="cond-detail">최근 20거래일 평균 거래대금(종가×거래량). 유동성이 낮아 매매하기 어려운 종목 제외</div>
+    </div>
+    <div class="cond-val">50억 이상</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">점수 산정 — 필터 통과 종목을 점수 순 정렬</div>
+  <div class="row">
+    <div class="badge badge-score">S</div>
+    <div style="flex:1">
+      <div class="cond-name">이동평균 배열</div>
+      <div class="cond-detail">5·20·60·120일선 정배열(강세) +2 / 역배열(약세) -2</div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="badge badge-score">S</div>
+    <div style="flex:1">
+      <div class="cond-name">RSI (상대강도지수)</div>
+      <div class="cond-detail">30 이하 과매도 +2 / 70 이상 과매수 -2</div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="badge badge-score">S</div>
+    <div style="flex:1">
+      <div class="cond-name">MACD</div>
+      <div class="cond-detail">골든크로스 +2 / 데드크로스 -2</div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="badge badge-score">S</div>
+    <div style="flex:1">
+      <div class="cond-name">Stochastic · 볼린저밴드 · MFI</div>
+      <div class="cond-detail">각 지표의 과매도·과매수 구간 기준 ±1점</div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="badge badge-score">S</div>
+    <div style="flex:1">
+      <div class="cond-name">수급 보너스</div>
+      <div class="cond-detail">외인 연속매수 5일↑ +4 / 기관 연속매수 3일↑ +2 / 외인+기관 동시매수 20일 중 절반이상 +4 / 매수세 2배 급증 +3</div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="badge badge-score">S</div>
+    <div style="flex:1">
+      <div class="cond-name">거래대금 · 가격 패턴</div>
+      <div class="cond-detail">거래대금 2배↑ +2 / 20일선 위·상승 중 +1 / 조정 시 거래량 감소 +2 / 지지선 반등 +1</div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  ※ 데이터 출처: 네이버 금융(시총·PER·PBR), DART 금융감독원 공시(영업이익·부채비율·ROE), 수급 데이터(네이버 금융 외인·기관 순매수)<br>
+  ※ 본 스캔 결과는 투자 참고용이며 투자 손익의 책임은 투자자 본인에게 있습니다.
+</div>
+</body>
+</html>`;
+    const w = window.open('', '_blank', 'width=720,height=820,scrollbars=yes,resizable=yes');
+    w.document.write(html);
+    w.document.close();
+}
 </script>
 </body>
 </html>
