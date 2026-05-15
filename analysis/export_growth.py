@@ -108,7 +108,7 @@ def _get_current_price(ticker):
         res = requests.get(url, headers=HEADERS, timeout=5)
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(res.text, 'html.parser')
-        el = soup.select_one('#_nowVal')
+        el = soup.select_one('p.no_today em span.blind')
         if el:
             return el.text.strip().replace(',', '')
     except Exception:

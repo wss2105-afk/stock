@@ -656,6 +656,15 @@ def export_surge():
         return render_template('export_surge.html', high=[], moderate=[], scanning=False,
                                updated_at=None, total=0, high_count=0, moderate_count=0)
     results = cache.get('results', [])
+    # 가격이 N/A인 종목은 주가 캐시에서 보완
+    for r in results:
+        if r.get('price', 'N/A') in ('N/A', '', None):
+            try:
+                sc = load_stock_cache(r['ticker'])
+                if sc and not sc['ohlcv'].empty:
+                    r['price'] = f"{int(sc['ohlcv']['close'].iloc[-1]):,}"
+            except Exception:
+                pass
     high     = [r for r in results if r.get('tier') == 'high']
     moderate = [r for r in results if r.get('tier') == 'moderate']
     return render_template('export_surge.html',
