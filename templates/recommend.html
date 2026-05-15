@@ -60,6 +60,30 @@
         .modal-btn { display:block; width:100%; padding:12px; background:#FFC000; color:#000; border:none; font-size:0.75rem; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; cursor:pointer; margin-top:20px; text-align:center; text-decoration:none; }
         .modal-btn:hover { background:#e6ac00; color:#000; }
 
+        /* 툴팁 */
+        .tip { position: relative; cursor: help; }
+        .tip::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: 130%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #ccc;
+            font-size: 0.68rem;
+            line-height: 1.5;
+            padding: 7px 12px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            z-index: 100;
+            letter-spacing: 0.04em;
+            border-radius: 2px;
+        }
+        .tip:hover::after { opacity: 1; }
+
         @media (max-width: 576px) {
             .topbar { padding: 10px 12px; }
             .main { padding: 16px 8px; }
@@ -83,16 +107,20 @@
 <div class="main">
     <div class="page-title">추천 종목<br>TOP {{ results|length }}</div>
     <div class="gold-line"></div>
-    <div class="page-sub">매일 오전 7시 자동 스캔 · KOSPI·KOSDAQ 800개 종목 · 외인·기관 연속수급 우선 정렬 · 클릭 시 상세 분석</div>
-    {% if scanned_at %}
-    <div style="font-size:0.62rem;color:#555;letter-spacing:0.12em;margin-bottom:20px;">스캔 기준: {{ scanned_at }}</div>
-    {% else %}
-    <div style="font-size:0.78rem;color:#666;margin-bottom:20px;">매일 오전 7시에 스캔이 실행됩니다. 스캔 완료 후 표시됩니다.</div>
-    {% endif %}
+    <div class="page-sub">매일 오전 7시 자동 스캔 · KOSPI·KOSDAQ 800개 종목 · 기술지표+수급 종합 점수 순 정렬 · 클릭 시 상세 분석</div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+        {% if scanned_at %}
+        <div style="font-size:0.62rem;color:#555;letter-spacing:0.12em;">스캔 기준: {{ scanned_at }}</div>
+        {% else %}
+        <div style="font-size:0.78rem;color:#666;">매일 오전 7시에 스캔이 실행됩니다.</div>
+        {% endif %}
+        <button id="recScanBtn" onclick="startRecScan()" style="padding:6px 16px;background:#FFC000;color:#000;border:none;font-size:0.65rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">지금 스캔</button>
+        <span id="recScanMsg" style="font-size:0.65rem;color:#FFC000;display:none;">스캔 중… (수 분 소요, 완료 후 새로고침하세요)</span>
+    </div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px;">
-        <span style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#FFC000;">★</span> 외인+기관 동시매수 20일 중 절반 이상</span>
-        <span style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#FF6B35;">★</span> 최근 10거래일 매수세 지난달 대비 2배↑</span>
-        <span style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#29ABE2;border:1px solid #29ABE2;padding:0 4px;">수급급증</span> 최근 수급량 평시 대비 1.5배↑</span>
+        <span class="tip" data-tip="최근 20거래일 중 외국인과 기관이&#10;동시에 순매수한 날이 10일(절반) 이상인 종목&#10;스마트머니가 지속적으로 유입 중임을 의미" style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#FFC000;">★</span> 외인+기관 동시매수 20일 중 절반 이상</span>
+        <span class="tip" data-tip="최근 10거래일 기관+외인 합산 순매수량이&#10;직전 20거래일 일평균 대비 2배 이상 급증&#10;단기 집중 매집 신호" style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#FF6B35;">★</span> 최근 10거래일 매수세 지난달 대비 2배↑</span>
+        <span class="tip" data-tip="최근 20거래일 외국인+기관 합산 순매수량이&#10;직전 20거래일 평균 대비 1.5배 이상 증가&#10;수급 에너지가 평소보다 큰 폭으로 확대된 상태" style="font-size:0.68rem;color:#7D7D7D;letter-spacing:0.1em;"><span style="color:#29ABE2;border:1px solid #29ABE2;padding:0 4px;">수급급증</span> 외인+기관 합산 수급량 평시 대비 1.5배↑</span>
     </div>
 
     {% for s in results %}
@@ -201,6 +229,23 @@ function analyzeStock(ticker) {
 
     document.getElementById('modalDetailBtn').href = '/analyze?query=' + ticker + '&months=6';
     document.getElementById('scoreModal').classList.add('open');
+}
+
+function startRecScan() {
+    const btn = document.getElementById('recScanBtn');
+    btn.disabled = true;
+    btn.textContent = '스캔 중...';
+    document.getElementById('recScanMsg').style.display = 'inline';
+    fetch('/api/recommend-refresh', {method: 'POST'})
+        .then(r => r.json())
+        .then(() => {
+            document.getElementById('recScanMsg').textContent = '스캔 시작됨 — 완료 후 새로고침하세요 (수 분 소요)';
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.textContent = '지금 스캔';
+            document.getElementById('recScanMsg').textContent = '요청 실패 — 다시 시도해 주세요';
+        });
 }
 
 function closeModal(e) {

@@ -197,6 +197,7 @@
         <div class="bounce-header">
             <span class="bounce-title">↗ 이동평균선 반등 · 상승타기 종목</span>
             <span class="bounce-date" id="bounceDate"></span>
+            <button id="surgeScanBtn" onclick="triggerSurgeScan()" style="padding:4px 12px;background:#b45309;color:#fff;border:none;font-size:0.62rem;font-weight:600;cursor:pointer;border-radius:3px;letter-spacing:0.05em;">지금 스캔</button>
         </div>
         <div id="bounceLongHd" class="bounce-section-hd long-ma" style="display:none;">
             ▶ 10/20/60/120일선 바닥 반등
@@ -321,6 +322,16 @@ function showOsc(kind) {
     }).join('');
 }
 
+function triggerSurgeScan() {
+    const btn = document.getElementById('surgeScanBtn');
+    btn.disabled = true;
+    btn.textContent = '스캔 중...';
+    document.getElementById('bounceBody').innerHTML = '<div class="bounce-loading">🔍 전종목 스캔 중... (수 분 소요, 자동 갱신)</div>';
+    fetch('/api/surge-refresh', {method: 'POST'})
+        .then(() => { setTimeout(loadBounce, 60000); })
+        .catch(() => { btn.disabled = false; btn.textContent = '지금 스캔'; });
+}
+
 // MA 반등/5일선 타기 패널 로드
 function _renderBounceRow(r) {
     const isRiding = r.type === 'riding';
@@ -364,7 +375,9 @@ function _renderBounceRow(r) {
                     body.innerHTML = '<div class="bounce-loading">스캔 진행 중... 잠시 후 자동으로 업데이트됩니다.</div>';
                     setTimeout(loadBounce, 30000);
                 } else {
-                    body.innerHTML = '<div class="bounce-empty">매일 저녁 8시에 스캔이 실행됩니다.<br>오늘 데이터는 스캔 완료 후 표시됩니다.</div>';
+                    body.innerHTML = '<div class="bounce-empty">아직 스캔 데이터가 없습니다.<br>위 <b>지금 스캔</b> 버튼을 클릭하세요 (약 2~5분 소요).</div>';
+                    const btn = document.getElementById('surgeScanBtn');
+                    if (btn) { btn.disabled = false; btn.textContent = '지금 스캔'; }
                 }
                 return;
             }

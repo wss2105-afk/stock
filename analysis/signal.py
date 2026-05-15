@@ -1,10 +1,11 @@
 import os
+import pandas as pd
 import anthropic
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'), override=True)
 
 
-def calc_score(ma_status, signals, investor_df, news_result):
+def calc_score(ma_status, signals, investor_df, news_result, df=None):
     """점수 기반 매수/매도 신호 계산"""
     score = 0
     reasons = []
@@ -85,6 +86,68 @@ def calc_score(ma_status, signals, investor_df, news_result):
     news_score, news_label = get_news_signal_score(news_result)
     score += news_score
     reasons.append(f"뉴스: {news_label} ({'+' if news_score>=0 else ''}{news_score}점)")
+
+    if df is not None and len(df) >= 30:
+        # 9. 거래대금 증가 (close × volume)
+        try:
+            tv = df['close'] * df['volume']
+            recent_tv = tv.tail(10).mean()
+            past_tv   = tv.iloc[-30:-10].mean()
+            if past_tv > 0:
+                tv_ratio = recent_tv / past_tv
+                if tv_ratio >= 2.0:
+                    score += 2; reasons.append(f"거래대금 {tv_ratio:.1f}배 급증 (+2점)")
+                elif tv_ratio >= 1.5:
+                    score += 1; reasons.append(f"거래대금 {tv_ratio:.1f}배 증가 (+1점)")
+                elif tv_ratio < 0.7:
+                    score -= 1; reasons.append(f"거래대금 {tv_ratio:.1f}배 감소 (-1점)")
+        except Exception:
+            pass
+
+        # 10. 주가 상승 (20일선 위 + MA20 자체 상승 중)
+        try:
+            if len(df) >= 25:
+                cur     = float(df['close'].iloc[-1])
+                ma20    = float(df['ma20'].iloc[-1])
+                ma20_5d = float(df['ma20'].iloc[-6])
+                if cur > ma20 and ma20 > ma20_5d:
+                    score += 1; reasons.append("20일선 위 + MA20 상승 중 (+1점)")
+                elif cur < ma20 and ma20 < ma20_5d:
+                    score -= 1; reasons.append("20일선 아래 + MA20 하락 중 (-1점)")
+        except Exception:
+            pass
+
+        # 11. 조정 시 거래량 감소 (하락일 거래량 < 상승일 거래량)
+        try:
+            w = df.tail(20).copy()
+            w['chg'] = w['close'].diff()
+            down_vol = w.loc[w['chg'] < 0, 'volume'].mean()
+            up_vol   = w.loc[w['chg'] >= 0, 'volume'].mean()
+            if down_vol > 0 and up_vol > 0:
+                dv_ratio = down_vol / up_vol
+                if dv_ratio <= 0.5:
+                    score += 2; reasons.append(f"조정 시 거래량 감소 (비율 {dv_ratio:.2f}) (+2점)")
+                elif dv_ratio <= 0.7:
+                    score += 1; reasons.append(f"조정 시 거래량 감소 (비율 {dv_ratio:.2f}) (+1점)")
+        except Exception:
+            pass
+
+        # 12. 주요 가격 지지 (20/60일선 터치 후 반등 확인)
+        try:
+            if len(df) >= 65:
+                cur  = float(df['close'].iloc[-1])
+                last = df.iloc[-1]
+                w5   = df.iloc[-6:-1]
+                for ma_val, ma_name in [(float(last['ma20']), '20일선'),
+                                        (float(last['ma60']), '60일선')]:
+                    if pd.isna(ma_val) or cur <= ma_val:
+                        continue
+                    for _, row in w5.iterrows():
+                        if abs(float(row['low']) - ma_val) / ma_val <= 0.03:
+                            score += 1; reasons.append(f"{ma_name} 지지 확인 (+1점)")
+                            break
+        except Exception:
+            pass
 
     return score, reasons
 
