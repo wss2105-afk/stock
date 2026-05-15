@@ -9,9 +9,9 @@ import json
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-_CACHE_DIR  = '/data/cache'
+_CACHE_DIR  = os.path.join(os.path.dirname(__file__), '..', 'data', 'cache')
 _TICKER_DB  = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
-_BUILD_FLAG = '/data/cache_built.txt'
+_BUILD_FLAG = os.path.join(os.path.dirname(__file__), '..', 'data', 'cache_built.txt')
 
 os.makedirs(_CACHE_DIR, exist_ok=True)
 

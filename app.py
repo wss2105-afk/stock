@@ -53,7 +53,7 @@ def _get_report_target_prices(reports):
     return prices
 
 _TICKER_PATH      = os.path.join(os.path.dirname(__file__), 'data', 'krx_tickers.json')
-_LAST_UPDATE_PATH = '/data/ticker_last_update.txt'
+_LAST_UPDATE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ticker_last_update.txt')
 
 
 def _auto_update_tickers():
@@ -81,10 +81,13 @@ def _auto_update_tickers():
 threading.Thread(target=_auto_update_tickers, daemon=True).start()
 
 
-_SURGE_CACHE_PATH     = '/data/surge_cache.json'
-_OSC_CACHE_PATH       = '/data/osc_cache.json'
-_RECOMMEND_CACHE_PATH = '/data/recommend_cache.json'
-_SUPPLY_CACHE_PATH    = '/data/supply_cache.json'
+_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
+os.makedirs(_DATA_DIR, exist_ok=True)
+
+_SURGE_CACHE_PATH     = os.path.join(_DATA_DIR, 'surge_cache.json')
+_OSC_CACHE_PATH       = os.path.join(_DATA_DIR, 'osc_cache.json')
+_RECOMMEND_CACHE_PATH = os.path.join(_DATA_DIR, 'recommend_cache.json')
+_SUPPLY_CACHE_PATH    = os.path.join(_DATA_DIR, 'supply_cache.json')
 
 def _load_surge_cache():
     if not os.path.exists(_SURGE_CACHE_PATH):
@@ -219,7 +222,7 @@ def _run_osc_scan():
 threading.Thread(target=_evening_scheduler, daemon=True).start()
 threading.Thread(target=_market_osc_scheduler, daemon=True).start()
 
-_EXPORT_SCAN_DATE_PATH = '/data/export_scan_date.txt'
+_EXPORT_SCAN_DATE_PATH = os.path.join(_DATA_DIR, 'export_scan_date.txt')
 
 def _run_export_scan():
     """수출주 스캔 실행 후 완료 날짜 기록"""
@@ -284,7 +287,7 @@ def _load_recommend_cache():
         return None
 
 
-_RECOMMEND_ERROR_PATH = '/data/recommend_error.txt'
+_RECOMMEND_ERROR_PATH = os.path.join(_DATA_DIR, 'recommend_error.txt')
 
 def _run_recommend_scan():
     """추천 종목 20선 스캔 후 캐시 저장"""
