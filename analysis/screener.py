@@ -930,6 +930,264 @@ def scan_buy_candidates(top_n=10, max_workers=8):
     return phase2[:top_n]
 
 
+def _check_surge_phase1(name, ticker):
+    """급등주 후보 Phase1: 캐시 기반 기술·펀더멘털 점수화 (0~65점)"""
+    try:
+        cached = load_stock_cache(ticker)
+        if not cached:
+            return None
+
+        ohlcv       = cached['ohlcv']
+        investor_df = cached['investor_df']
+        fundamental = cached.get('fundamental', {}) or {}
+
+        if ohlcv is None or ohlcv.empty or len(ohlcv) < 65:
+            return None
+
+        df  = calc_indicators(ohlcv)
+        last = df.iloc[-1]
+        cur  = float(last['close'])
+
+        score = 0
+        tags  = []
+
+        # ── 거래대금 (hard: 50억 미만 제외) ──────────────────
+        avg_tv = (ohlcv['close'] * ohlcv['volume']).tail(20).mean()
+        if avg_tv < 5_000_000_000:
+            return None
+        if avg_tv >= 10_000_000_000:
+            score += 8; tags.append('거래대금100억↑')
+        else:
+            score += 4; tags.append('거래대금50억↑')
+
+        # ── 펀더멘털 ─────────────────────────────────────────
+        # 부채비율 200% 이상 → 제외 (hard)
+        debt_raw = fundamental.get('debt_ratio', 'N/A')
+        if debt_raw != 'N/A':
+            try:
+                dr = float(str(debt_raw).replace('%', '').replace(',', ''))
+                if dr >= 200:
+                    return None
+            except Exception:
+                pass
+
+        # 최근 4분기 흑자 (hard)
+        op_list = fundamental.get('operating_profit', [])
+        if op_list and len(op_list) >= 4:
+            parsed = [_parse_op_val(v) for v in op_list[:4]]
+            if any(v is not None and v <= 0 for v in parsed):
+                return None
+
+        # 실적 YoY 개선
+        if op_list and len(op_list) >= 4:
+            p = [_parse_op_val(v) for v in op_list[:4]]
+            if p[0] is not None and p[3] is not None and p[3] > 0 and p[0] > p[3]:
+                score += 7; tags.append('YoY개선')
+
+        # ── 이동평균선 ───────────────────────────────────────
+        if 'ma60' not in df.columns or pd.isna(last['ma60']):
+            return None
+        ma60 = float(last['ma60'])
+        if cur <= ma60:
+            return None                          # hard: 60일선 아래면 제외
+        score += 4; tags.append('60일선위')
+
+        if 'ma20' in df.columns and len(df) >= 66:
+            ma20_now = float(df['ma20'].iloc[-1])
+            ma20_6d  = float(df['ma20'].iloc[-7])
+            ma60_6d  = float(df['ma60'].iloc[-7])
+            if not pd.isna(ma20_now) and not pd.isna(ma20_6d) and ma20_now > ma20_6d:
+                score += 3
+            if not pd.isna(ma60) and not pd.isna(ma60_6d) and ma60 > ma60_6d:
+                score += 2; tags.append('MA우상향')
+
+        # 20일/60일 신고가 돌파
+        if len(ohlcv) >= 61:
+            h20 = float(ohlcv['high'].iloc[-21:-1].max())
+            h60 = float(ohlcv['high'].iloc[-61:-1].max())
+            if cur > h60:
+                score += 12; tags.append('60일신고가')
+            elif cur > h20:
+                score += 8;  tags.append('20일신고가')
+
+        # ── RSI 50~70 ────────────────────────────────────────
+        if 'rsi' in df.columns and not pd.isna(last['rsi']):
+            rsi = float(last['rsi'])
+            if 50 <= rsi <= 70:
+                score += 5; tags.append(f'RSI{round(rsi):.0f}')
+            elif rsi > 70:
+                score += 2
+
+        # ── MACD ─────────────────────────────────────────────
+        macd_val = float(last['macd'])  if ('macd'      in df.columns and not pd.isna(last['macd']))      else None
+        hist_val = float(last['macd_hist']) if ('macd_hist' in df.columns and not pd.isna(last['macd_hist'])) else None
+        if macd_val is not None and macd_val > 0:
+            score += 3; tags.append('MACD0선위')
+        if hist_val is not None:
+            h_series = df['macd_hist'].tail(5).dropna()
+            if len(h_series) >= 4 and hist_val > float(h_series.iloc[-4]):
+                score += 2; tags.append('히스토그램↑')
+
+        # ── 수급 ─────────────────────────────────────────────
+        frgn = _count_consecutive_buying(investor_df, '외국인') or _count_consecutive_buying(investor_df, '외인')
+        inst = _count_consecutive_buying(investor_df, '기관')
+        if frgn >= 3 or inst >= 3:
+            score += 8; tags.append(f'수급↑{max(frgn,inst)}일')
+        elif frgn >= 1 or inst >= 1:
+            score += 3
+
+        if score < 22:           # 당일 데이터 없이 너무 낮으면 조기 탈락
+            return None
+
+        return {
+            'name': name, 'ticker': ticker,
+            'price': f"{int(cur):,}",
+            'score': score, 'tags': tags,
+            'debt_ratio': debt_raw,
+            'avg_tv_b': round(avg_tv / 1e8, 0),
+            'foreign_streak': frgn, 'inst_streak': inst,
+            '_vol20': float(ohlcv['volume'].tail(20).mean()),
+            '_prev_close': float(ohlcv['close'].iloc[-2]) if len(ohlcv) >= 2 else cur,
+        }
+    except Exception:
+        return None
+
+
+def _enrich_surge_today(r):
+    """Phase3: 당일 실시간 OHLCV로 추가 점수 (최대+45점) + DART 재료 (+8점)"""
+    try:
+        today_df = get_ohlcv(r['ticker'], months=1)
+        vol20    = r.pop('_vol20', None)
+        prev_cls = r.pop('_prev_close', None)
+
+        if today_df is None or today_df.empty:
+            r['sort_key'] = r['score']
+            return r
+
+        today    = today_df.iloc[-1]
+        t_close  = float(today['close'])
+        t_high   = float(today['high'])
+        t_vol    = float(today['volume'])
+
+        # 당일 상승률 (전일 종가 대비)
+        chg_pct = (t_close - prev_cls) / prev_cls * 100 if prev_cls else 0
+        r['chg_pct'] = round(chg_pct, 2)
+        if 5 <= chg_pct <= 12:
+            r['score'] += 12; r['tags'].append(f'+{round(chg_pct,1)}%')
+        elif 3 <= chg_pct < 5:
+            r['score'] += 5;  r['tags'].append(f'+{round(chg_pct,1)}%')
+        elif chg_pct > 12:
+            r['score'] += 2   # 너무 급등 — 모멘텀은 있지만 추격 위험
+
+        # 당일 거래량 20일 평균 대비
+        if vol20 and vol20 > 0:
+            vr = t_vol / vol20
+            r['vol_ratio'] = round(vr, 1)
+            if vr >= 2.0:
+                r['score'] += 15; r['tags'].append(f'거래량{round(vr,1)}배↑')
+            elif vr >= 1.5:
+                r['score'] += 8;  r['tags'].append(f'거래량{round(vr,1)}배')
+            elif vr >= 1.0:
+                r['score'] += 3
+
+        # 종가가 당일 고가권 마감 (고가의 95%↑)
+        if t_high > 0:
+            chr_ = t_close / t_high
+            r['close_high_ratio'] = round(chr_, 3)
+            if chr_ >= 0.97:
+                r['score'] += 10; r['tags'].append('고가권마감')
+            elif chr_ >= 0.93:
+                r['score'] += 5;  r['tags'].append('고가근접')
+
+        # 오늘 가격으로 업데이트
+        r['price'] = f"{int(t_close):,}"
+
+        # ── DART 명확한 재료 확인 (+최대 8점) ─────────────────
+        try:
+            from analysis.dart import DART_API_KEY, get_corp_code
+            if DART_API_KEY:
+                corp = get_corp_code(r['ticker'])
+                mom_score, mom_tags = _dart_momentum_check(corp, DART_API_KEY, days=7)
+                if mom_score > 0:
+                    bonus = min(mom_score, 8)
+                    r['score'] += bonus
+                    r['tags'] += [f'재료:{t}' for t in mom_tags[:2]]
+        except Exception:
+            pass
+
+    except Exception:
+        r.pop('_vol20', None)
+        r.pop('_prev_close', None)
+
+    r['sort_key'] = r['score']
+    return r
+
+
+def scan_surge_buy_candidates(top_n=10, max_workers=8):
+    """급등주 매수후보 스캔 — 점수화 방식 (조건 일부만 충족해도 합산, 상위 10종목)
+    Phase1: 캐시 기술·펀더멘털 → Phase2: Naver 시총·관리종목 → Phase3: 당일 실시간+DART
+    """
+    with open(_TICKER_DB_PATH, encoding='utf-8') as f:
+        tickers = json.load(f)
+
+    ticker_list = [(n, t) for n, t in tickers.items() if not _is_etf(n)]
+
+    # Phase 1
+    phase1 = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_check_surge_phase1, n, t): (n, t) for n, t in ticker_list}
+        for f in as_completed(futures):
+            r = f.result()
+            if r:
+                phase1.append(r)
+    print(f'[급등후보스캔] Phase1: {len(phase1)}개')
+
+    # Phase 2: Naver 시총 3,000억↑ + 투자주의·경고·위험 제외
+    def _surge_naver_filter(r):
+        try:
+            url = f"https://finance.naver.com/item/main.naver?code={r['ticker']}"
+            res = requests.get(url, headers=_NAVER_HDR, timeout=5)
+            soup = BeautifulSoup(res.content.decode('utf-8', errors='replace'), 'html.parser')
+            page_text = soup.get_text()
+            if any(kw in page_text for kw in ('관리종목', '투자주의', '투자경고', '투자위험', '불성실공시')):
+                return None
+            cap_el = soup.select_one('#_market_sum')
+            if cap_el:
+                raw = cap_el.text.replace(',', '').strip()
+                try:
+                    mc = int(raw)
+                    if mc < 3000:
+                        return None
+                    r['market_cap'] = mc
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return r
+
+    phase2 = []
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futures = {ex.submit(_surge_naver_filter, r): r for r in phase1}
+        for f in as_completed(futures):
+            r = f.result()
+            if r:
+                phase2.append(r)
+    print(f'[급등후보스캔] Phase2: {len(phase2)}개')
+
+    # Phase 3: 당일 실시간 데이터 + DART
+    phase3 = []
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futures = {ex.submit(_enrich_surge_today, r): r for r in phase2}
+        for f in as_completed(futures):
+            r = f.result()
+            if r and r.get('score', 0) >= 28:
+                phase3.append(r)
+    print(f'[급등후보스캔] Phase3: {len(phase3)}개')
+
+    phase3.sort(key=lambda x: x.get('sort_key', 0), reverse=True)
+    return phase3[:top_n]
+
+
 def _naver_market_info(ticker):
     """Naver Finance에서 시총(억), PER, PBR, 관리종목 여부 반환"""
     try:

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>급등주 매수후보</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
+        .topbar { background: #000; border-bottom: 1px solid #202020; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
+        .topbar a { color: #7D7D7D; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .topbar a:hover { color: #ef4444; }
+        .topbar-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #fff; }
+        .main { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+        .page-title { font-size: clamp(1.8rem, 6vw, 3rem); font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; color: #fff; margin-bottom: 4px; }
+        .page-sub { font-size: 0.7rem; color: #7D7D7D; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; }
+        .red-line { width: 40px; height: 2px; background: #dc2626; margin-bottom: 18px; }
+
+        /* 점수 방식 설명 */
+        .score-note { background: #110000; border: 1px solid rgba(220,38,38,0.25); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 0.75rem; color: #9ca3af; line-height: 1.7; }
+        .score-note strong { color: #f87171; }
+
+        /* 조건 칩 */
+        .cond-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+        .cond-chip { font-size: 0.62rem; padding: 4px 10px; border: 1px solid rgba(220,38,38,0.35); border-radius: 3px; color: #fca5a5; letter-spacing: 0.05em; background: rgba(220,38,38,0.07); }
+        .cond-chip.hard { border-color: rgba(251,191,36,0.4); color: #fbbf24; background: rgba(251,191,36,0.06); }
+
+        /* 헤더 액션 */
+        .hdr-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .scan-info { font-size: 0.68rem; color: #555; letter-spacing: 0.1em; }
+        .scan-btn { padding: 8px 18px; background: #dc2626; color: #fff; border: none; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; border-radius: 4px; transition: background 0.15s; }
+        .scan-btn:hover { background: #b91c1c; }
+        .scan-btn:disabled { background: #3b1010; color: #f87171; cursor: not-allowed; }
+
+        /* 카드 */
+        .stock-card { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 14px; padding: 18px 20px; background: #0f0000; margin-bottom: 2px; text-decoration: none; color: inherit; transition: background 0.15s; border-left: 3px solid transparent; }
+        .stock-card:hover { background: #1a0000; border-left-color: #dc2626; }
+        .rank { font-size: clamp(1.2rem, 4vw, 1.8rem); font-weight: 900; color: #2a0000; text-align: center; }
+        .rank.r1 { color: #dc2626; }
+        .rank.r2 { color: #ef4444; }
+        .rank.r3 { color: #f87171; }
+
+        .stock-name { font-size: clamp(0.95rem, 2.5vw, 1.08rem); font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stock-ticker { font-size: 0.65rem; color: #444; font-family: 'Courier New', monospace; margin-left: 6px; }
+        .stock-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }
+        .stock-tag { font-size: 0.58rem; padding: 2px 7px; border: 1px solid rgba(220,38,38,0.3); color: #fca5a5; border-radius: 2px; background: rgba(220,38,38,0.07); letter-spacing: 0.04em; }
+        .stock-tag.green { border-color: rgba(22,163,74,0.35); color: #4ade80; background: rgba(22,163,74,0.07); }
+        .stock-tag.yellow { border-color: rgba(251,191,36,0.35); color: #fbbf24; background: rgba(251,191,36,0.06); }
+        .stock-indicators { font-size: 0.68rem; color: #555; margin-top: 4px; letter-spacing: 0.05em; }
+
+        .right-col { text-align: right; flex-shrink: 0; min-width: 100px; }
+        .stock-price { font-size: clamp(0.95rem, 2.5vw, 1.1rem); font-weight: 700; color: #fff; }
+        .chg-up   { color: #ef4444; font-size: 0.78rem; font-weight: 700; }
+        .chg-down { color: #60a5fa; font-size: 0.78rem; font-weight: 700; }
+        .stock-cap { font-size: 0.65rem; color: #444; margin-top: 2px; }
+
+        /* 점수 바 */
+        .score-bar-wrap { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+        .score-bar { flex: 1; height: 3px; background: #1f0000; border-radius: 2px; overflow: hidden; }
+        .score-bar-fill { height: 100%; background: linear-gradient(90deg, #dc2626, #f97316); border-radius: 2px; transition: width 0.4s; }
+        .score-num { font-size: 0.68rem; font-weight: 700; color: #ef4444; white-space: nowrap; }
+
+        /* 스캔 중 배너 */
+        .scanning-banner { background: #110000; border: 1px solid #dc2626; border-radius: 8px; padding: 20px 24px; text-align: center; margin-bottom: 24px; }
+        .scanning-banner p { font-size: 0.85rem; color: #f87171; margin: 0; }
+        .scanning-dot { display: inline-block; width: 8px; height: 8px; background: #dc2626; border-radius: 50%; margin-right: 8px; animation: pulse 1.2s ease-in-out infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        /* 빈 상태 */
+        .empty-state { text-align: center; padding: 60px 20px; }
+        .empty-state p { font-size: 0.85rem; color: #444; margin-top: 12px; }
+
+        @media (max-width: 576px) {
+            .stock-card { grid-template-columns: 36px 1fr; }
+            .right-col { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <a href="/">← 홈</a>
+    <span class="topbar-title">급등주 매수후보</span>
+</div>
+
+<div class="main">
+    <div class="page-title">급등주 매수후보</div>
+    <div class="page-sub">Surge Buy Candidates · Score-Based Ranking · Top 10</div>
+    <div class="red-line"></div>
+
+    <!-- 점수 방식 안내 -->
+    <div class="score-note">
+        <strong>점수화 방식</strong> — 모든 조건을 동시에 충족하지 않아도 됩니다.
+        각 조건 충족 시 점수를 부여하고 <strong>합산 점수 순</strong>으로 상위 10종목을 도출합니다.
+        점수가 높을수록 더 많은 조건을 충족한 종목입니다.
+        장 마감(16:30) 후 당일 실시간 데이터가 반영됩니다.
+    </div>
+
+    <!-- 조건 칩 -->
+    <div class="cond-wrap">
+        <span class="cond-chip hard">시총 3,000억↑ ★</span>
+        <span class="cond-chip hard">60일선 위 ★</span>
+        <span class="cond-chip hard">4분기 흑자 ★</span>
+        <span class="cond-chip hard">부채비율 200%↓ ★</span>
+        <span class="cond-chip">거래대금 100억↑ +8</span>
+        <span class="cond-chip">실적 YoY 개선 +7</span>
+        <span class="cond-chip">20/60일선 우상향 +5</span>
+        <span class="cond-chip">20/60일 신고가 돌파 +8~12</span>
+        <span class="cond-chip">RSI 50~70 +5</span>
+        <span class="cond-chip">MACD 0선위·히스토그램↑ +5</span>
+        <span class="cond-chip">외인·기관 순매수 +8</span>
+        <span class="cond-chip">당일 상승률 5~12% +12</span>
+        <span class="cond-chip">당일 거래량 200%↑ +15</span>
+        <span class="cond-chip">종가 고가권 마감 +10</span>
+        <span class="cond-chip">명확한 재료(DART) +8</span>
+        <span class="cond-chip hard">투자주의·경고·위험 제외 ★</span>
+    </div>
+
+    <div class="hdr-row">
+        <div class="scan-info">
+            {% if scanned_at %}{{ scanned_at }} 기준 (장 마감 후 당일 데이터 반영){% else %}스캔 데이터 없음{% endif %}
+        </div>
+        <button class="scan-btn" id="scanBtn" onclick="triggerScan()">
+            {% if scanning %}<span class="scanning-dot"></span>스캔 중...{% else %}지금 스캔{% endif %}
+        </button>
+    </div>
+
+    {% if scanning %}
+    <div class="scanning-banner">
+        <p><span class="scanning-dot"></span>전체 종목 스캔 중 + 당일 실시간 데이터 수집 중 — 약 10~20분 소요</p>
+    </div>
+    {% endif %}
+
+    {% if results %}
+    {% for r in results %}
+    <a class="stock-card" href="/analyze?query={{ r.ticker }}&months=3">
+        <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">
+            {{ loop.index }}
+        </div>
+        <div>
+            <div>
+                <span class="stock-name">{{ r.name }}</span>
+                <span class="stock-ticker">{{ r.ticker }}</span>
+            </div>
+            <div class="stock-tags">
+                {% for tag in r.tags %}
+                <span class="stock-tag
+                    {%- if '개선' in tag or '흑자' in tag or '신고가' in tag or '우상향' in tag %} green
+                    {%- elif '재료' in tag or 'YoY' in tag %} yellow
+                    {%- endif %}">{{ tag }}</span>
+                {% endfor %}
+            </div>
+            <div class="score-bar-wrap">
+                <div class="score-bar">
+                    <div class="score-bar-fill" style="width:{{ [r.score, 100]|min }}%;"></div>
+                </div>
+                <span class="score-num">{{ r.score }}점</span>
+            </div>
+            <div class="stock-indicators">
+                거래대금 {{ r.avg_tv_b | int }}억
+                {% if r.vol_ratio is defined %}&nbsp;·&nbsp; 거래량 {{ r.vol_ratio }}배{% endif %}
+                {% if r.debt_ratio and r.debt_ratio != 'N/A' %}&nbsp;·&nbsp; 부채 {{ r.debt_ratio }}%{% endif %}
+            </div>
+        </div>
+        <div class="right-col">
+            <div class="stock-price">{{ r.price }}원</div>
+            {% if r.chg_pct is defined %}
+            <div class="{% if r.chg_pct >= 0 %}chg-up{% else %}chg-down{% endif %}">
+                {{ '+' if r.chg_pct >= 0 }}{{ '%.2f'|format(r.chg_pct) }}%
+            </div>
+            {% endif %}
+            {% if r.market_cap is defined %}
+            <div class="stock-cap">시총 {{ '{:,}'.format(r.market_cap) }}억</div>
+            {% endif %}
+        </div>
+    </a>
+    {% endfor %}
+
+    {% elif not scanning %}
+    <div class="empty-state">
+        <div style="font-size:2.5rem;">🚀</div>
+        <p>스캔 결과가 없습니다.<br><b>지금 스캔</b> 버튼을 클릭하세요 (약 10~20분 소요).</p>
+        <p style="font-size:0.72rem;color:#333;margin-top:8px;">
+            이 스캔은 <b>장 마감 후</b>(16:30 이후)에 실행하면 당일 데이터가 반영됩니다.<br>
+            종목 캐시가 없으면 홈에서 <b>전체 스캔</b>을 먼저 실행하세요.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- 조건 상세 -->
+    <div style="margin-top:40px;padding:20px;background:#0a0000;border:1px solid #1a0000;border-radius:8px;">
+        <div style="font-size:0.6rem;color:#333;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:12px;">조건별 점수 배분</div>
+        <table style="width:100%;font-size:0.73rem;color:#555;border-collapse:collapse;">
+            <tr><td style="padding:5px 0;color:#fbbf24;width:50%;">★ 필수 조건 (미충족 시 제외)</td><td style="color:#fbbf24;">시총 3,000억↑ / 60일선 위 / 4분기 흑자 / 부채비율 200%↓ / 관리종목 제외</td></tr>
+            <tr><td style="padding:5px 0;color:#777;">거래대금 100억↑</td><td style="color:#fca5a5;">+8점</td></tr>
+            <tr><td style="padding:5px 0;color:#777;">실적 YoY 개선</td><td style="color:#fca5a5;">+7점</td></tr>
+            <tr><td style="padding:5px 0;color:#777;">20/60일선 우상향</td><td style="color:#fca5a5;">+5점</td></tr>
+            <tr><td style="padding:5px 0;color:#777;">60일 신고가 돌파</td><td style="color:#fca5a5;">+12점</td></tr>
+            <tr><td style="padding:5px 0;color:#777;">20일 신고가 돌파</td><td style="color:#fca5a5;">+8점</td></tr>
+            <tr><td style="padding:5px 0;color:#777;">RSI 50~70</td><td style="color:#fca5a5;">+5점</td></tr>
+            <tr><td style="padding:5px 0;color:#777;">MACD 0선 위 / 히스토그램↑</td><td style="color:#fca5a5;">+3 / +2점</td></tr>
+            <tr><td style="padding:5px 0;color:#777;">외인·기관 3일↑ 순매수</td><td style="color:#fca5a5;">+8점</td></tr>
+            <tr><td style="padding:5px 0;color:#f87171;font-weight:600;">당일 상승률 5~12%</td><td style="color:#f87171;font-weight:600;">+12점</td></tr>
+            <tr><td style="padding:5px 0;color:#f87171;font-weight:600;">당일 거래량 200%↑</td><td style="color:#f87171;font-weight:600;">+15점</td></tr>
+            <tr><td style="padding:5px 0;color:#f87171;font-weight:600;">종가 고가권 마감 (97%↑)</td><td style="color:#f87171;font-weight:600;">+10점</td></tr>
+            <tr><td style="padding:5px 0;color:#777;">명확한 재료 (DART 공시)</td><td style="color:#fca5a5;">+최대 8점</td></tr>
+        </table>
+    </div>
+</div>
+
+<script>
+function triggerScan() {
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="scanning-dot"></span>스캔 중...';
+    fetch('/api/surge-buy-refresh', { method: 'POST' })
+        .then(() => { setTimeout(pollResult, 60000); })
+        .catch(() => { btn.disabled = false; btn.textContent = '지금 스캔'; });
+}
+
+function pollResult() {
+    fetch('/api/surge-buy-picks')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.scanning) {
+                location.reload();
+            } else {
+                setTimeout(pollResult, 30000);
+            }
+        }).catch(() => { setTimeout(pollResult, 30000); });
+}
+
+{% if scanning %}
+setTimeout(pollResult, 60000);
+{% endif %}
+</script>
+</body>
+</html>

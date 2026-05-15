@@ -103,6 +103,8 @@
         .bounce-btn:hover { box-shadow: 0 4px 18px rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); background: rgba(254,243,199,0.8); }
         .buy-candidate-btn { display: block; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 700; letter-spacing: -0.13px; color: #fff; border: none; border-radius: 8px; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); text-align: center; text-decoration: none; box-shadow: 0 4px 14px rgba(22,163,74,0.35); transition: box-shadow 0.15s, transform 0.1s; position: relative; }
         .buy-candidate-btn:hover { box-shadow: 0 6px 22px rgba(22,163,74,0.5); transform: translateY(-1px); color: #fff; }
+        .surge-buy-btn { display: block; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 700; letter-spacing: -0.13px; color: #fff; border: none; border-radius: 8px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); text-align: center; text-decoration: none; box-shadow: 0 4px 14px rgba(220,38,38,0.35); transition: box-shadow 0.15s, transform 0.1s; position: relative; }
+        .surge-buy-btn:hover { box-shadow: 0 6px 22px rgba(220,38,38,0.5); transform: translateY(-1px); color: #fff; }
 
         /* 모달 오버레이 */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
@@ -200,6 +202,11 @@
     <a href="/buy-candidates" class="buy-candidate-btn">
         <span style="font-size:1.05rem;margin-right:6px;">📈</span> 매수후보(단기)
         <span id="buyCandidateDate" style="font-size:0.65rem;color:rgba(255,255,255,0.65);margin-left:6px;"></span>
+        <span style="float:right;opacity:0.7;">→</span>
+    </a>
+    <a href="/surge-buy-candidates" class="surge-buy-btn">
+        <span style="font-size:1.05rem;margin-right:6px;">🚀</span> 급등주 매수후보 <span style="font-size:0.65rem;font-weight:400;opacity:0.75;">(점수화 종합)</span>
+        <span id="surgeBuyDate" style="font-size:0.65rem;color:rgba(255,255,255,0.65);margin-left:6px;"></span>
         <span style="float:right;opacity:0.7;">→</span>
     </a>
 </div>
@@ -485,6 +492,14 @@ fetch('/api/buy-candidate-picks')
     .then(r => r.json())
     .then(data => {
         const el = document.getElementById('buyCandidateDate');
+        if (el && data.scanned_at) el.textContent = data.scanned_at + ' 기준';
+    }).catch(() => {});
+
+// 급등주 매수후보 날짜 표시
+fetch('/api/surge-buy-picks')
+    .then(r => r.json())
+    .then(data => {
+        const el = document.getElementById('surgeBuyDate');
         if (el && data.scanned_at) el.textContent = data.scanned_at + ' 기준';
     }).catch(() => {});
 

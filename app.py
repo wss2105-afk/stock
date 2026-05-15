@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from analysis.screener import scan_top_stocks, scan_supply_leaders, scan_surge_stocks, scan_ma_bounce_stocks, scan_osc_stocks, scan_buy_candidates
+from analysis.screener import scan_top_stocks, scan_supply_leaders, scan_surge_stocks, scan_ma_bounce_stocks, scan_osc_stocks, scan_buy_candidates, scan_surge_buy_candidates
 from analysis.export_growth import load_cache as load_export_cache, scan_export_growth, is_new_update
 from analysis.data_fetcher import get_ticker, get_ohlcv, get_investor_detail, get_supply_zone, is_main_stock, get_today_price, append_today
 from analysis.cache_manager import load_stock_cache, build_all_cache, is_build_needed, get_build_status
@@ -89,6 +89,7 @@ _OSC_CACHE_PATH            = os.path.join(_DATA_DIR, 'osc_cache.json')
 _RECOMMEND_CACHE_PATH      = os.path.join(_DATA_DIR, 'recommend_cache.json')
 _SUPPLY_CACHE_PATH         = os.path.join(_DATA_DIR, 'supply_cache.json')
 _BUY_CANDIDATE_CACHE_PATH  = os.path.join(_DATA_DIR, 'buy_candidate_cache.json')
+_SURGE_BUY_CACHE_PATH      = os.path.join(_DATA_DIR, 'surge_buy_cache.json')
 
 def _load_surge_cache():
     if not os.path.exists(_SURGE_CACHE_PATH):
@@ -204,6 +205,7 @@ def _load_osc_cache():
 _osc_scanning             = False
 _surge_scanning           = False
 _buy_candidate_scanning   = False
+_surge_buy_scanning       = False
 
 def _run_osc_scan():
     """과매도/과매수 스캔 실행 후 캐시 저장"""
@@ -434,6 +436,50 @@ def _buy_candidate_scheduler():
 
 
 threading.Thread(target=_buy_candidate_scheduler, daemon=True).start()
+
+
+# ── 급등주 매수후보 캐시 ──────────────────────────────────────
+def _load_surge_buy_cache():
+    if not os.path.exists(_SURGE_BUY_CACHE_PATH):
+        return None
+    try:
+        with open(_SURGE_BUY_CACHE_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _run_surge_buy_scan():
+    global _surge_buy_scanning
+    _surge_buy_scanning = True
+    try:
+        results = scan_surge_buy_candidates(top_n=10)
+        scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
+        with open(_SURGE_BUY_CACHE_PATH, 'w', encoding='utf-8') as f:
+            json.dump({'scanned_at': scanned_at, 'results': results}, f, ensure_ascii=False)
+        print(f'[{scanned_at}] 급등주 매수후보 스캔 완료 — {len(results)}건')
+    except Exception as e:
+        print(f'급등주 매수후보 스캔 오류: {e}')
+    finally:
+        _surge_buy_scanning = False
+
+
+def _surge_buy_scheduler():
+    """평일 16:30 급등주 매수후보 자동 스캔 (장 마감 후 당일 데이터 반영)"""
+    import time as _time
+    while True:
+        now = datetime.today()
+        next_run = now.replace(hour=16, minute=30, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        while next_run.weekday() >= 5:
+            next_run += timedelta(days=1)
+        _time.sleep((next_run - now).total_seconds())
+        if datetime.today().weekday() < 5:
+            _run_surge_buy_scan()
+
+
+threading.Thread(target=_surge_buy_scheduler, daemon=True).start()
 
 
 @app.route('/')
@@ -695,6 +741,17 @@ def supply_leaders():
     return render_template('supply_leaders.html', results=results, scanned_at=scanned_at)
 
 
+@app.route('/surge-buy-candidates')
+def surge_buy_candidates():
+    cache = _load_surge_buy_cache()
+    results    = cache.get('results', []) if cache else []
+    scanned_at = cache.get('scanned_at', '') if cache else ''
+    return render_template('surge_buy_candidates.html',
+                           results=results,
+                           scanned_at=scanned_at,
+                           scanning=_surge_buy_scanning)
+
+
 @app.route('/buy-candidates')
 def buy_candidates():
     cache = _load_buy_candidate_cache()
@@ -767,6 +824,20 @@ def supply_refresh():
     return jsonify({'status': 'scanning'})
 
 
+@app.route('/api/surge-buy-picks')
+def surge_buy_picks():
+    cache = _load_surge_buy_cache()
+    if cache:
+        return jsonify({**cache, 'scanning': _surge_buy_scanning})
+    return jsonify({'scanned_at': '', 'results': [], 'scanning': _surge_buy_scanning})
+
+
+@app.route('/api/surge-buy-refresh', methods=['POST'])
+def surge_buy_refresh():
+    threading.Thread(target=_run_surge_buy_scan, daemon=True).start()
+    return jsonify({'status': 'scanning'})
+
+
 @app.route('/api/buy-candidate-picks')
 def buy_candidate_picks():
     cache = _load_buy_candidate_cache()
@@ -790,6 +861,7 @@ def scan_all():
     threading.Thread(target=_run_surge_scan, daemon=True).start()
     threading.Thread(target=_run_export_scan, daemon=True).start()
     threading.Thread(target=_run_buy_candidate_scan, daemon=True).start()
+    threading.Thread(target=_run_surge_buy_scan, daemon=True).start()
     return jsonify({'status': 'scanning', 'message': '모든 스캔 시작됨 — 완료까지 30~60분 소요'})
 
 
