@@ -974,6 +974,16 @@ def scan_top_stocks(top_n=20, months=6, max_workers=8):
             score_pct = max(0, min(100, round((score + 14) / 50 * 100)))
             recommendation, rec_color = get_recommendation(score)
 
+            # 오실레이터 값 추출 (시각화용)
+            _last = df.iloc[-1]
+            def _sv(col, default=50.0):
+                try:
+                    v = float(_last[col]); return default if pd.isna(v) else v
+                except Exception: return default
+            stoch_v  = round(_sv('stoch_k'), 1)
+            mfi_v    = round(_sv('mfi'), 1)
+            bb_pct_v = round(_sv('bb_pct', 0.5) * 100, 1)
+
             return {
                 'name': name, 'ticker': ticker, 'score': score,
                 'score_pct': score_pct, 'recommendation': recommendation,
@@ -985,6 +995,7 @@ def scan_top_stocks(top_n=20, months=6, max_workers=8):
                 'volume_surge': bool(volume_surge),
                 'buying_surge_star': bool(buying_surge_star),
                 'avg_trading_value_b': round(avg_tv / 1e8, 0),
+                'stoch': stoch_v, 'mfi': mfi_v, 'bb_pct': bb_pct_v,
                 '_investor_df': investor_df,   # Phase3용 임시 보관
             }
         except Exception:
