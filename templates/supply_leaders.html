@@ -117,11 +117,15 @@
         외인+기관 동시 3거래일↑ 연속 매수 &nbsp;·&nbsp; 외인 또는 기관 10거래일 중 7일↑ 순매수<br>
         매일 오전 9:30 · 오후 2:00 자동 스캔 · 클릭 시 상세 분석
     </div>
-    {% if scanned_at %}
-    <div style="font-size:0.62rem;color:#555;letter-spacing:0.12em;margin-bottom:20px;">스캔 기준: {{ scanned_at }} · 총 {{ results|length }}개 종목</div>
-    {% else %}
-    <div style="font-size:0.78rem;color:#666;margin-bottom:20px;">오전 9시 30분 또는 오후 2시에 스캔이 실행됩니다. 스캔 완료 후 표시됩니다.</div>
-    {% endif %}
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap;">
+        {% if scanned_at %}
+        <div style="font-size:0.62rem;color:#555;letter-spacing:0.12em;">스캔 기준: {{ scanned_at }} · 총 {{ results|length }}개 종목</div>
+        {% else %}
+        <div style="font-size:0.78rem;color:#666;">캐시 없음 — 아직 스캔이 실행되지 않았습니다.</div>
+        {% endif %}
+        <button id="scanBtn" onclick="startScan()" style="padding:6px 16px;background:#FFC000;color:#000;border:none;font-size:0.65rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">지금 스캔</button>
+        <span id="scanMsg" style="font-size:0.65rem;color:#FFC000;display:none;">스캔 중… (수 분 소요, 완료 후 새로고침하세요)</span>
+    </div>
 
     <div class="cond-legend">
         <span class="cond-tag tag-a">A — 외인+기관 동시 연속 3일↑</span>
@@ -310,6 +314,22 @@ document.getElementById('cnt-bf').textContent    = '(' + [...cards].filter(c => 
 document.getElementById('cnt-bi').textContent    = '(' + [...cards].filter(c => c.dataset.meetsBi === 'true').length + ')';
 document.getElementById('cnt-surge').textContent = '(' + [...cards].filter(c => c.dataset.surge === 'true').length + ')';
 document.getElementById('cnt-rev').textContent   = '(' + [...cards].filter(c => c.dataset.rev === 'true').length + ')';
+
+function startScan() {
+    document.getElementById('scanBtn').disabled = true;
+    document.getElementById('scanBtn').textContent = '스캔 중...';
+    document.getElementById('scanMsg').style.display = 'inline';
+    fetch('/api/supply-refresh', {method: 'POST'})
+        .then(r => r.json())
+        .then(() => {
+            document.getElementById('scanMsg').textContent = '스캔 시작됨 — 완료 후 새로고침하세요 (수 분 소요)';
+        })
+        .catch(() => {
+            document.getElementById('scanMsg').textContent = '요청 실패 — 새로고침 후 재시도하세요';
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('scanBtn').textContent = '지금 스캔';
+        });
+}
 
 function filterTab(type, btn) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));

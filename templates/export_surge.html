@@ -94,14 +94,19 @@
     <div class="page-title">매출 급성장 수출주</div>
     <div class="page-sub">전년동기(YoY) · 전분기(QoQ) 대비 매출 성장률 분석 — 30%↑ 강한 성장 / 10~30% 양호한 성장</div>
 
-    {% if not updated_at %}
-    <div style="font-size:0.78rem;color:#666;margin-bottom:20px;">3일마다 자정에 스캔이 실행됩니다. 스캔 완료 후 표시됩니다.</div>
-    {% else %}
     <div class="meta-bar">
+        {% if updated_at %}
         <div class="meta-item">업데이트 <span>{{ updated_at }}</span></div>
         <div class="meta-item">강한 성장 <span>{{ high_count }}개</span></div>
         <div class="meta-item">양호한 성장 <span>{{ moderate_count }}개</span></div>
+        {% else %}
+        <div class="meta-item" style="color:#666;">아직 스캔 데이터가 없습니다</div>
+        {% endif %}
+        <button id="exportScanBtn" onclick="rescan()" style="padding:6px 16px;background:#fc4c02;color:#fff;border:none;font-size:0.65rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">지금 스캔</button>
+        <span id="scanMsg" style="font-size:0.65rem;color:#fc4c02;display:none;letter-spacing:0.08em;">스캔 중… (수 분 소요, 완료 후 새로고침)</span>
     </div>
+
+    {% if updated_at %}
 
     <!-- ── 강한 성장 섹션 (30%↑) ── -->
     <div class="section-hd">
@@ -183,7 +188,7 @@
     <div class="empty-msg">조건에 해당하는 종목이 없습니다</div>
     {% endfor %}
 
-    {% endif %}
+    {% endif %}{# updated_at #}
 </div>
 
 <form id="analyzeForm" method="POST" action="/analyze" style="display:none;">
@@ -196,11 +201,20 @@ function analyzeStock(ticker) {
     document.getElementById('analyzeForm').submit();
 }
 function rescan() {
-    const btn = document.querySelector('.refresh-btn');
-    btn.textContent = '스캔 시작됨 — 잠시 후 새로고침';
+    const btn = document.getElementById('exportScanBtn');
     btn.disabled = true;
-    fetch('/export-surge/refresh', {method:'POST'})
-        .then(() => setTimeout(() => location.reload(), 60000));
+    btn.textContent = '스캔 중...';
+    document.getElementById('scanMsg').style.display = 'inline';
+    fetch('/export-surge/refresh', {method: 'POST'})
+        .then(r => r.json())
+        .then(() => {
+            document.getElementById('scanMsg').textContent = '스캔 시작됨 — 완료까지 5~10분 소요, 이후 새로고침하세요';
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.textContent = '지금 스캔';
+            document.getElementById('scanMsg').textContent = '요청 실패 — 다시 시도해 주세요';
+        });
 }
 </script>
 </body>
