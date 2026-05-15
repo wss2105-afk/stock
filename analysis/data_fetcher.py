@@ -126,17 +126,60 @@ def append_today(ohlcv_df, today_info):
     return df
 
 
+def _get_ohlcv_naver(ticker, months=3):
+    """Naver Finance fchart API로 OHLCV 수집 — Railway 포함 어디서나 동작"""
+    import requests, re
+    count = months * 25 + 10
+    url = (f'https://fchart.stock.naver.com/sise.nhn'
+           f'?symbol={ticker}&timeframe=day&count={count}&requestType=0')
+    try:
+        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+        items = re.findall(r'<item data="([^"]+)"', res.text)
+        rows = []
+        for it in items:
+            p = it.split('|')
+            if len(p) < 6:
+                continue
+            try:
+                rows.append({
+                    '_date':  p[0],
+                    'open':   int(p[1]),
+                    'high':   int(p[2]),
+                    'low':    int(p[3]),
+                    'close':  int(p[4]),
+                    'volume': int(p[5]),
+                })
+            except Exception:
+                continue
+        if not rows:
+            return pd.DataFrame()
+        df = pd.DataFrame(rows)
+        df.index = pd.to_datetime(df.pop('_date'), format='%Y%m%d')
+        df.index.name = None
+        df['amount'] = df['close'] * df['volume']  # 거래대금 근사값
+        return df.sort_index()[['open', 'high', 'low', 'close', 'volume', 'amount']]
+    except Exception:
+        return pd.DataFrame()
+
+
 def get_ohlcv(ticker, months=3):
-    start, end = get_date_range(months)
-    df = stock.get_market_ohlcv_by_date(start, end, ticker)
-    df.index = pd.to_datetime(df.index)
-    # 컬럼명으로 매핑 (pykrx 버전별 컬럼 변경 대응)
-    rename_map = {'시가': 'open', '고가': 'high', '저가': 'low',
-                  '종가': 'close', '거래량': 'volume', '거래대금': 'amount'}
-    df = df.rename(columns=rename_map)
-    if 'amount' not in df.columns:
-        df['amount'] = 0
-    return df[['open', 'high', 'low', 'close', 'volume', 'amount']]
+    # 1차: Naver Finance fchart (Railway 포함 어디서나 동작, 빠름)
+    df = _get_ohlcv_naver(ticker, months)
+    if not df.empty and len(df) >= 20:
+        return df
+    # 2차: pykrx (로컬 개발 환경 — KRX 직접 접속 가능한 경우 폴백)
+    try:
+        start, end = get_date_range(months)
+        df = stock.get_market_ohlcv_by_date(start, end, ticker)
+        df.index = pd.to_datetime(df.index)
+        rename_map = {'시가': 'open', '고가': 'high', '저가': 'low',
+                      '종가': 'close', '거래량': 'volume', '거래대금': 'amount'}
+        df = df.rename(columns=rename_map)
+        if 'amount' not in df.columns:
+            df['amount'] = 0
+        return df[['open', 'high', 'low', 'close', 'volume', 'amount']]
+    except Exception:
+        return pd.DataFrame()
 
 
 def get_investor_detail(ticker, months=3):
