@@ -80,37 +80,29 @@ def is_main_stock(ticker):
 
 def get_today_price(ticker):
     """오늘 종가(또는 현재가)만 빠르게 조회 — 캐시 사용 시 현재가 갱신용"""
-    # 1차: pykrx 오늘 하루치
+    # 1차: Naver 현재가 스크래핑 (장중 실시간 현재가)
     try:
-        today = datetime.today().strftime('%Y%m%d')
-        df = stock.get_market_ohlcv_by_date(today, today, ticker)
-        if not df.empty:
-            row = df.iloc[-1]
-            return {
-                'date':   df.index[-1],
-                'open':   int(row.get('시가', row.iloc[0])),
-                'high':   int(row.get('고가', row.iloc[1])),
-                'low':    int(row.get('저가', row.iloc[2])),
-                'close':  int(row.get('종가', row.iloc[3])),
-                'volume': int(row.get('거래량', row.iloc[4])),
-                'amount': int(row.get('거래대금', row.iloc[5]) if len(row) > 5 else 0),
-            }
-    except Exception:
-        pass
-
-    # 2차: Naver 현재가 스크래핑
-    try:
+        import re
         import requests
-        from bs4 import BeautifulSoup
+        from bs4 import BeautifulSoup, NavigableString
         url = f'https://finance.naver.com/item/main.naver?code={ticker}'
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
         text = res.content.decode('euc-kr', errors='replace')
         soup = BeautifulSoup(text, 'html.parser')
         el = soup.find('strong', id='_nowVal') or soup.select_one('p.no_today em')
         if el:
-            price = int(el.get_text(strip=True).replace(',', '').split('\n')[0])
-            return {'date': pd.Timestamp.today().normalize(), 'close': price,
-                    'open': price, 'high': price, 'low': price, 'volume': 0, 'amount': 0}
+            # 자식 태그의 텍스트가 중복 포함되는 문제 방지 — 직접 텍스트만 우선 사용
+            direct = ''.join(s.strip() for s in el.children
+                             if isinstance(s, NavigableString)).strip()
+            price_text = direct if direct else el.get_text(strip=True)
+            # 올바른 한국 주가 패턴: 1,000 ~ 9,999,999 형식
+            m = re.search(r'[1-9]\d{0,2}(?:,\d{3})+', price_text)
+            if m:
+                price = int(m.group().replace(',', ''))
+                if 10 <= price <= 99_999_999:
+                    return {'date': pd.Timestamp.today().normalize(), 'close': price,
+                            'open': price, 'high': price, 'low': price,
+                            'volume': 0, 'amount': 0}
     except Exception:
         pass
 
@@ -138,8 +130,13 @@ def get_ohlcv(ticker, months=3):
     start, end = get_date_range(months)
     df = stock.get_market_ohlcv_by_date(start, end, ticker)
     df.index = pd.to_datetime(df.index)
-    df.columns = ['open', 'high', 'low', 'close', 'volume', 'amount']
-    return df
+    # 컬럼명으로 매핑 (pykrx 버전별 컬럼 변경 대응)
+    rename_map = {'시가': 'open', '고가': 'high', '저가': 'low',
+                  '종가': 'close', '거래량': 'volume', '거래대금': 'amount'}
+    df = df.rename(columns=rename_map)
+    if 'amount' not in df.columns:
+        df['amount'] = 0
+    return df[['open', 'high', 'low', 'close', 'volume', 'amount']]
 
 
 def get_investor_detail(ticker, months=3):
@@ -278,7 +275,11 @@ def get_supply_zone(ticker, months=6):
     """매물대: 가격대별 거래량 분포"""
     start, end = get_date_range(months)
     ohlcv = stock.get_market_ohlcv_by_date(start, end, ticker)
-    ohlcv.columns = ['open', 'high', 'low', 'close', 'volume', 'amount']
+    rename_map = {'시가': 'open', '고가': 'high', '저가': 'low',
+                  '종가': 'close', '거래량': 'volume', '거래대금': 'amount'}
+    ohlcv = ohlcv.rename(columns=rename_map)
+    if 'amount' not in ohlcv.columns:
+        ohlcv['amount'] = 0
 
     if ohlcv.empty:
         return pd.DataFrame({'price_mid': [], 'volume': []})

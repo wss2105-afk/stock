@@ -81,22 +81,9 @@ def get_company_info_naver(ticker):
 
 
 def get_market_profile(ticker):
-    """시가총액, 52주 최고/최저, 시장구분"""
+    """시가총액, 52주 최고/최저, 시장구분 — Naver Finance 스크래핑 (pykrx 미사용)"""
     result = {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
     try:
-        today = datetime.today().strftime('%Y%m%d')
-        w52_start = (datetime.today() - timedelta(days=365)).strftime('%Y%m%d')
-
-        # 52주 고저 (pykrx)
-        ohlcv = stock.get_market_ohlcv_by_date(w52_start, today, ticker)
-        if not ohlcv.empty:
-            result['w52_high'] = f"{int(ohlcv['고가'].max()):,}"
-            result['w52_low'] = f"{int(ohlcv['저가'].min()):,}"
-    except Exception:
-        pass
-
-    try:
-        # 시가총액 & 시장구분 — 네이버 금융 (main.naver는 UTF-8)
         url = f"https://finance.naver.com/item/main.naver?code={ticker}"
         res = requests.get(url, headers=HEADERS, timeout=5)
         soup = BeautifulSoup(res.content.decode('utf-8', errors='replace'), 'html.parser')
@@ -106,10 +93,24 @@ def get_market_profile(ticker):
         if cap_el:
             result['market_cap'] = cap_el.text.split()[0].strip() + '억원'
 
+        # 52주 최고/최저
+        for em in soup.select('table.no_info em'):
+            txt = em.get_text(strip=True).replace(',', '')
+            if txt.isdigit():
+                pass
+        # 네이버 종목 상세 table에서 52주 고저 파싱
+        for row in soup.select('table.no_info tr'):
+            th = row.find('th')
+            td = row.find('td')
+            if th and td and '52주' in th.get_text():
+                nums = [t.replace(',', '') for t in td.get_text('|').split('|') if t.replace(',', '').isdigit()]
+                if len(nums) >= 2:
+                    vals = sorted([int(n) for n in nums])
+                    result['w52_low']  = f"{vals[0]:,}"
+                    result['w52_high'] = f"{vals[-1]:,}"
+
         # 시장구분
-        market_el = soup.select_one('em.stk_market')
-        if not market_el:
-            market_el = soup.select_one('span.stk_market')
+        market_el = soup.select_one('em.stk_market') or soup.select_one('span.stk_market')
         if market_el:
             txt = market_el.text.strip()
             if 'KOSPI' in txt.upper():
@@ -117,7 +118,10 @@ def get_market_profile(ticker):
             elif 'KOSDAQ' in txt.upper():
                 result['market_type'] = 'KOSDAQ'
         else:
-            result['market_type'] = 'KOSDAQ' if ticker.startswith(('0', '1')) and int(ticker) < 200000 and int(ticker) >= 100000 else 'KOSPI'
+            try:
+                result['market_type'] = 'KOSDAQ' if 100000 <= int(ticker) < 200000 else 'KOSPI'
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -135,11 +139,13 @@ def _decode(res):
 
 
 def _extract_num(text):
-    """'32.68배\n6564원' 같은 셀에서 숫자 부분만 추출"""
+    """'32.68배\n6564원' 같은 셀에서 숫자 부분만 추출 (음수 포함)"""
     import re
-    # '배' 앞의 숫자만 추출 (PER/PBR)
-    m = re.match(r'[\d.]+', text.replace(',', '').strip())
-    return m.group(0) if m else text.strip()
+    cleaned = text.replace(',', '').strip()
+    if cleaned in ('', '-', '--', 'N/A', '해당없음'):
+        return 'N/A'
+    m = re.match(r'-?[\d.]+', cleaned)
+    return m.group(0) if m else 'N/A'
 
 
 def get_fundamental(ticker):
@@ -163,17 +169,19 @@ def get_fundamental(ticker):
         table = main_soup.select_one('table.per_table')
         if table:
             for row in table.find_all('tr'):
-                th = row.find('th')
-                td = row.find('td')
-                if not th or not td:
-                    continue
-                key = th.get_text(strip=True)
-                raw = td.get_text(strip=True).replace(',', '')
-                val = _extract_num(raw)
-                if 'PER' in key and 'Forward' not in key and result['per'] == 'N/A':
-                    result['per'] = val
-                elif 'PBR' in key and result['pbr'] == 'N/A':
-                    result['pbr'] = val
+                cells = row.find_all(['th', 'td'])
+                for i, cell in enumerate(cells):
+                    key = cell.get_text(strip=True)
+                    if i + 1 >= len(cells):
+                        continue
+                    raw = cells[i + 1].get_text(strip=True).replace(',', '')
+                    val = _extract_num(raw)
+                    if val == 'N/A':
+                        continue
+                    if 'PER' in key and 'Forward' not in key and '업종' not in key and result['per'] == 'N/A':
+                        result['per'] = val
+                    elif 'PBR' in key and result['pbr'] == 'N/A':
+                        result['pbr'] = val
 
         # ── 2. 매출액 / 영업이익 — FnGuide SVD_Finance (재무제표 수치)
         try:
@@ -234,6 +242,10 @@ def get_fundamental(ticker):
                         result['roe'] = _extract_num(last)
                     elif '부채비율' in key and result['debt_ratio'] == 'N/A':
                         result['debt_ratio'] = _extract_num(last)
+                    elif 'PER' in key and 'Forward' not in key and result['per'] == 'N/A':
+                        result['per'] = _extract_num(last)
+                    elif 'PBR' in key and result['pbr'] == 'N/A':
+                        result['pbr'] = _extract_num(last)
         except Exception as e:
             print(f"FnGuide 투자지표 오류: {e}")
 

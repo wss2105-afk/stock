@@ -140,8 +140,11 @@ def _run_surge_scan():
 
 
 def _evening_scheduler():
-    """매일 20:00 반등/급등 스캔 (앱 시작 시 자동 스캔 없음 — 캐시 표시만)"""
+    """매일 21:00 반등/급등 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
     import time as _time
+    if _load_surge_cache() is None:
+        threading.Thread(target=_run_surge_scan, daemon=True).start()
+
     while True:
         now = datetime.today()
         next_run = now.replace(hour=21, minute=0, second=0, microsecond=0)
@@ -436,43 +439,55 @@ def analyze():
 
     if cached:
         ohlcv_full  = cached['ohlcv']
-        today_info  = get_today_price(ticker)
-        ohlcv_full  = append_today(ohlcv_full, today_info)
-        ohlcv       = ohlcv_full.tail(max(months * 22, 60))
         investor_df = cached['investor_df']
         supply_df   = cached['supply_df']
         fundamental = cached['fundamental']
 
-        # 나머지는 병렬 fetch
+        # 모든 네트워크 호출 병렬 실행 (today_price 포함)
+        def _today():
+            try: return get_today_price(ticker)
+            except: return None
         def _company():
             try: return get_company_info(ticker)
             except: return {}
         def _profile():
-            try: return get_market_profile(ticker)
+            try:
+                p = get_market_profile(ticker)
+                # 52주 고저가 없으면 캐시에서 계산 (pykrx 호출 회피)
+                if p.get('w52_high') == 'N/A' and cached:
+                    yr = cached['ohlcv'].tail(260)
+                    if not yr.empty:
+                        p['w52_high'] = f"{int(yr['high'].max()):,}"
+                        p['w52_low']  = f"{int(yr['low'].min()):,}"
+                return p
             except: return {'market_cap': 'N/A', 'w52_high': 'N/A', 'w52_low': 'N/A', 'market_type': 'N/A'}
         def _news():
             try: return analyze_news(search_naver_news(name, days=30))
             except: return _empty_news
         def _research():
-            try:
-                rr = get_research_reports(ticker)
-                return rr, summarize_research(name, rr)
-            except: return [], ""
+            try: return get_research_reports(ticker)
+            except: return []
         def _disclosures():
             try: return get_disclosures(ticker, days=60)
             except: return []
 
-        with ThreadPoolExecutor(max_workers=5) as ex:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            f_td = ex.submit(_today)
             f_co = ex.submit(_company)
             f_pr = ex.submit(_profile)
             f_nw = ex.submit(_news)
             f_rr = ex.submit(_research)
             f_dc = ex.submit(_disclosures)
+            today_info     = f_td.result()
             company_info   = f_co.result()
             market_profile = f_pr.result()
             news_result    = f_nw.result()
-            research_reports, research_summary = f_rr.result()
+            research_reports = f_rr.result()
             disclosures    = f_dc.result()
+        research_summary = ""
+
+        ohlcv_full = append_today(ohlcv_full, today_info)
+        ohlcv      = ohlcv_full.tail(max(months * 22, 60))
     else:
         # 캐시 미스: 모든 항목 병렬 fetch
         def _ohlcv():
@@ -497,10 +512,8 @@ def analyze():
             try: return analyze_news(search_naver_news(name, days=30))
             except: return _empty_news
         def _research():
-            try:
-                rr = get_research_reports(ticker)
-                return rr, summarize_research(name, rr)
-            except: return [], ""
+            try: return get_research_reports(ticker)
+            except: return []
         def _disclosures():
             try: return get_disclosures(ticker, days=60)
             except: return []
@@ -522,8 +535,9 @@ def analyze():
             company_info   = f_co.result()
             market_profile = f_pr.result()
             news_result    = f_nw.result()
-            research_reports, research_summary = f_rr.result()
+            research_reports = f_rr.result()
             disclosures    = f_dc.result()
+        research_summary = ""
 
     # OHLCV 데이터 부족하면 기업소개 페이지로
     if ohlcv is None or ohlcv.empty or len(ohlcv) < 20:
@@ -704,25 +718,46 @@ def ai_comment_api():
         return jsonify({'comment': 'ticker/name 파라미터가 필요합니다.'})
     try:
         import pandas as pd
-        ohlcv = get_ohlcv(ticker, months=3)
-        if ohlcv.empty:
-            return jsonify({'comment': '데이터를 불러올 수 없습니다.'})
+        cached = load_stock_cache(ticker)
+        if cached:
+            ohlcv       = cached['ohlcv'].tail(66)
+            investor_df = cached['investor_df']
+            fundamental = cached['fundamental']
+        else:
+            ohlcv = get_ohlcv(ticker, months=3)
+            if ohlcv.empty:
+                return jsonify({'comment': '데이터를 불러올 수 없습니다.'})
+            try: investor_df = get_investor_detail(ticker, months=1)
+            except: investor_df = pd.DataFrame()
+            try: fundamental = get_fundamental(ticker)
+            except: fundamental = {'per':'N/A','forward_per':'N/A','pbr':'N/A','operating_profit':[],'roe':'N/A','op_margin':'N/A','debt_ratio':'N/A','revenue':[]}
         df = calc_indicators(ohlcv)
-        ma_status   = get_ma_arrangement(df)
-        signals     = get_latest_signals(df)
-        try: investor_df = get_investor_detail(ticker, months=1)
-        except: investor_df = pd.DataFrame()
+        ma_status = get_ma_arrangement(df)
+        signals   = get_latest_signals(df)
         try:
             articles = search_naver_news(name, days=30)
             news_result = analyze_news(articles)
         except: news_result = {'total':0,'positive':0,'negative':0,'neutral':0,'sentiment_score':0,'top_keywords':[],'press_counts':{},'exclusive_count':0,'articles':[]}
-        try: fundamental = get_fundamental(ticker)
-        except: fundamental = {'per':'N/A','forward_per':'N/A','pbr':'N/A','operating_profit':[],'roe':'N/A','op_margin':'N/A','debt_ratio':'N/A','revenue':[]}
         score, reasons = calc_score(ma_status, signals, investor_df, news_result, df)
         comment = get_ai_analysis(name, score, reasons, signals, fundamental, news_result)
         return jsonify({'comment': comment})
     except Exception as e:
         return jsonify({'comment': f'AI 분석 오류: {str(e)}'})
+
+
+@app.route('/api/research-summary')
+def research_summary_api():
+    """증권사 리포트 요약 (result 페이지에서 비동기 호출)"""
+    ticker = request.args.get('ticker', '').strip()
+    name   = request.args.get('name', '').strip()
+    if not ticker or not name:
+        return jsonify({'summary': ''})
+    try:
+        rr = get_research_reports(ticker)
+        summary = summarize_research(name, rr)
+        return jsonify({'summary': summary})
+    except Exception:
+        return jsonify({'summary': ''})
 
 
 @app.route('/api/cache-status')
@@ -941,5 +976,13 @@ def debug_export(ticker):
         return jsonify({'ticker': ticker, 'error': str(e), 'status': 'error'})
 
 
+@app.errorhandler(500)
+def internal_error(e):
+    import traceback
+    tb = traceback.format_exc()
+    print(f'[500 ERROR] {tb}', flush=True)
+    return f'<h1>Internal Server Error</h1><pre>{tb}</pre>', 500
+
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, use_reloader=False)

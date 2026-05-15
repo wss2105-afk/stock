@@ -340,8 +340,11 @@ _LOOKBACK   = 10      # 최근 10거래일 내 터치 확인
 def _check_ma_bounce(name, ticker):
     """10/20/60/120일선 바닥 터치 후 반등 종목 감지"""
     try:
-        ohlcv = get_ohlcv(ticker, months=7)
-        if ohlcv.empty or len(ohlcv) < 130:
+        cached = load_stock_cache(ticker)
+        if not cached:
+            return None
+        ohlcv = cached['ohlcv']
+        if ohlcv is None or ohlcv.empty or len(ohlcv) < 130:
             return None
 
         df = ohlcv.copy()
@@ -404,8 +407,11 @@ def _check_ma_bounce(name, ticker):
 def _check_ma5_riding(name, ticker):
     """5일선 타고 상승 중인 종목 감지 — 5일선 위에서 연속 상승"""
     try:
-        ohlcv = get_ohlcv(ticker, months=2)
-        if ohlcv.empty or len(ohlcv) < 20:
+        cached = load_stock_cache(ticker)
+        if not cached:
+            return None
+        ohlcv = cached['ohlcv']
+        if ohlcv is None or ohlcv.empty or len(ohlcv) < 20:
             return None
 
         df = ohlcv.copy()
@@ -473,7 +479,7 @@ def _check_ma5_riding(name, ticker):
         return None
 
 
-def scan_ma_bounce_stocks(top_n=20, max_workers=4):
+def scan_ma_bounce_stocks(top_n=20, max_workers=8):
     """10/20/60/120일선 바닥 반등 + 5일선 상승 타기 종목 스캔"""
     with open(_TICKER_DB_PATH, encoding='utf-8') as f:
         tickers = json.load(f)
@@ -593,8 +599,11 @@ def scan_osc_stocks(top_n=30, max_workers=8):
 def _check_surge_one(name, ticker, days_back=5):
     """거래량 급증 + 가격 급등 종목 단일 스캔"""
     try:
-        ohlcv = get_ohlcv(ticker, months=3)
-        if ohlcv.empty or len(ohlcv) < 30:
+        cached = load_stock_cache(ticker)
+        if not cached:
+            return None
+        ohlcv = cached['ohlcv']
+        if ohlcv is None or ohlcv.empty or len(ohlcv) < 30:
             return None
         df = calc_indicators(ohlcv)
 

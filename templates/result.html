@@ -609,10 +609,10 @@
                 </div>
                 {% endif %}
 
-                {% if research_summary %}
-                <div style="border-left:2px solid #FFC000;padding:10px 14px;margin-bottom:14px;background:rgba(255,192,0,0.05);">
+                {% if research_reports %}
+                <div id="researchSummaryBox" style="border-left:2px solid #FFC000;padding:10px 14px;margin-bottom:14px;background:rgba(255,192,0,0.05);">
                     <div style="font-size:0.62rem;color:#FFC000;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:5px;">AI 요약</div>
-                    <div style="font-size:0.84rem;color:#c8d0dc;line-height:1.75;">{{ research_summary }}</div>
+                    <div id="researchSummaryText" style="font-size:0.84rem;color:#555;line-height:1.75;">로딩 중...</div>
                 </div>
                 {% endif %}
 
@@ -719,6 +719,24 @@
             .then(d => { if (el) el.textContent = d.desc || d.error || '설명을 불러올 수 없습니다.'; })
             .catch(() => { if (el) el.textContent = '사업소개를 불러올 수 없습니다.'; });
     })();
+    // 증권사 리포트 AI 요약 지연 로딩
+    const _rsTicker = {{ ticker | tojson }};
+    const _rsName   = {{ name | tojson }};
+    const _rsText   = document.getElementById('researchSummaryText');
+    if (_rsText) {
+        fetch(`/api/research-summary?ticker=${encodeURIComponent(_rsTicker)}&name=${encodeURIComponent(_rsName)}`)
+            .then(r => r.json())
+            .then(d => {
+                if (d.summary) {
+                    _rsText.style.color = '#c8d0dc';
+                    _rsText.textContent = d.summary;
+                } else {
+                    document.getElementById('researchSummaryBox').style.display = 'none';
+                }
+            })
+            .catch(() => { document.getElementById('researchSummaryBox').style.display = 'none'; });
+    }
+
     // AI 분석 지연 로딩
     const _aiTicker = {{ ticker | tojson }};
     const _aiName   = {{ name | tojson }};
