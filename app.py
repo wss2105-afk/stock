@@ -92,6 +92,20 @@ _SUPPLY_CACHE_PATH         = os.path.join(_DATA_DIR, 'supply_cache.json')
 _BUY_CANDIDATE_CACHE_PATH  = os.path.join(_DATA_DIR, 'buy_candidate_cache.json')
 _SURGE_BUY_CACHE_PATH      = os.path.join(_DATA_DIR, 'surge_buy_cache.json')
 
+# 종목 DB — 볼륨 경로로 재정의 (line 56의 로컬 경로 override)
+_TICKER_PATH      = os.path.join(_DATA_DIR, 'krx_tickers.json')
+_LAST_UPDATE_PATH = os.path.join(_DATA_DIR, 'ticker_last_update.txt')
+_ALL_TICKER_PATH  = os.path.join(_DATA_DIR, 'krx_all_tickers.json')
+
+# 최초 배포 시: 번들 파일이 볼륨에 없으면 복사
+_LOCAL_DATA = os.path.join(os.path.dirname(__file__), 'data')
+for _fname in ('krx_tickers.json', 'krx_all_tickers.json'):
+    _vol = os.path.join(_DATA_DIR, _fname)
+    _loc = os.path.join(_LOCAL_DATA, _fname)
+    if not os.path.exists(_vol) and os.path.exists(_loc):
+        import shutil as _shutil
+        _shutil.copy2(_loc, _vol)
+
 def _load_surge_cache():
     if not os.path.exists(_SURGE_CACHE_PATH):
         return None
@@ -1167,8 +1181,6 @@ def surge_refresh():
     threading.Thread(target=_run_surge_scan, daemon=True).start()
     return jsonify({'status': 'scanning'})
 
-
-_ALL_TICKER_PATH = os.path.join(os.path.dirname(__file__), 'data', 'krx_all_tickers.json')
 
 @app.route('/api/search-suggest')
 def search_suggest():

@@ -13,9 +13,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-_DATA_DIR   = '/data' if os.path.isdir('/data') else os.path.join(os.path.dirname(__file__), '..', 'data')
-_CACHE_PATH = os.path.join(_DATA_DIR, 'export_cache.json')
-_TICKER_PATH = os.path.join(_DATA_DIR, 'krx_tickers.json')
+_DATA_DIR    = '/data' if os.path.isdir('/data') else os.path.join(os.path.dirname(__file__), '..', 'data')
+_CACHE_PATH  = os.path.join(_DATA_DIR, 'export_cache.json')
+_LOCAL_DATA  = os.path.join(os.path.dirname(__file__), '..', 'data')
+# 볼륨에 종목 DB 없으면 번들 파일 fallback
+_TICKER_PATH = (os.path.join(_DATA_DIR, 'krx_tickers.json')
+                if os.path.exists(os.path.join(_DATA_DIR, 'krx_tickers.json'))
+                else os.path.join(_LOCAL_DATA, 'krx_tickers.json'))
 
 # DART 분기 코드 순서 (최신→구형), (연도오프셋, 보고서코드, 분기명)
 _QUARTER_ORDER = [

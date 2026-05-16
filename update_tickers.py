@@ -10,7 +10,7 @@ import json
 import os
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-DATA_DIR    = os.path.join(os.path.dirname(__file__), 'data')
+DATA_DIR    = '/data' if os.path.isdir('/data') else os.path.join(os.path.dirname(__file__), 'data')
 OUTPUT_MAIN = os.path.join(DATA_DIR, 'krx_tickers.json')
 OUTPUT_ALL  = os.path.join(DATA_DIR, 'krx_all_tickers.json')
 
