@@ -1483,10 +1483,12 @@ def api_chart_data(ticker):
 def api_osc_history(ticker):
     """최근 60일 오실레이터(RSI·Stoch·MFI·BB%) 히스토리 반환"""
     try:
+        ohlcv = None
         cached = load_stock_cache(ticker)
-        if not cached:
-            return jsonify({'error': 'no cache'}), 404
-        ohlcv = cached.get('ohlcv')
+        if cached:
+            ohlcv = cached.get('ohlcv')
+        if ohlcv is None or ohlcv.empty or len(ohlcv) < 30:
+            ohlcv = get_ohlcv(ticker, months=3)
         if ohlcv is None or ohlcv.empty or len(ohlcv) < 30:
             return jsonify({'error': 'no data'}), 404
 
