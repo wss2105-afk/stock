@@ -182,16 +182,28 @@
             오실레이터 현황
             <span id="oscPeriodLabel" style="font-size:0.55rem;color:#444;font-weight:400;letter-spacing:0;"></span>
         </div>
-        <!-- 미니 꺾은선 차트 2x2 그리드 -->
-        <div id="oscChartGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-            <div class="osc-mini-wrap"><div class="osc-mini-hdr"><span class="osc-mini-name">RSI</span><span class="osc-mini-val" id="oscValRsi">—</span></div><canvas id="oscChartRsi" height="55"></canvas></div>
-            <div class="osc-mini-wrap"><div class="osc-mini-hdr"><span class="osc-mini-name">Stochastic</span><span class="osc-mini-val" id="oscValStoch">—</span></div><canvas id="oscChartStoch" height="55"></canvas></div>
-            <div class="osc-mini-wrap"><div class="osc-mini-hdr"><span class="osc-mini-name">MFI</span><span class="osc-mini-val" id="oscValMfi">—</span></div><canvas id="oscChartMfi" height="55"></canvas></div>
-            <div class="osc-mini-wrap"><div class="osc-mini-hdr"><span class="osc-mini-name">BB 위치</span><span class="osc-mini-val" id="oscValBb">—</span></div><canvas id="oscChartBb" height="55"></canvas></div>
+        <!-- 현재값 4개 요약 -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;">
+            <div class="osc-mini-wrap" style="padding:5px 7px;text-align:center;">
+                <div class="osc-mini-name">RSI</div>
+                <div class="osc-mini-val" id="oscValRsi" style="font-size:0.9rem;display:block;margin-top:2px;">—</div>
+            </div>
+            <div class="osc-mini-wrap" style="padding:5px 7px;text-align:center;">
+                <div class="osc-mini-name">Stoch</div>
+                <div class="osc-mini-val" id="oscValStoch" style="font-size:0.9rem;display:block;margin-top:2px;">—</div>
+            </div>
+            <div class="osc-mini-wrap" style="padding:5px 7px;text-align:center;">
+                <div class="osc-mini-name">MFI</div>
+                <div class="osc-mini-val" id="oscValMfi" style="font-size:0.9rem;display:block;margin-top:2px;">—</div>
+            </div>
+            <div class="osc-mini-wrap" style="padding:5px 7px;text-align:center;">
+                <div class="osc-mini-name">BB위치</div>
+                <div class="osc-mini-val" id="oscValBb" style="font-size:0.9rem;display:block;margin-top:2px;">—</div>
+            </div>
         </div>
-        <!-- 현재값 레이더 -->
-        <div style="display:flex;justify-content:center;margin-bottom:4px;">
-            <canvas id="oscRadar" width="148" height="148"></canvas>
+        <!-- 통합 오실레이터 꺾은선 차트 -->
+        <div class="osc-mini-wrap" style="height:140px;padding:8px;margin-bottom:10px;">
+            <canvas id="oscChartCombined"></canvas>
         </div>
         <hr class="modal-divider">
         <div class="modal-section-title">점수 산출 근거</div>
@@ -270,9 +282,9 @@ function analyzeStock(ticker) {
             + s.momentum_tags.map(t => `<span style="font-size:0.68rem;color:#a78bfa;border:1px solid #4c1d95;padding:2px 8px;border-radius:2px;">${t}</span>`).join('');
         document.getElementById('modalReasons').before(momEl);
     }
-    _drawOscPanel(s);
     document.getElementById('modalDetailBtn').href = '/analyze?query=' + ticker + '&months=6';
     document.getElementById('scoreModal').classList.add('open');
+    requestAnimationFrame(() => _drawOscPanel(s));
 }
 
 function startRecScan() {
@@ -292,26 +304,24 @@ function startRecScan() {
         });
 }
 
-// ── 오실레이터 패널 (미니 꺾은선 차트 × 4 + 레이더) ──────────
-let _oscRadarChart = null;
-const _oscLineCharts = {};   // { rsi, stoch, mfi, bb }
+// ── 오실레이터 패널 (통합 꺾은선 차트) ──────────────────────
+let _oscCombinedChart = null;
 
 function _oscColor(v, lo, hi) {
     return v <= lo ? '#f59e0b' : v >= hi ? '#ef4444' : '#22c55e';
 }
 
-function _buildMiniChart(canvasId, data, dates, lo, hi, lineColor) {
-    const canvas = document.getElementById(canvasId);
+function _buildCombinedChart(d) {
+    const canvas = document.getElementById('oscChartCombined');
     if (!canvas) return;
-    const key = canvasId;
-    if (_oscLineCharts[key]) { _oscLineCharts[key].destroy(); delete _oscLineCharts[key]; }
+    if (_oscCombinedChart) { _oscCombinedChart.destroy(); _oscCombinedChart = null; }
 
-    // 기준선 (과매도/과매수) 플러그인 — annotation 없이 직접 그리기
+    const dates = d.dates || [];
     const refLinePlugin = {
-        id: 'refLines',
+        id: 'oscRefLines',
         afterDraw(chart) {
-            const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
-            [[lo, 'rgba(245,158,11,0.5)'], [hi, 'rgba(239,68,68,0.5)']].forEach(([v, c]) => {
+            const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+            [[30, 'rgba(245,158,11,0.35)'], [70, 'rgba(239,68,68,0.35)']].forEach(([v, c]) => {
                 const yy = y.getPixelForValue(v);
                 ctx.save();
                 ctx.strokeStyle = c;
@@ -323,24 +333,17 @@ function _buildMiniChart(canvasId, data, dates, lo, hi, lineColor) {
         }
     };
 
-    _oscLineCharts[key] = new Chart(canvas.getContext('2d'), {
+    _oscCombinedChart = new Chart(canvas.getContext('2d'), {
         type: 'line',
         plugins: [refLinePlugin],
         data: {
             labels: dates,
-            datasets: [{
-                data: data,
-                borderColor: lineColor,
-                borderWidth: 1.5,
-                pointRadius: 0,
-                pointHoverRadius: 3,
-                fill: {
-                    target: 'origin',
-                    above: lineColor.replace(')', ',0.08)').replace('rgb', 'rgba'),
-                },
-                tension: 0.35,
-                spanGaps: true,
-            }]
+            datasets: [
+                { label: 'RSI',   data: d.rsi,   borderColor: '#FFC000', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
+                { label: 'Stoch', data: d.stoch, borderColor: '#22c55e', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
+                { label: 'MFI',   data: d.mfi,   borderColor: '#29ABE2', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
+                { label: 'BB%',   data: d.bb,    borderColor: '#a78bfa', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
+            ]
         },
         options: {
             responsive: true,
@@ -351,23 +354,28 @@ function _buildMiniChart(canvasId, data, dates, lo, hi, lineColor) {
                 x: { display: false },
                 y: {
                     min: 0, max: 100,
-                    display: false,
+                    ticks: { color: '#444', font: { size: 8 }, stepSize: 25, callback: v => v },
+                    grid: { color: 'rgba(255,255,255,0.04)' },
                 }
             },
             plugins: {
-                legend: { display: false },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: { color: '#777', font: { size: 9 }, boxWidth: 18, padding: 8, usePointStyle: true }
+                },
                 tooltip: {
                     enabled: true,
                     backgroundColor: '#1a1a1a',
                     borderColor: '#333',
                     borderWidth: 1,
-                    titleColor: '#666',
+                    titleColor: '#777',
                     bodyColor: '#fff',
                     titleFont: { size: 9 },
-                    bodyFont: { size: 11, weight: '700' },
+                    bodyFont: { size: 10 },
                     callbacks: {
                         title: items => dates[items[0].dataIndex]?.slice(5) ?? '',
-                        label: item => ` ${item.raw ?? '—'}`,
+                        label: item => ` ${item.dataset.label}: ${item.raw ?? '—'}`,
                     }
                 }
             }
@@ -394,7 +402,7 @@ function _drawOscPanel(s) {
     _setVal('oscValMfi',  mfi,   20, 80);
     _setVal('oscValBb',   bb,    10, 90, '%');
 
-    // 히스토리 로드 → 미니 꺾은선 차트 렌더
+    // 히스토리 로드 → 통합 꺾은선 차트 렌더
     const lbl = document.getElementById('oscPeriodLabel');
     if (lbl) lbl.textContent = '로딩 중…';
     fetch(`/api/osc-history/${s.ticker}`)
@@ -403,12 +411,9 @@ function _drawOscPanel(s) {
             if (d.error) return;
             const dates = d.dates || [];
             if (lbl) lbl.textContent = `최근 ${dates.length}일`;
-            _buildMiniChart('oscChartRsi',  d.rsi,   dates, 30, 70, '#FFC000');
-            _buildMiniChart('oscChartStoch',d.stoch, dates, 20, 80, '#22c55e');
-            _buildMiniChart('oscChartMfi',  d.mfi,   dates, 20, 80, '#29ABE2');
-            _buildMiniChart('oscChartBb',   d.bb,    dates, 10, 90, '#a78bfa');
+            _buildCombinedChart(d);
 
-            // 최신값으로 현재값 업데이트 (API 기반)
+            // 최신값으로 현재값 업데이트
             const last = i => { const arr = d[i]; const v = arr?.filter(x=>x!=null).at(-1); return v; };
             const rv = last('rsi');   if (rv != null) _setVal('oscValRsi',   rv,  30, 70);
             const sv = last('stoch'); if (sv != null) _setVal('oscValStoch', sv,  20, 80);
@@ -416,28 +421,6 @@ function _drawOscPanel(s) {
             const bv = last('bb');    if (bv != null) _setVal('oscValBb',    bv,  10, 90, '%');
         })
         .catch(() => { if (lbl) lbl.textContent = ''; });
-
-    // 레이더 차트 ─────────────────────────────────────────
-    const canvas = document.getElementById('oscRadar');
-    if (!canvas) return;
-    if (_oscRadarChart) { _oscRadarChart.destroy(); _oscRadarChart = null; }
-    _oscRadarChart = new Chart(canvas.getContext('2d'), {
-        type: 'radar',
-        data: {
-            labels: ['RSI', 'Stoch', 'MFI', 'BB위치'],
-            datasets: [
-                { data: [30,30,30,30], backgroundColor:'rgba(245,158,11,0.07)', borderColor:'rgba(245,158,11,0.35)', borderWidth:1, borderDash:[4,3], pointRadius:0 },
-                { data: [70,70,70,70], backgroundColor:'rgba(239,68,68,0.07)',  borderColor:'rgba(239,68,68,0.35)',  borderWidth:1, borderDash:[4,3], pointRadius:0 },
-                { data: [rsi,stoch,mfi,bb], backgroundColor:'rgba(255,192,0,0.14)', borderColor:'#FFC000', borderWidth:2,
-                  pointBackgroundColor:'#FFC000', pointBorderColor:'#161616', pointBorderWidth:1.5, pointRadius:4, pointHoverRadius:5 },
-            ]
-        },
-        options: {
-            scales: { r: { min:0, max:100, ticks:{display:false,stepSize:25}, grid:{color:'rgba(255,255,255,0.07)'}, angleLines:{color:'rgba(255,255,255,0.07)'}, pointLabels:{color:'#666',font:{size:9}} } },
-            plugins: { legend:{display:false}, tooltip:{enabled:false} },
-            animation: { duration: 380 }
-        }
-    });
 }
 
 function closeModal(e) {
