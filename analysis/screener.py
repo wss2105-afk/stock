@@ -719,7 +719,7 @@ def _parse_op_val(v):
 
 
 def _check_buy_candidate(name, ticker):
-    """매수후보(단기) 13개 조건 캐시 기반 스캔"""
+    """매수후보(단기) — 핵심 4개 하드필터 + 나머지 점수화 (15점↑ 통과)"""
     try:
         cached = load_stock_cache(ticker)
         if not cached:
@@ -732,157 +732,155 @@ def _check_buy_candidate(name, ticker):
         if ohlcv is None or ohlcv.empty or len(ohlcv) < 65:
             return None
 
-        df = calc_indicators(ohlcv)
+        df   = calc_indicators(ohlcv)
         last = df.iloc[-1]
         cur  = float(last['close'])
 
-        # ── 1. 거래대금 50억↑ ───────────────────────────────────
+        # ── HARD ① 거래대금 50억↑ ───────────────────────────────
         avg_tv = (ohlcv['close'] * ohlcv['volume']).tail(20).mean()
         if avg_tv < 5_000_000_000:
             return None
 
-        # ── 2. 주가 60일선 위 ────────────────────────────────────
+        # ── HARD ② 주가 60일선 위 ───────────────────────────────
         if 'ma60' not in df.columns or pd.isna(last['ma60']):
             return None
-        ma60 = float(last['ma60'])
-        if cur <= ma60:
+        if cur <= float(last['ma60']):
             return None
 
-        # ── 3. 20일선·60일선 우상향 ─────────────────────────────
-        if 'ma20' not in df.columns or len(df) < 66:
-            return None
-        ma20_now = float(df['ma20'].iloc[-1])
-        ma20_6d  = float(df['ma20'].iloc[-7])
-        ma60_now = float(df['ma60'].iloc[-1])
-        ma60_6d  = float(df['ma60'].iloc[-7])
-        if pd.isna(ma20_now) or pd.isna(ma20_6d) or ma20_now <= ma20_6d:
-            return None
-        if pd.isna(ma60_now) or pd.isna(ma60_6d) or ma60_now <= ma60_6d:
-            return None
-
-        # ── 4. RSI 40~60 ─────────────────────────────────────────
-        if 'rsi' not in df.columns or pd.isna(last['rsi']):
-            return None
-        rsi = float(last['rsi'])
-        if not (40 <= rsi <= 60):
-            return None
-
-        # ── 5. Stochastic 20~30 반등 ─────────────────────────────
-        if 'stoch_k' not in df.columns:
-            return None
-        stoch_series = df['stoch_k'].tail(10).dropna()
-        if len(stoch_series) < 5:
-            return None
-        stoch_cur = float(stoch_series.iloc[-1])
-        stoch_min = float(stoch_series.min())
-        stoch_3d  = float(stoch_series.iloc[-4]) if len(stoch_series) >= 4 else stoch_cur
-        # 최근 10일 내 Stochastic이 35 이하까지 내려왔다가 현재 반등 중
-        if stoch_min > 35:
-            return None
-        if stoch_cur <= stoch_3d:          # 3일 전보다 낮으면 반등 아님
-            return None
-        if stoch_cur > 65:                 # 너무 올라갔으면 제외
-            return None
-
-        # ── 6. MACD 히스토그램 개선 ──────────────────────────────
-        if 'macd_hist' not in df.columns:
-            return None
-        hist_series = df['macd_hist'].tail(6).dropna()
-        if len(hist_series) < 4:
-            return None
-        hist_cur = float(hist_series.iloc[-1])
-        hist_4d  = float(hist_series.iloc[-4])
-        if hist_cur <= hist_4d:            # 4일 전보다 히스토그램이 개선 안 됨
-            return None
-
-        # ── 7. 거래량 증가 (최근 5일 > 직전 20일 평균) ──────────
-        vol5  = ohlcv['volume'].tail(5).mean()
-        vol20 = ohlcv['volume'].iloc[-25:-5].mean() if len(ohlcv) >= 25 else ohlcv['volume'].mean()
-        if vol5 <= vol20 * 0.9:
-            return None
-
-        # ── 8. 외국인 AND 기관 최근 10일 중 각각 6일↑ 순매수 ──────
-        fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
-        ic = next((c for c in investor_df.columns if '기관' in c
-                   and '금융' not in c and '연기금' not in c), None)
-        if investor_df.empty or not fc or not ic:
-            return None
-        last10 = investor_df.tail(10)
-        foreign_days = int((last10[fc] > 0).sum())
-        inst_days    = int((last10[ic] > 0).sum())
-        if foreign_days < 6 or inst_days < 6:   # 외인·기관 각각 10일 중 6일 이상
-            return None
-        foreign_streak = (_count_consecutive_buying(investor_df, '외국인') or
-                          _count_consecutive_buying(investor_df, '외인'))
-        inst_streak = _count_consecutive_buying(investor_df, '기관')
-
-        # ── 9. 펀더멘털 — 캐시된 FnGuide 분기 데이터 ───────────
+        # ── HARD ③ 4분기 연속 흑자 ──────────────────────────────
         op_list = fundamental.get('operating_profit', [])
         if op_list and len(op_list) >= 4:
-            # 최근 4분기 모두 흑자
             parsed = [_parse_op_val(v) for v in op_list[:4]]
             if any(v is not None and v <= 0 for v in parsed):
                 return None
-            # 실적 YoY 개선 (최신 분기 > 4분기 전)
-            if len(op_list) >= 4 and parsed[0] is not None and parsed[3] is not None:
-                if parsed[3] > 0 and parsed[0] < parsed[3]:
-                    return None
 
-        # 부채비율 200% 미만
+        # ── HARD ④ 부채비율 200% 미만 ───────────────────────────
         debt_ratio_raw = fundamental.get('debt_ratio', 'N/A')
-        debt_ratio_val = None
         if debt_ratio_raw != 'N/A':
             try:
-                debt_ratio_val = float(str(debt_ratio_raw).replace('%', '').replace(',', ''))
-                if debt_ratio_val >= 200:
+                if float(str(debt_ratio_raw).replace('%', '').replace(',', '')) >= 200:
                     return None
             except Exception:
                 pass
 
-        # ── 여기까지 통과 → 태그 및 점수 계산 ───────────────────
-        tags = []
-        tags.append(f'외인 {foreign_days}/10일')
-        tags.append(f'기관 {inst_days}/10일')
-        tags.append(f'RSI {round(rsi):.0f}')
-        tags.append(f'Stoch {round(stoch_cur):.0f}↑')
-        if hist_cur > 0:
-            tags.append('MACD+')
-
+        # ── 소프트 점수화 ────────────────────────────────────────
         score = 0
-        total_days = foreign_days + inst_days
-        if total_days >= 18: score += 3    # 둘 다 평균 9/10 이상
-        elif total_days >= 16: score += 2  # 둘 다 평균 8/10 이상
-        else: score += 1
-        if 45 <= rsi <= 55:   score += 2
-        if stoch_cur <= 45:   score += 2
-        if hist_cur > 0:      score += 2
-        if vol5 >= vol20 * 1.3: score += 2
-        if ma20_now > ma20_6d and ma60_now > ma60_6d: score += 2
+        tags  = []
+        reasons = []
 
-        # ── 눌림목 분석 ───────────────────────────────────────
+        # MA 우상향 (+5)
+        if 'ma20' in df.columns and len(df) >= 66:
+            ma20_now = float(df['ma20'].iloc[-1]); ma20_6d = float(df['ma20'].iloc[-7])
+            ma60_now = float(df['ma60'].iloc[-1]); ma60_6d = float(df['ma60'].iloc[-7])
+            if not pd.isna(ma20_now) and ma20_now > ma20_6d:
+                score += 3; reasons.append('20일선 우상향 (+3)')
+            if not pd.isna(ma60_now) and ma60_now > ma60_6d:
+                score += 2; tags.append('MA우상향'); reasons.append('60일선 우상향 (+2)')
+        else:
+            ma20_now = ma20_6d = ma60_now = ma60_6d = None
+
+        # 실적 YoY 개선 (+4)
+        if op_list and len(op_list) >= 4:
+            p = [_parse_op_val(v) for v in op_list[:4]]
+            if p[0] is not None and p[3] is not None and p[3] > 0 and p[0] > p[3]:
+                score += 4; tags.append('YoY개선'); reasons.append('실적 YoY 개선 (+4)')
+
+        # RSI (+5/+2)
+        rsi = None
+        if 'rsi' in df.columns and not pd.isna(last['rsi']):
+            rsi = float(last['rsi'])
+            if 40 <= rsi <= 60:
+                score += 5; tags.append(f'RSI{round(rsi):.0f}'); reasons.append(f'RSI {round(rsi):.0f} 중립권 (+5)')
+            elif 35 <= rsi <= 65:
+                score += 2; reasons.append(f'RSI {round(rsi):.0f} 허용범위 (+2)')
+
+        # Stochastic 반등 (+5/+2)
+        stoch_cur = None
+        if 'stoch_k' in df.columns:
+            st = df['stoch_k'].tail(10).dropna()
+            if len(st) >= 5:
+                stoch_cur = float(st.iloc[-1])
+                stoch_min = float(st.min())
+                stoch_3d  = float(st.iloc[-4]) if len(st) >= 4 else stoch_cur
+                if stoch_min <= 35 and stoch_cur > stoch_3d and stoch_cur <= 65:
+                    score += 5; tags.append(f'Stoch{round(stoch_cur):.0f}↑'); reasons.append(f'Stochastic 과매도 반등 (+5)')
+                elif stoch_min <= 50 and stoch_cur > stoch_3d:
+                    score += 2; reasons.append('Stochastic 반등 (+2)')
+
+        # MACD 히스토그램 개선 (+3)
+        hist_cur = None
+        if 'macd_hist' in df.columns:
+            hs = df['macd_hist'].tail(6).dropna()
+            if len(hs) >= 4:
+                hist_cur = float(hs.iloc[-1])
+                if hist_cur > float(hs.iloc[-4]):
+                    score += 3
+                    if hist_cur > 0:
+                        tags.append('MACD+')
+                    reasons.append('MACD 히스토그램 개선 (+3)')
+
+        # 거래량 증가 (+3/+1)
+        vol5  = ohlcv['volume'].tail(5).mean()
+        vol20 = ohlcv['volume'].iloc[-25:-5].mean() if len(ohlcv) >= 25 else ohlcv['volume'].mean()
+        if vol5 >= vol20 * 1.3:
+            score += 3; tags.append('거래량↑'); reasons.append('거래량 30%↑ (+3)')
+        elif vol5 >= vol20 * 0.9:
+            score += 1; reasons.append('거래량 유지 (+1)')
+
+        # 수급 — 외인·기관 10일 중 순매수 빈도 (각각 +5/+2)
+        foreign_days = inst_days = foreign_streak = inst_streak = 0
+        if not investor_df.empty:
+            fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
+            ic = next((c for c in investor_df.columns if '기관' in c
+                       and '금융' not in c and '연기금' not in c), None)
+            if fc and ic:
+                last10 = investor_df.tail(10)
+                foreign_days = int((last10[fc] > 0).sum())
+                inst_days    = int((last10[ic] > 0).sum())
+                if foreign_days >= 6:
+                    score += 5; tags.append(f'외인{foreign_days}/10일'); reasons.append(f'외인 {foreign_days}/10일 매수 (+5)')
+                elif foreign_days >= 4:
+                    score += 2; reasons.append(f'외인 {foreign_days}/10일 매수 (+2)')
+                if inst_days >= 6:
+                    score += 5; tags.append(f'기관{inst_days}/10일'); reasons.append(f'기관 {inst_days}/10일 매수 (+5)')
+                elif inst_days >= 4:
+                    score += 2; reasons.append(f'기관 {inst_days}/10일 매수 (+2)')
+                foreign_streak = (_count_consecutive_buying(investor_df, '외국인') or
+                                  _count_consecutive_buying(investor_df, '외인'))
+                inst_streak    = _count_consecutive_buying(investor_df, '기관')
+
+        # 눌림목 분석
         pb_score, pb_tags = _calc_pullback_score(ohlcv)
-        score += pb_score; tags.extend(pb_tags)
+        if pb_score:
+            score += pb_score; tags.extend(pb_tags)
+            reasons.append(f'{pb_tags[0]} (+{pb_score})')
 
-        # ── 60/120일선 저가 터치 후 반등 ─────────────────────
+        # 60/120일선 터치 반등
         mt_score, mt_tags = _calc_ma_touch_score(ohlcv)
-        score += mt_score; tags.extend(mt_tags)
+        if mt_score:
+            score += mt_score; tags.extend(mt_tags)
+            reasons.append(f'{" ".join(mt_tags)} (+{mt_score})')
+
+        if score < 15:   # 15점 미만 탈락
+            return None
 
         return {
-            'name': name,
-            'ticker': ticker,
-            'price': f"{int(cur):,}",
-            'rsi': round(rsi, 1),
-            'stoch': round(stoch_cur, 1),
-            'macd_hist': round(hist_cur, 4),
+            'name':           name,
+            'ticker':         ticker,
+            'price':          f"{int(cur):,}",
+            'rsi':            round(rsi, 1) if rsi is not None else 'N/A',
+            'stoch':          round(stoch_cur, 1) if stoch_cur is not None else 'N/A',
+            'macd_hist':      round(hist_cur, 4) if hist_cur is not None else 0,
             'foreign_streak': foreign_streak,
-            'inst_streak': inst_streak,
-            'foreign_days': foreign_days,
-            'inst_days': inst_days,
-            'debt_ratio': debt_ratio_raw,
-            'avg_tv_b': round(avg_tv / 1e8, 0),
-            'tags': tags,
-            'score': score,
-            'sort_key': score + (foreign_days + inst_days) * 0.1,
+            'inst_streak':    inst_streak,
+            'foreign_days':   foreign_days,
+            'inst_days':      inst_days,
+            'debt_ratio':     debt_ratio_raw,
+            'avg_tv_b':       round(avg_tv / 1e8, 0),
+            'tags':           tags,
+            'score':          score,
+            'reasons':        reasons,
+            'sort_key':       score + (foreign_days + inst_days) * 0.1,
         }
     except Exception:
         return None

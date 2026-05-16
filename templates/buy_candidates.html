@@ -29,8 +29,17 @@
         .scan-btn:disabled { background: #1e3a2a; color: #4ade80; cursor: not-allowed; }
 
         /* 카드 */
-        .stock-card { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 14px; padding: 18px 20px; background: #141414; margin-bottom: 2px; text-decoration: none; color: inherit; transition: background 0.15s; border-left: 3px solid transparent; }
+        .stock-card-wrap { margin-bottom: 2px; }
+        .stock-card { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 14px; padding: 18px 20px; background: #141414; text-decoration: none; color: inherit; transition: background 0.15s; border-left: 3px solid transparent; cursor: pointer; }
         .stock-card:hover { background: #1c1c1c; border-left-color: #16a34a; }
+        .reasons-panel { display: none; background: #0d1a0d; border-left: 3px solid #16a34a; padding: 14px 20px 14px 78px; }
+        .reasons-panel.open { display: block; }
+        .reasons-title { font-size: 0.62rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 8px; }
+        .reasons-list { list-style: none; padding: 0; margin: 0 0 10px; }
+        .reasons-list li { font-size: 0.72rem; color: #4ade80; padding: 2px 0; }
+        .reasons-list li::before { content: '✓ '; color: #16a34a; }
+        .analyze-btn { display: inline-block; margin-top: 4px; font-size: 0.68rem; color: #16a34a; text-decoration: none; border: 1px solid rgba(22,163,74,0.4); padding: 4px 12px; border-radius: 3px; }
+        .analyze-btn:hover { background: rgba(22,163,74,0.1); color: #4ade80; }
         .rank { font-size: clamp(1.2rem, 4vw, 1.8rem); font-weight: 900; color: #1e3a2a; text-align: center; }
         .rank.r1 { color: #16a34a; }
         .rank.r2 { color: #4ade80; }
@@ -118,40 +127,51 @@
     {% if results %}
     <!-- 종목 카드 -->
     {% for r in results %}
-    <a class="stock-card" href="/analyze?query={{ r.ticker }}&months=3">
-        <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">
-            {{ loop.index }}
-        </div>
-        <div>
+    <div class="stock-card-wrap">
+        <div class="stock-card" onclick="toggleReasons(this)">
+            <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">
+                {{ loop.index }}
+            </div>
             <div>
-                <span class="stock-name">{{ r.name }}</span>
-                <span class="stock-ticker">{{ r.ticker }}</span>
+                <div>
+                    <span class="stock-name">{{ r.name }}</span>
+                    <span class="stock-ticker">{{ r.ticker }}</span>
+                </div>
+                <div class="stock-tags">
+                    {% for tag in r.tags %}
+                    <span class="stock-tag">{{ tag }}</span>
+                    {% endfor %}
+                    {% if r.debt_ratio and r.debt_ratio != 'N/A' %}
+                    <span class="stock-tag" style="border-color:rgba(100,100,200,0.3);color:#93c5fd;">부채 {{ r.debt_ratio }}%</span>
+                    {% endif %}
+                </div>
+                <div class="stock-indicators">
+                    RSI {{ r.rsi }} &nbsp;·&nbsp; Stoch {{ r.stoch }} &nbsp;·&nbsp;
+                    MACD hist {{ '%.4f'|format(r.macd_hist) }} &nbsp;·&nbsp;
+                    거래대금 {{ r.avg_tv_b | int }}억
+                </div>
             </div>
-            <div class="stock-tags">
-                {% for tag in r.tags %}
-                <span class="stock-tag">{{ tag }}</span>
-                {% endfor %}
-                {% if r.debt_ratio and r.debt_ratio != 'N/A' %}
-                <span class="stock-tag" style="border-color:rgba(100,100,200,0.3);color:#93c5fd;">부채 {{ r.debt_ratio }}%</span>
+            <div class="right-col">
+                <div class="stock-price">{{ r.price }}원</div>
+                {% if r.market_cap %}
+                <div class="stock-cap">시총 {{ '{:,}'.format(r.market_cap) }}억</div>
                 {% endif %}
-            </div>
-            <div class="stock-indicators">
-                RSI {{ r.rsi }} &nbsp;·&nbsp; Stoch {{ r.stoch }} &nbsp;·&nbsp;
-                MACD hist {{ '%.4f'|format(r.macd_hist) }} &nbsp;·&nbsp;
-                거래대금 {{ r.avg_tv_b | int }}억
-            </div>
-        </div>
-        <div class="right-col">
-            <div class="stock-price">{{ r.price }}원</div>
-            {% if r.market_cap %}
-            <div class="stock-cap">시총 {{ '{:,}'.format(r.market_cap) }}억</div>
-            {% endif %}
-            <div class="investor-info">
-                {% if r.foreign_streak >= 5 %}외인 {{ r.foreign_streak }}일↑{% endif %}
-                {% if r.inst_streak >= 5 %} 기관 {{ r.inst_streak }}일↑{% endif %}
+                <div class="investor-info">
+                    {% if r.foreign_days >= 6 %}외인 {{ r.foreign_days }}/10일{% endif %}
+                    {% if r.inst_days >= 6 %} 기관 {{ r.inst_days }}/10일{% endif %}
+                </div>
             </div>
         </div>
-    </a>
+        <div class="reasons-panel">
+            <div class="reasons-title">선별 이유 — 총 {{ r.score }}점</div>
+            <ul class="reasons-list">
+                {% for reason in r.reasons %}
+                <li>{{ reason }}</li>
+                {% endfor %}
+            </ul>
+            <a class="analyze-btn" href="/analyze?query={{ r.ticker }}&months=3">→ 차트 분석 보기</a>
+        </div>
+    </div>
     {% endfor %}
 
     {% elif not scanning %}
@@ -182,6 +202,11 @@
 
 <script>
 let _scanning = {{ 'true' if scanning else 'false' }};
+
+function toggleReasons(card) {
+    const panel = card.nextElementSibling;
+    panel.classList.toggle('open');
+}
 
 function triggerScan() {
     const btn = document.getElementById('scanBtn');
