@@ -202,7 +202,7 @@
             </div>
         </div>
         <!-- 통합 오실레이터 꺾은선 차트 -->
-        <div class="osc-mini-wrap" style="height:190px;padding:8px 8px 4px;margin-bottom:10px;">
+        <div class="osc-mini-wrap" style="height:260px;padding:8px 8px 4px;margin-bottom:10px;">
             <canvas id="oscChartCombined"></canvas>
         </div>
         <hr class="modal-divider">
@@ -363,8 +363,8 @@ function _buildCombinedChart(d) {
                     grid: { display: false },
                 },
                 y: {
-                    min: 0, max: 100,
-                    ticks: { color: '#444', font: { size: 8 }, stepSize: 25 },
+                    min: -2, max: 102,
+                    ticks: { color: '#444', font: { size: 8 }, stepSize: 25, callback: v => v < 0 || v > 100 ? '' : v },
                     grid: { color: 'rgba(255,255,255,0.04)' },
                 }
             },
