@@ -191,7 +191,10 @@
                 <li>{{ reason }}</li>
                 {% endfor %}
             </ul>
-            <button class="analyze-btn" data-ticker="{{ r.ticker }}" data-name="{{ r.name }}" onclick="openChart(this.dataset.ticker, this.dataset.name)">→ 차트 보기</button>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+                <button class="analyze-btn" data-ticker="{{ r.ticker }}" data-name="{{ r.name }}" onclick="openChart(this.dataset.ticker, this.dataset.name)">→ 차트</button>
+                <button class="analyze-btn" data-ticker="{{ r.ticker }}" data-name="{{ r.name }}" onclick="openOsc(this.dataset.ticker, this.dataset.name)" style="border-color:rgba(41,171,226,0.4);color:#29ABE2;">〜 오실레이터</button>
+            </div>
         </div>
     </div>
     {% endfor %}
@@ -247,15 +250,32 @@
             <div class="chart-interp-hd">추세선 해석</div>
             <ul class="chart-interp-list" id="chartInterpList"></ul>
         </div>
-        <!-- 오실레이터 추세 차트 -->
-        <div style="padding:8px 20px;border-top:1px solid #111;display:flex;justify-content:flex-end;">
-            <button id="oscToggleBtn" onclick="toggleOsc()" style="padding:4px 12px;background:none;border:1px solid #2a2a2a;color:#555;font-size:0.58rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">오실레이터 ▼</button>
-        </div>
-        <div id="oscWrap" style="display:none;padding:0 12px 12px;">
-            <div style="background:#0a0a0a;border:1px solid #1a1a1a;height:220px;padding:8px 8px 4px;">
-                <canvas id="oscModalChart"></canvas>
+    </div>
+</div>
+
+<!-- 오실레이터 전용 모달 -->
+<div id="oscModal" class="chart-modal" onclick="if(event.target===this)closeOscModal()">
+    <div class="chart-box" style="max-width:640px;">
+        <div class="chart-hdr">
+            <div>
+                <span class="chart-name" id="oscModalName"></span>
+                <span class="chart-tick" id="oscModalTick"></span>
             </div>
-            <div style="text-align:right;margin-top:3px;"><span id="oscModalLabel" style="font-size:0.58rem;color:#444;"></span></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <span id="oscModalPeriod" style="font-size:0.65rem;color:#555;"></span>
+                <button class="chart-close-btn" onclick="closeOscModal()">✕</button>
+            </div>
+        </div>
+        <div style="padding:12px 12px 4px;background:#0a0a0a;">
+            <div style="height:280px;border:1px solid #1a1a1a;padding:8px 8px 4px;">
+                <canvas id="oscStandaloneChart"></canvas>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#1a1a1a;border-top:1px solid #1a1a1a;">
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">RSI</div><div id="oscSaRsi" style="font-size:1rem;font-weight:700;margin-top:3px;color:#FFC000;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">Stoch</div><div id="oscSaStoch" style="font-size:1rem;font-weight:700;margin-top:3px;color:#22c55e;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">MFI</div><div id="oscSaMfi" style="font-size:1rem;font-weight:700;margin-top:3px;color:#29ABE2;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">BB위치</div><div id="oscSaBb" style="font-size:1rem;font-weight:700;margin-top:3px;color:#a78bfa;">—</div></div>
         </div>
     </div>
 </div>
@@ -284,10 +304,6 @@ function openChart(ticker, name) {
     document.getElementById('chartInterp').style.display = 'none';
     if (_chartObj) { _chartObj.remove(); _chartObj = null; }
 
-    // 오실레이터 자동 표시
-    document.getElementById('oscWrap').style.display = 'block';
-    document.getElementById('oscToggleBtn').textContent = '오실레이터 ▲';
-    _loadOsc(ticker);
 
     fetch('/api/chart-data/' + ticker)
         .then(r => r.json())
@@ -302,35 +318,38 @@ function closeChart() {
     if (_chartObj) { _chartObj.remove(); _chartObj = null; }
 }
 
-function toggleOsc() {
-    const wrap = document.getElementById('oscWrap');
-    const btn = document.getElementById('oscToggleBtn');
-    if (wrap.style.display === 'none') {
-        wrap.style.display = 'block';
-        btn.textContent = '오실레이터 ▲';
-        if (_oscTicker && !_oscChart) _loadOsc(_oscTicker);
-    } else {
-        wrap.style.display = 'none';
-        btn.textContent = '오실레이터 ▼';
-    }
-}
-
-function _loadOsc(ticker) {
-    const lbl = document.getElementById('oscModalLabel');
-    if (lbl) lbl.textContent = '로딩 중…';
+function openOsc(ticker, name) {
+    _oscTicker = ticker;
+    if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
+    document.getElementById('oscModalName').textContent = name;
+    document.getElementById('oscModalTick').textContent = ticker;
+    document.getElementById('oscModalPeriod').textContent = '로딩 중…';
+    ['oscSaRsi','oscSaStoch','oscSaMfi','oscSaBb'].forEach(id => document.getElementById(id).textContent = '—');
+    document.getElementById('oscModal').classList.add('open');
     fetch('/api/osc-history/' + ticker)
         .then(r => r.json())
         .then(d => {
-            if (d.error) { if (lbl) lbl.textContent = '데이터 없음'; return; }
+            if (d.error) { document.getElementById('oscModalPeriod').textContent = '데이터 없음'; return; }
             const dates = d.dates || [];
-            if (lbl) lbl.textContent = '최근 ' + dates.length + '일';
+            document.getElementById('oscModalPeriod').textContent = '최근 ' + dates.length + '일';
+            const last = (arr) => arr?.filter(x => x != null).at(-1);
+            const _col = (v, lo, hi) => v <= lo ? '#f59e0b' : v >= hi ? '#ef4444' : (document.getElementById('oscSaRsi').style.color);
+            const rv = last(d.rsi);   if (rv != null) { document.getElementById('oscSaRsi').textContent   = rv;       }
+            const sv = last(d.stoch); if (sv != null) { document.getElementById('oscSaStoch').textContent = sv;       }
+            const mv = last(d.mfi);   if (mv != null) { document.getElementById('oscSaMfi').textContent   = mv;       }
+            const bv = last(d.bb);    if (bv != null) { document.getElementById('oscSaBb').textContent    = bv + '%'; }
             _buildOsc(d, dates);
         })
-        .catch(() => { if (lbl) lbl.textContent = '로드 실패'; });
+        .catch(() => { document.getElementById('oscModalPeriod').textContent = '로드 실패'; });
+}
+
+function closeOscModal() {
+    document.getElementById('oscModal').classList.remove('open');
+    if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
 }
 
 function _buildOsc(d, dates) {
-    const canvas = document.getElementById('oscModalChart');
+    const canvas = document.getElementById('oscStandaloneChart');
     if (!canvas) return;
     if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
     const refPlugin = {

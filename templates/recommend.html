@@ -223,7 +223,10 @@
         <hr class="modal-divider">
         <div class="modal-section-title">점수 산출 근거</div>
         <div id="modalReasons"></div>
-        <a class="modal-btn" id="modalDetailBtn" href="#" style="margin-top:20px;">상세 분석 보기 →</a>
+        <div style="display:flex;gap:8px;margin-top:20px;">
+            <button onclick="openRecOsc()" style="flex:1;padding:12px;background:none;border:1px solid #29ABE2;color:#29ABE2;font-size:0.68rem;font-weight:700;letter-spacing:0.1em;cursor:pointer;">〜 오실레이터</button>
+            <a class="modal-btn" id="modalDetailBtn" href="#" style="flex:1;margin-top:0;">상세 분석 →</a>
+        </div>
     </div>
 </div>
 
@@ -248,15 +251,32 @@
             <span><span style="color:#f97316;">╌</span> 저항선</span>
             <span style="margin-left:auto;">▲빨강 상승 / ▼파랑 하락</span>
         </div>
-        <!-- 오실레이터 -->
-        <div style="padding:8px 20px;border-top:1px solid #111;display:flex;justify-content:flex-end;">
-            <button id="recOscBtn" onclick="toggleRecOsc()" style="padding:4px 12px;background:none;border:1px solid #2a2a2a;color:#555;font-size:0.58rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">오실레이터 ▼</button>
-        </div>
-        <div id="recOscWrap" style="display:none;padding:0 12px 12px;">
-            <div style="background:#0a0a0a;border:1px solid #1a1a1a;height:220px;padding:8px 8px 4px;">
-                <canvas id="recOscChart"></canvas>
+    </div>
+</div>
+
+<!-- 오실레이터 전용 모달 -->
+<div id="recOscModal" class="chart-modal" onclick="if(event.target===this)closeRecOscModal()">
+    <div class="chart-box" style="max-width:640px;">
+        <div class="chart-hdr">
+            <div>
+                <span class="chart-hdr-name" id="recOscModalName"></span>
+                <span class="chart-hdr-tick" id="recOscModalTick"></span>
             </div>
-            <div style="text-align:right;margin-top:3px;"><span id="recOscLabel" style="font-size:0.58rem;color:#444;"></span></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <span id="recOscModalPeriod" style="font-size:0.65rem;color:#555;"></span>
+                <button class="chart-close-btn" onclick="closeRecOscModal()">✕</button>
+            </div>
+        </div>
+        <div style="padding:12px 12px 4px;background:#0a0a0a;">
+            <div style="height:280px;border:1px solid #1a1a1a;padding:8px 8px 4px;">
+                <canvas id="recOscStandaloneChart"></canvas>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#1a1a1a;border-top:1px solid #1a1a1a;">
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">RSI</div><div id="recOscSaRsi" style="font-size:1rem;font-weight:700;margin-top:3px;color:#FFC000;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">Stoch</div><div id="recOscSaStoch" style="font-size:1rem;font-weight:700;margin-top:3px;color:#22c55e;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">MFI</div><div id="recOscSaMfi" style="font-size:1rem;font-weight:700;margin-top:3px;color:#29ABE2;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">BB위치</div><div id="recOscSaBb" style="font-size:1rem;font-weight:700;margin-top:3px;color:#a78bfa;">—</div></div>
         </div>
     </div>
 </div>
@@ -489,7 +509,7 @@ function closeModalDirect() {
     document.getElementById('scoreModal').classList.remove('open');
 }
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModalDirect(); closeCandleModal(); }
+    if (e.key === 'Escape') { closeModalDirect(); closeCandleModal(); closeRecOscModal(); }
 });
 
 // ── 캔들 차트 + 오실레이터 모달 ──────────────────────────────
@@ -583,36 +603,39 @@ function _renderCandle(data) {
     new ResizeObserver(() => { if (_candleObj) _candleObj.applyOptions({ width: el.clientWidth }); }).observe(el);
 }
 
-function toggleRecOsc() {
-    const wrap = document.getElementById('recOscWrap');
-    const btn  = document.getElementById('recOscBtn');
-    if (wrap.style.display === 'none') {
-        wrap.style.display = 'block';
-        btn.textContent = '오실레이터 ▲';
-        if (_currentTicker && !_recOscLoaded) _loadRecOsc(_currentTicker);
-    } else {
-        wrap.style.display = 'none';
-        btn.textContent = '오실레이터 ▼';
-    }
-}
-
-function _loadRecOsc(ticker) {
-    const lbl = document.getElementById('recOscLabel');
-    if (lbl) lbl.textContent = '로딩 중…';
+function openRecOsc() {
+    const ticker = document.getElementById('modalTicker').textContent;
+    const name   = document.getElementById('modalName').textContent;
+    if (!ticker) return;
+    if (_recOscChart) { _recOscChart.destroy(); _recOscChart = null; }
+    document.getElementById('recOscModalName').textContent = name;
+    document.getElementById('recOscModalTick').textContent = ticker;
+    document.getElementById('recOscModalPeriod').textContent = '로딩 중…';
+    ['recOscSaRsi','recOscSaStoch','recOscSaMfi','recOscSaBb'].forEach(id => document.getElementById(id).textContent = '—');
+    document.getElementById('recOscModal').classList.add('open');
     fetch('/api/osc-history/' + ticker)
         .then(r => r.json())
         .then(d => {
-            if (d.error) { if (lbl) lbl.textContent = '데이터 없음'; return; }
+            if (d.error) { document.getElementById('recOscModalPeriod').textContent = '데이터 없음'; return; }
             const dates = d.dates || [];
-            if (lbl) lbl.textContent = '최근 ' + dates.length + '일';
+            document.getElementById('recOscModalPeriod').textContent = '최근 ' + dates.length + '일';
+            const last = arr => arr?.filter(x => x != null).at(-1);
+            const rv = last(d.rsi);   if (rv != null) document.getElementById('recOscSaRsi').textContent   = rv;
+            const sv = last(d.stoch); if (sv != null) document.getElementById('recOscSaStoch').textContent = sv;
+            const mv = last(d.mfi);   if (mv != null) document.getElementById('recOscSaMfi').textContent   = mv;
+            const bv = last(d.bb);    if (bv != null) document.getElementById('recOscSaBb').textContent    = bv + '%';
             _buildRecOsc(d, dates);
-            _recOscLoaded = true;
         })
-        .catch(() => { if (lbl) lbl.textContent = '로드 실패'; });
+        .catch(() => { document.getElementById('recOscModalPeriod').textContent = '로드 실패'; });
+}
+
+function closeRecOscModal() {
+    document.getElementById('recOscModal').classList.remove('open');
+    if (_recOscChart) { _recOscChart.destroy(); _recOscChart = null; }
 }
 
 function _buildRecOsc(d, dates) {
-    const canvas = document.getElementById('recOscChart');
+    const canvas = document.getElementById('recOscStandaloneChart');
     if (!canvas) return;
     if (_recOscChart) { _recOscChart.destroy(); _recOscChart = null; }
     const refPlugin = {
