@@ -535,6 +535,193 @@ def _surge_buy_scheduler():
 threading.Thread(target=_surge_buy_scheduler, daemon=True).start()
 
 
+# ── 교차 종목 탐지 + Gmail 이메일 알림 ───────────────────────────
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+_GMAIL_USER = os.environ.get('GMAIL_USER', '')
+_GMAIL_PASS = os.environ.get('GMAIL_APP_PASSWORD', '')
+_alerted_today: set = set()   # 당일 이미 알림 보낸 ticker 집합
+_alerted_date: str  = ''      # 날짜 바뀌면 초기화용
+
+
+def _find_cross_picks():
+    """6개 스캔 결과에서 2개 이상 중복 종목 반환 [{ticker, name, scans, reasons}]"""
+    # 각 스캔 캐시에서 ticker → (name, reasons) 추출
+    sources: dict[str, list[tuple[str, str, list]]] = {}  # scan_key → [(ticker, name, reasons)]
+
+    def _add(key, ticker, name, reasons):
+        sources.setdefault(key, []).append((ticker, name, reasons))
+
+    # 추천 종목
+    try:
+        c = _load_recommend_cache()
+        for r in (c.get('results', []) if c else []):
+            _add('추천종목', r['ticker'], r['name'], r.get('reasons', []))
+    except Exception:
+        pass
+
+    # 수급 주도
+    try:
+        c = _load_supply_cache()
+        for r in (c.get('results', []) if c else []):
+            rs = []
+            if r.get('foreign_streak', 0) >= 3:
+                rs.append(f"외인 {r['foreign_streak']}일 연속 매수")
+            if r.get('inst_streak', 0) >= 3:
+                rs.append(f"기관 {r['inst_streak']}일 연속 매수")
+            _add('수급주도', r['ticker'], r['name'], rs)
+    except Exception:
+        pass
+
+    # 과매도
+    try:
+        c = _load_osc_cache()
+        for r in (c.get('oversold', []) if c else []):
+            _add('과매도', r['ticker'], r['name'], [f"과매도 점수 {r.get('score', '')}"])
+    except Exception:
+        pass
+
+    # MA 반등
+    try:
+        c = _load_surge_cache()
+        for r in (c.get('bounce', []) if c else []):
+            _add('MA반등', r['ticker'], r['name'],
+                 [f"{r.get('ma_label','')} 반등 (눌림 {r.get('pullback_pct','')}%)"])
+    except Exception:
+        pass
+
+    # 매수후보 단기
+    try:
+        c = _load_buy_candidate_cache()
+        for r in (c.get('results', []) if c else []):
+            _add('매수후보단기', r['ticker'], r['name'], r.get('reasons', []))
+    except Exception:
+        pass
+
+    # 급등주 매수후보
+    try:
+        c = _load_surge_buy_cache()
+        for r in (c.get('results', []) if c else []):
+            _add('급등주매수후보', r['ticker'], r['name'], r.get('reasons', []))
+    except Exception:
+        pass
+
+    # ticker별로 등장한 스캔 취합
+    ticker_map: dict[str, dict] = {}
+    for scan_key, entries in sources.items():
+        for ticker, name, reasons in entries:
+            if ticker not in ticker_map:
+                ticker_map[ticker] = {'ticker': ticker, 'name': name, 'scans': [], 'reasons': []}
+            ticker_map[ticker]['scans'].append(scan_key)
+            for r in reasons:
+                if r and r not in ticker_map[ticker]['reasons']:
+                    ticker_map[ticker]['reasons'].append(r)
+
+    # 2개 이상 등장한 종목만
+    return [v for v in ticker_map.values() if len(v['scans']) >= 2]
+
+
+def _send_cross_alert(picks: list):
+    """공통 종목 이메일 발송"""
+    if not _GMAIL_USER or not _GMAIL_PASS:
+        print('[CrossAlert] GMAIL_USER 또는 GMAIL_APP_PASSWORD 미설정 — 이메일 스킵')
+        return
+    if not picks:
+        return
+
+    now_kst = (datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')
+    subject  = f'[주식봇] 공통 선별 종목 {len(picks)}건 — {now_kst} KST'
+
+    rows_html = ''
+    for p in picks:
+        scans_str = ' · '.join(p['scans'])
+        reasons_str = '<br>'.join(f'· {r}' for r in p['reasons']) if p['reasons'] else '—'
+        rows_html += f"""
+        <tr>
+          <td style="padding:10px 14px;font-weight:700;color:#1a1f3c;">{p['name']}</td>
+          <td style="padding:10px 14px;color:#444;font-size:0.85em;">{p['ticker']}</td>
+          <td style="padding:10px 14px;color:#2d3a8c;font-size:0.85em;">{scans_str}</td>
+          <td style="padding:10px 14px;color:#555;font-size:0.82em;line-height:1.6;">{reasons_str}</td>
+        </tr>"""
+
+    body_html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:700px;margin:auto;">
+      <h2 style="background:#1a1f3c;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0;margin:0;">
+        📊 복수 스캔 공통 선별 종목
+      </h2>
+      <p style="background:#f8f9ff;padding:12px 20px;margin:0;color:#555;font-size:0.9em;">
+        {now_kst} KST 기준 — 2개 이상 분석 카테고리에 동시 선별된 종목
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin-top:0;">
+        <thead>
+          <tr style="background:#e8eaf6;">
+            <th style="padding:10px 14px;text-align:left;color:#1a1f3c;">종목명</th>
+            <th style="padding:10px 14px;text-align:left;color:#1a1f3c;">코드</th>
+            <th style="padding:10px 14px;text-align:left;color:#1a1f3c;">등장 카테고리</th>
+            <th style="padding:10px 14px;text-align:left;color:#1a1f3c;">선정 이유</th>
+          </tr>
+        </thead>
+        <tbody>{rows_html}</tbody>
+      </table>
+      <p style="padding:14px 20px;color:#888;font-size:0.8em;margin:0;">
+        이 메일은 주식 분석봇이 자동 발송했습니다. 투자 판단은 본인 책임입니다.
+      </p>
+    </div>"""
+
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From']    = _GMAIL_USER
+    msg['To']      = _GMAIL_USER
+    msg.attach(MIMEText(body_html, 'html', 'utf-8'))
+
+    try:
+        with smtplib.SMTP('smtp.gmail.com', 587) as s:
+            s.ehlo()
+            s.starttls()
+            s.login(_GMAIL_USER, _GMAIL_PASS)
+            s.sendmail(_GMAIL_USER, [_GMAIL_USER], msg.as_string())
+        print(f'[CrossAlert] 이메일 발송 완료 — {len(picks)}종목')
+    except Exception as e:
+        print(f'[CrossAlert] 이메일 발송 실패: {e}')
+
+
+def _cross_alert_scheduler():
+    """매 1시간 체크 — 07:00~20:00 KST(=22:00~11:00 UTC) 내에 공통 종목 발견 시 이메일"""
+    import time as _time
+    global _alerted_today, _alerted_date
+
+    _time.sleep(120)   # 앱 시작 직후 바로 실행 방지 (스캔 완료 전)
+
+    while True:
+        now_utc = datetime.utcnow()
+        now_kst = now_utc + timedelta(hours=9)
+        today_str = now_kst.strftime('%Y-%m-%d')
+
+        # 날짜 바뀌면 알림 집합 초기화
+        if today_str != _alerted_date:
+            _alerted_today = set()
+            _alerted_date  = today_str
+
+        kst_hour = now_kst.hour
+        if 7 <= kst_hour < 20:
+            try:
+                picks = _find_cross_picks()
+                new_picks = [p for p in picks if p['ticker'] not in _alerted_today]
+                if new_picks:
+                    _send_cross_alert(new_picks)
+                    for p in new_picks:
+                        _alerted_today.add(p['ticker'])
+            except Exception as e:
+                print(f'[CrossAlert] 교차 탐지 오류: {e}')
+
+        _time.sleep(3600)   # 1시간 대기
+
+
+threading.Thread(target=_cross_alert_scheduler, daemon=True).start()
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
