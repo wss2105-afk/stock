@@ -147,7 +147,7 @@
     </div>
 
     {% for s in results %}
-    <div class="stock-card" onclick="openTopChart('{{ s.ticker }}','{{ s.name }}')">
+    <div class="stock-card" onclick="analyzeStock('{{ s.ticker }}')">
         <div class="rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">{{ loop.index }}</div>
         <div class="stock-info">
             <div class="stock-name">
@@ -193,39 +193,12 @@
             </div>
         </div>
         <hr class="modal-divider">
-        <div class="modal-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-            오실레이터 현황
-            <span id="oscPeriodLabel" style="font-size:0.55rem;color:#444;font-weight:400;letter-spacing:0;"></span>
-        </div>
-        <!-- 현재값 4개 요약 -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;">
-            <div class="osc-mini-wrap" style="padding:5px 7px;text-align:center;">
-                <div class="osc-mini-name">RSI</div>
-                <div class="osc-mini-val" id="oscValRsi" style="font-size:0.9rem;display:block;margin-top:2px;">—</div>
-            </div>
-            <div class="osc-mini-wrap" style="padding:5px 7px;text-align:center;">
-                <div class="osc-mini-name">Stoch</div>
-                <div class="osc-mini-val" id="oscValStoch" style="font-size:0.9rem;display:block;margin-top:2px;">—</div>
-            </div>
-            <div class="osc-mini-wrap" style="padding:5px 7px;text-align:center;">
-                <div class="osc-mini-name">MFI</div>
-                <div class="osc-mini-val" id="oscValMfi" style="font-size:0.9rem;display:block;margin-top:2px;">—</div>
-            </div>
-            <div class="osc-mini-wrap" style="padding:5px 7px;text-align:center;">
-                <div class="osc-mini-name">BB위치</div>
-                <div class="osc-mini-val" id="oscValBb" style="font-size:0.9rem;display:block;margin-top:2px;">—</div>
-            </div>
-        </div>
-        <!-- 통합 오실레이터 꺾은선 차트 -->
-        <div class="osc-mini-wrap" style="height:260px;padding:8px 8px 4px;margin-bottom:10px;">
-            <canvas id="oscChartCombined"></canvas>
-        </div>
-        <hr class="modal-divider">
         <div class="modal-section-title">점수 산출 근거</div>
         <div id="modalReasons"></div>
         <div style="display:flex;gap:8px;margin-top:20px;">
-            <button onclick="openRecOsc()" style="flex:1;padding:12px;background:none;border:1px solid #29ABE2;color:#29ABE2;font-size:0.68rem;font-weight:700;letter-spacing:0.1em;cursor:pointer;">〜 오실레이터</button>
-            <a class="modal-btn" id="modalDetailBtn" href="#" style="flex:1;margin-top:0;">상세 분석 →</a>
+            <button onclick="openRecChart()" style="flex:1;padding:11px 4px;background:#2a2a2a;color:#fff;border:1px solid #333;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">→ 차트</button>
+            <button onclick="openRecOsc()" style="flex:1;padding:11px 4px;background:transparent;color:#29ABE2;border:1px solid rgba(41,171,226,0.4);font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">〜 오실레이터</button>
+            <a class="modal-btn" id="modalDetailBtn" href="#" style="flex:1;margin-top:0;padding:11px 4px;">상세 분석</a>
         </div>
     </div>
 </div>
@@ -356,7 +329,13 @@ function analyzeStock(ticker) {
     }
     document.getElementById('modalDetailBtn').href = '/analyze?query=' + ticker + '&months=6';
     document.getElementById('scoreModal').classList.add('open');
-    requestAnimationFrame(() => _drawOscPanel(s));
+}
+
+function openRecChart() {
+    const ticker = document.getElementById('modalTicker').textContent;
+    const name   = document.getElementById('modalName').textContent;
+    closeModalDirect();
+    openCandleModal(ticker, name);
 }
 
 function startRecScan() {
@@ -376,134 +355,6 @@ function startRecScan() {
         });
 }
 
-// ── 오실레이터 패널 (통합 꺾은선 차트) ──────────────────────
-let _oscCombinedChart = null;
-
-function _oscColor(v, lo, hi) {
-    return v <= lo ? '#f59e0b' : v >= hi ? '#ef4444' : '#22c55e';
-}
-
-function _buildCombinedChart(d) {
-    const canvas = document.getElementById('oscChartCombined');
-    if (!canvas) return;
-    if (_oscCombinedChart) { _oscCombinedChart.destroy(); _oscCombinedChart = null; }
-
-    const dates = d.dates || [];
-    const refLinePlugin = {
-        id: 'oscRefLines',
-        afterDraw(chart) {
-            const { ctx, chartArea: { left, right }, scales: { y } } = chart;
-            [[30, 'rgba(245,158,11,0.35)'], [70, 'rgba(239,68,68,0.35)']].forEach(([v, c]) => {
-                const yy = y.getPixelForValue(v);
-                ctx.save();
-                ctx.strokeStyle = c;
-                ctx.lineWidth = 1;
-                ctx.setLineDash([3, 3]);
-                ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(right, yy); ctx.stroke();
-                ctx.restore();
-            });
-        }
-    };
-
-    _oscCombinedChart = new Chart(canvas.getContext('2d'), {
-        type: 'line',
-        plugins: [refLinePlugin],
-        data: {
-            labels: dates,
-            datasets: [
-                { label: 'RSI',   data: d.rsi,   borderColor: '#FFC000', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
-                { label: 'Stoch', data: d.stoch, borderColor: '#22c55e', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
-                { label: 'MFI',   data: d.mfi,   borderColor: '#29ABE2', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
-                { label: 'BB%',   data: d.bb,    borderColor: '#a78bfa', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 350 },
-            interaction: { mode: 'index', intersect: false },
-            scales: {
-                x: {
-                    display: true,
-                    ticks: {
-                        color: '#555',
-                        font: { size: 8 },
-                        maxTicksLimit: 8,
-                        maxRotation: 0,
-                        callback: (val, idx) => dates[idx]?.slice(5) ?? '',
-                    },
-                    grid: { display: false },
-                },
-                y: {
-                    min: -2, max: 102,
-                    ticks: { color: '#444', font: { size: 8 }, stepSize: 25, callback: v => v < 0 || v > 100 ? '' : v },
-                    grid: { color: 'rgba(255,255,255,0.04)' },
-                }
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: { color: '#777', font: { size: 9 }, boxWidth: 18, padding: 8, usePointStyle: true }
-                },
-                tooltip: {
-                    enabled: true,
-                    backgroundColor: '#1a1a1a',
-                    borderColor: '#333',
-                    borderWidth: 1,
-                    titleColor: '#777',
-                    bodyColor: '#fff',
-                    titleFont: { size: 9 },
-                    bodyFont: { size: 10 },
-                    callbacks: {
-                        title: items => dates[items[0].dataIndex]?.slice(5) ?? '',
-                        label: item => ` ${item.dataset.label}: ${item.raw ?? '—'}`,
-                    }
-                }
-            }
-        }
-    });
-}
-
-function _drawOscPanel(s) {
-    const rsi   = s.rsi   ?? 50;
-    const stoch = s.stoch ?? 50;
-    const mfi   = s.mfi   ?? 50;
-    const bb    = s.bb_pct ?? 50;
-
-    // 현재값 표시
-    const _setVal = (id, v, lo, hi, suffix='') => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const c = _oscColor(v, lo, hi);
-        el.textContent = `${v}${suffix}`;
-        el.style.color = c;
-    };
-    _setVal('oscValRsi',  rsi,   30, 70);
-    _setVal('oscValStoch',stoch, 20, 80);
-    _setVal('oscValMfi',  mfi,   20, 80);
-    _setVal('oscValBb',   bb,    10, 90, '%');
-
-    // 히스토리 로드 → 통합 꺾은선 차트 렌더
-    const lbl = document.getElementById('oscPeriodLabel');
-    if (lbl) lbl.textContent = '로딩 중…';
-    fetch(`/api/osc-history/${s.ticker}`)
-        .then(r => r.json())
-        .then(d => {
-            if (d.error) return;
-            const dates = d.dates || [];
-            if (lbl) lbl.textContent = `최근 ${dates.length}일`;
-            _buildCombinedChart(d);
-
-            // 최신값으로 현재값 업데이트
-            const last = i => { const arr = d[i]; const v = arr?.filter(x=>x!=null).at(-1); return v; };
-            const rv = last('rsi');   if (rv != null) _setVal('oscValRsi',   rv,  30, 70);
-            const sv = last('stoch'); if (sv != null) _setVal('oscValStoch', sv,  20, 80);
-            const mv = last('mfi');   if (mv != null) _setVal('oscValMfi',   mv,  20, 80);
-            const bv = last('bb');    if (bv != null) _setVal('oscValBb',    bv,  10, 90, '%');
-        })
-        .catch(() => { if (lbl) lbl.textContent = ''; });
-}
 
 function closeModal(e) {
     if (e.target === document.getElementById('scoreModal')) closeModalDirect();

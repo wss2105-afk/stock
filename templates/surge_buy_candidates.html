@@ -108,6 +108,13 @@
         .empty-state { text-align: center; padding: 60px 20px; }
         .empty-state p { font-size: 0.85rem; color: #444; margin-top: 12px; }
 
+        /* 종목 정보 모달 */
+        .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:500; align-items:center; justify-content:center; padding:16px; }
+        .modal-overlay.open { display:flex; }
+        .modal-box { background:#111; border:1px solid #1e0000; max-width:420px; width:100%; padding:26px 22px; position:relative; max-height:85vh; overflow-y:auto; }
+        .modal-close-btn { position:absolute; top:12px; right:16px; background:none; border:none; color:#555; font-size:1.2rem; cursor:pointer; }
+        .modal-close-btn:hover { color:#fff; }
+
         @media (max-width: 576px) {
             .stock-card { grid-template-columns: 36px 1fr; }
             .right-col { display: none; }
@@ -176,7 +183,13 @@
     {% if results %}
     {% for r in results %}
     <div class="stock-card-wrap">
-        <div class="stock-card" onclick="toggleReasons(this)">
+        <div class="stock-card"
+             data-ticker="{{ r.ticker }}"
+             data-name="{{ r.name }}"
+             data-price="{{ r.price }}"
+             data-score="{{ r.score }}"
+             data-reasons='{{ r.reasons | tojson }}'
+             onclick="showSurgeModal(this)">
             <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">
                 {{ loop.index }}
             </div>
@@ -217,18 +230,6 @@
                 {% endif %}
             </div>
         </div>
-        <div class="reasons-panel">
-            <div class="reasons-title">선정 이유 — 총 {{ r.score }}점</div>
-            <ul class="reasons-list">
-                {% for reason in r.reasons %}
-                <li>{{ reason }}</li>
-                {% endfor %}
-            </ul>
-            <div style="display:flex;gap:8px;margin-top:4px;">
-                <button class="chart-open-btn" data-ticker="{{ r.ticker }}" data-name="{{ r.name }}" onclick="openChart(this.dataset.ticker, this.dataset.name)">→ 차트</button>
-                <button class="chart-open-btn" data-ticker="{{ r.ticker }}" data-name="{{ r.name }}" onclick="openOsc(this.dataset.ticker, this.dataset.name)" style="border-color:rgba(41,171,226,0.4);color:#29ABE2;">〜 오실레이터</button>
-            </div>
-        </div>
     </div>
     {% endfor %}
 
@@ -264,6 +265,32 @@
             <tr><td style="padding:5px 0;color:#f87171;font-weight:600;">종가 고가권 마감 (97%↑)</td><td style="color:#f87171;font-weight:600;">+10점</td></tr>
             <tr><td style="padding:5px 0;color:#777;">명확한 재료 (DART 공시)</td><td style="color:#fca5a5;">+최대 8점</td></tr>
         </table>
+    </div>
+</div>
+
+<!-- 종목 정보 팝업 모달 -->
+<div id="surgeInfoModal" class="modal-overlay" onclick="closeSurgeModal(event)">
+    <div class="modal-box">
+        <button class="modal-close-btn" onclick="closeSurgeModalDirect()">✕</button>
+        <div style="font-size:0.62rem;color:#555;letter-spacing:0.15em;margin-bottom:2px;" id="surgeModalTicker"></div>
+        <div style="font-size:1.1rem;font-weight:700;color:#fff;letter-spacing:0.04em;margin-bottom:14px;" id="surgeModalName"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+            <div>
+                <div style="font-size:0.58rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">점수</div>
+                <div style="font-size:2rem;font-weight:900;color:#dc2626;line-height:1;" id="surgeModalScore">—</div>
+            </div>
+            <div style="margin-left:auto;text-align:right;">
+                <div style="font-size:0.58rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">현재가</div>
+                <div style="font-size:1rem;font-weight:700;color:#fff;" id="surgeModalPrice">—</div>
+            </div>
+        </div>
+        <div style="font-size:0.58rem;color:#555;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">선정 이유</div>
+        <ul id="surgeModalReasons" style="list-style:none;padding:0;margin:0 0 18px;"></ul>
+        <div style="display:flex;gap:8px;">
+            <button onclick="openSurgeChart()" style="flex:1;padding:11px 4px;background:#3b1010;color:#f87171;border:1px solid rgba(220,38,38,0.4);font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">→ 차트</button>
+            <button onclick="openSurgeOsc()" style="flex:1;padding:11px 4px;background:transparent;color:#29ABE2;border:1px solid rgba(41,171,226,0.4);font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">〜 오실레이터</button>
+            <a id="surgeModalDetailBtn" href="#" style="flex:1;padding:11px 4px;text-align:center;background:#dc2626;color:#fff;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;display:block;">상세 분석</a>
+        </div>
     </div>
 </div>
 
@@ -329,10 +356,26 @@
 let _chartObj = null;
 let _oscChart = null;
 let _oscTicker = null;
+let _surgeTicker = '', _surgeName = '';
 
-function toggleReasons(card) {
-    card.nextElementSibling.classList.toggle('open');
+function showSurgeModal(card) {
+    _surgeTicker = card.dataset.ticker;
+    _surgeName = card.dataset.name;
+    document.getElementById('surgeModalTicker').textContent = _surgeTicker;
+    document.getElementById('surgeModalName').textContent = _surgeName;
+    document.getElementById('surgeModalScore').textContent = card.dataset.score + '점';
+    document.getElementById('surgeModalPrice').textContent = Number(card.dataset.price).toLocaleString() + '원';
+    const reasons = JSON.parse(card.dataset.reasons || '[]');
+    document.getElementById('surgeModalReasons').innerHTML = reasons.map(r =>
+        `<li style="font-size:0.72rem;color:#fca5a5;padding:3px 0;border-bottom:1px solid #1a0000;">▸ ${r}</li>`
+    ).join('');
+    document.getElementById('surgeModalDetailBtn').href = '/analyze?query=' + encodeURIComponent(_surgeTicker) + '&months=3';
+    document.getElementById('surgeInfoModal').classList.add('open');
 }
+function closeSurgeModal(e) { if (e.target.id === 'surgeInfoModal') closeSurgeModalDirect(); }
+function closeSurgeModalDirect() { document.getElementById('surgeInfoModal').classList.remove('open'); }
+function openSurgeChart() { closeSurgeModalDirect(); openChart(_surgeTicker, _surgeName); }
+function openSurgeOsc() { closeSurgeModalDirect(); openOsc(_surgeTicker, _surgeName); }
 
 function openChart(ticker, name) {
     _oscTicker = ticker;
@@ -476,7 +519,7 @@ function closeChart() {
     if (_chartObj) { _chartObj.remove(); _chartObj = null; }
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChart(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeChart(); closeOscModal(); closeSurgeModalDirect(); } });
 
 function _renderChart(data) {
     const el = document.getElementById('chartBody');
