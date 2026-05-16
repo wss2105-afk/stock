@@ -313,8 +313,6 @@ function toggleReasons(card) {
 
 function openChart(ticker, name) {
     _oscTicker = ticker;
-    document.getElementById('oscWrap').style.display = 'none';
-    document.getElementById('oscToggleBtn').textContent = '오실레이터 ▼';
     if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
 
     const modal = document.getElementById('chartModal');
@@ -325,6 +323,11 @@ function openChart(ticker, name) {
     document.getElementById('chartBody').innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.8rem;">차트 로딩 중...</div>';
     document.getElementById('chartInterp').style.display = 'none';
     if (_chartObj) { _chartObj.remove(); _chartObj = null; }
+
+    // 오실레이터 자동 표시
+    document.getElementById('oscWrap').style.display = 'block';
+    document.getElementById('oscToggleBtn').textContent = '오실레이터 ▲';
+    _loadOsc(ticker);
 
     fetch('/api/chart-data/' + ticker)
         .then(r => r.json())

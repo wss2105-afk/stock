@@ -147,7 +147,7 @@
     </div>
 
     {% for s in results %}
-    <div class="stock-card" onclick="analyzeStock('{{ s.ticker }}')">
+    <div class="stock-card" onclick="openTopChart('{{ s.ticker }}','{{ s.name }}')">
         <div class="rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">{{ loop.index }}</div>
         <div class="stock-info">
             <div class="stock-name">
@@ -166,7 +166,7 @@
             <div class="stock-reasons">{{ s.reasons | join(' / ') }}</div>
         </div>
         <div class="stock-price">{{ s.price }}원</div>
-        <div class="score-box">
+        <div class="score-box" onclick="event.stopPropagation(); analyzeStock('{{ s.ticker }}')" title="점수 상세 보기" style="cursor:pointer;">
             <div class="score-num">{{ s.score_pct if s.score_pct is defined else ((s.score + 14) / 28 * 100) | round | int }}</div>
             <div class="score-label">점</div>
         </div>
@@ -223,10 +223,7 @@
         <hr class="modal-divider">
         <div class="modal-section-title">점수 산출 근거</div>
         <div id="modalReasons"></div>
-        <div style="display:flex;gap:8px;margin-top:20px;">
-            <button onclick="openCandleModal()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #333;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">차트 + 오실레이터 보기</button>
-            <a class="modal-btn" id="modalDetailBtn" href="#" style="flex:1;margin-top:0;">상세 분석 →</a>
-        </div>
+        <a class="modal-btn" id="modalDetailBtn" href="#" style="margin-top:20px;">상세 분석 보기 →</a>
     </div>
 </div>
 
@@ -500,6 +497,29 @@ let _candleObj = null;
 let _recOscChart = null;
 let _recOscLoaded = false;
 let _currentTicker = null;
+
+function openTopChart(ticker, name) {
+    _currentTicker = ticker;
+    _recOscLoaded = false;
+    document.getElementById('recOscWrap').style.display = 'none';
+    document.getElementById('recOscBtn').textContent = '오실레이터 ▼';
+    if (_recOscChart) { _recOscChart.destroy(); _recOscChart = null; }
+
+    document.getElementById('candleName').textContent = name;
+    document.getElementById('candleTick').textContent = ticker;
+    document.getElementById('candleFullLink').href = '/analyze?query=' + encodeURIComponent(ticker) + '&months=3';
+    document.getElementById('candleBody').innerHTML = '<div style="height:320px;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.8rem;">차트 로딩 중...</div>';
+    if (_candleObj) { _candleObj.remove(); _candleObj = null; }
+
+    document.getElementById('candleModal').classList.add('open');
+
+    fetch('/api/chart-data/' + ticker)
+        .then(r => r.json())
+        .then(data => _renderCandle(data))
+        .catch(() => {
+            document.getElementById('candleBody').innerHTML = '<div style="padding:40px;text-align:center;color:#f87171;">데이터를 불러올 수 없습니다</div>';
+        });
+}
 
 function openCandleModal() {
     const ticker = document.getElementById('modalTicker').textContent;
