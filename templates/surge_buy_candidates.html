@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>급등주 매수후보</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
@@ -34,8 +35,27 @@
         .scan-btn:disabled { background: #3b1010; color: #f87171; cursor: not-allowed; }
 
         /* 카드 */
-        .stock-card { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 14px; padding: 18px 20px; background: #0f0000; margin-bottom: 2px; text-decoration: none; color: inherit; transition: background 0.15s; border-left: 3px solid transparent; }
+        .stock-card { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 14px; padding: 18px 20px; background: #0f0000; margin-bottom: 2px; text-decoration: none; color: inherit; transition: background 0.15s; border-left: 3px solid transparent; cursor: pointer; }
         .stock-card:hover { background: #1a0000; border-left-color: #dc2626; }
+
+        /* 차트 모달 */
+        .chart-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
+        .chart-modal.open { display: flex; }
+        .chart-box { background: #0d0d0d; border: 1px solid #252525; border-radius: 12px; width: 100%; max-width: 860px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.7); }
+        .chart-hdr { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid #1a1a1a; }
+        .chart-name { font-size: 0.92rem; font-weight: 700; color: #fff; }
+        .chart-tick { font-size: 0.62rem; color: #444; font-family: monospace; margin-left: 8px; }
+        .chart-full-btn { font-size: 0.68rem; color: #7D7D7D; text-decoration: none; border: 1px solid #2a2a2a; padding: 4px 12px; border-radius: 3px; transition: color 0.15s; }
+        .chart-full-btn:hover { color: #fff; }
+        .chart-close-btn { background: none; border: none; color: #555; font-size: 1.2rem; cursor: pointer; line-height: 1; padding: 4px; }
+        .chart-close-btn:hover { color: #fff; }
+        #chartBody { height: 360px; }
+        .chart-legend { padding: 8px 20px; border-top: 1px solid #111; display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+        .chart-leg-item { font-size: 0.6rem; color: #555; }
+        .chart-interp { padding: 10px 20px 14px; border-top: 1px solid #111; display: none; }
+        .chart-interp-hd { font-size: 0.58rem; color: #444; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+        .chart-interp-list { list-style: none; padding: 0; margin: 0; }
+        .chart-interp-list li { font-size: 0.75rem; color: #d1d5db; padding: 2px 0; }
         .rank { font-size: clamp(1.2rem, 4vw, 1.8rem); font-weight: 900; color: #2a0000; text-align: center; }
         .rank.r1 { color: #dc2626; }
         .rank.r2 { color: #ef4444; }
@@ -135,7 +155,7 @@
 
     {% if results %}
     {% for r in results %}
-    <a class="stock-card" href="/analyze?query={{ r.ticker }}&months=3">
+    <div class="stock-card" data-ticker="{{ r.ticker }}" data-name="{{ r.name }}" onclick="openChart(this.dataset.ticker, this.dataset.name)">
         <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">
             {{ loop.index }}
         </div>
@@ -175,7 +195,7 @@
             <div class="stock-cap">시총 {{ '{:,}'.format(r.market_cap) }}억</div>
             {% endif %}
         </div>
-    </a>
+    </div>
     {% endfor %}
 
     {% elif not scanning %}
@@ -211,7 +231,103 @@
     </div>
 </div>
 
+<!-- 차트 모달 -->
+<div id="chartModal" class="chart-modal" onclick="if(event.target===this)closeChart()">
+    <div class="chart-box">
+        <div class="chart-hdr">
+            <div>
+                <span class="chart-name" id="chartName"></span>
+                <span class="chart-tick" id="chartTick"></span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <a class="chart-full-btn" id="chartFullLink" href="#">→ 전체 분석</a>
+                <button class="chart-close-btn" onclick="closeChart()">✕</button>
+            </div>
+        </div>
+        <div id="chartBody"></div>
+        <div class="chart-legend">
+            <span class="chart-leg-item"><span style="color:#f59e0b;">▬</span> MA20</span>
+            <span class="chart-leg-item"><span style="color:#60a5fa;">▬</span> MA60</span>
+            <span class="chart-leg-item"><span style="color:#22c55e;">╌</span> 지지선</span>
+            <span class="chart-leg-item"><span style="color:#f97316;">╌</span> 저항선</span>
+            <span class="chart-leg-item" style="margin-left:auto;">▲빨강 상승 / ▼파랑 하락</span>
+        </div>
+        <div class="chart-interp" id="chartInterp">
+            <div class="chart-interp-hd">추세선 해석</div>
+            <ul class="chart-interp-list" id="chartInterpList"></ul>
+        </div>
+    </div>
+</div>
+
 <script>
+let _chartObj = null;
+
+function openChart(ticker, name) {
+    const modal = document.getElementById('chartModal');
+    modal.classList.add('open');
+    document.getElementById('chartName').textContent = name;
+    document.getElementById('chartTick').textContent = ticker;
+    document.getElementById('chartFullLink').href = '/analyze?query=' + encodeURIComponent(ticker) + '&months=3';
+    document.getElementById('chartBody').innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.8rem;">차트 로딩 중...</div>';
+    document.getElementById('chartInterp').style.display = 'none';
+    if (_chartObj) { _chartObj.remove(); _chartObj = null; }
+
+    fetch('/api/chart-data/' + ticker)
+        .then(r => r.json())
+        .then(data => _renderChart(data))
+        .catch(() => {
+            document.getElementById('chartBody').innerHTML = '<div style="padding:40px;text-align:center;color:#f87171;">데이터를 불러올 수 없습니다</div>';
+        });
+}
+
+function closeChart() {
+    document.getElementById('chartModal').classList.remove('open');
+    if (_chartObj) { _chartObj.remove(); _chartObj = null; }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChart(); });
+
+function _renderChart(data) {
+    const el = document.getElementById('chartBody');
+    el.innerHTML = '';
+    _chartObj = LightweightCharts.createChart(el, {
+        layout: { background: { type: 'solid', color: '#0d0d0d' }, textColor: '#6b7280' },
+        grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
+        crosshair: { mode: 1 },
+        rightPriceScale: { borderColor: '#1f1f1f' },
+        timeScale: { borderColor: '#1f1f1f', timeVisible: false },
+        width: el.clientWidth, height: el.clientHeight || 360,
+    });
+    const cs = _chartObj.addCandlestickSeries({
+        upColor: '#ef4444', downColor: '#3b82f6',
+        borderUpColor: '#ef4444', borderDownColor: '#3b82f6',
+        wickUpColor: '#ef4444', wickDownColor: '#3b82f6',
+    });
+    cs.setData(data.candles);
+
+    if (data.volumes && data.volumes.length) {
+        const vs = _chartObj.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
+        _chartObj.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+        vs.setData(data.volumes);
+    }
+    const _line = (color, style) => _chartObj.addLineSeries({ color, lineWidth: 1.5, lineStyle: style || 0, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    if (data.ma20 && data.ma20.length)             { const s = _line('#f59e0b');    s.setData(data.ma20); }
+    if (data.ma60 && data.ma60.length)             { const s = _line('#60a5fa');    s.setData(data.ma60); }
+    if (data.support && data.support.length)       { const s = _line('#22c55e', 2); s.setData(data.support); }
+    if (data.resistance && data.resistance.length) { const s = _line('#f97316', 2); s.setData(data.resistance); }
+
+    _chartObj.timeScale().fitContent();
+    new ResizeObserver(() => { if (_chartObj) _chartObj.applyOptions({ width: el.clientWidth }); }).observe(el);
+
+    if (data.interpretation && data.interpretation.length) {
+        const interp = document.getElementById('chartInterp');
+        document.getElementById('chartInterpList').innerHTML = data.interpretation.map(t =>
+            `<li>${t}</li>`
+        ).join('');
+        interp.style.display = 'block';
+    }
+}
+
 function triggerScan() {
     const btn = document.getElementById('scanBtn');
     btn.disabled = true;

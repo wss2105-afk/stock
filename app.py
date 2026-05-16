@@ -1132,6 +1132,131 @@ def debug_export(ticker):
         return jsonify({'ticker': ticker, 'error': str(e), 'status': 'error'})
 
 
+@app.route('/api/chart-data/<ticker>')
+def api_chart_data(ticker):
+    """캔들 + MA20/60 + 자동 추세선 + 추세선 해석"""
+    cached = load_stock_cache(ticker)
+    ohlcv  = cached.get('ohlcv') if cached else None
+    name   = cached.get('name', ticker) if cached else ticker
+
+    if ohlcv is None or ohlcv.empty:
+        try:
+            ohlcv = get_ohlcv(ticker, months=6)
+        except Exception:
+            return jsonify({'error': 'no data'}), 404
+
+    if ohlcv is None or len(ohlcv) < 20:
+        return jsonify({'error': 'insufficient data'}), 404
+
+    close_all = ohlcv['close']
+    ma20_all  = close_all.rolling(20).mean()
+    ma60_all  = close_all.rolling(60).mean()
+
+    display = ohlcv.tail(90)
+    n       = len(display)
+
+    if hasattr(display.index, 'strftime'):
+        dates = display.index.strftime('%Y-%m-%d').tolist()
+    else:
+        dates = [str(d)[:10] for d in display.index]
+
+    candles, volumes = [], []
+    for i, (_, row) in enumerate(display.iterrows()):
+        o = int(round(float(row['open'])))
+        h = int(round(float(row['high'])))
+        l = int(round(float(row['low'])))
+        c = int(round(float(row['close'])))
+        candles.append({'time': dates[i], 'open': o, 'high': h, 'low': l, 'close': c})
+        try:
+            vol = int(float(row['volume']))
+        except Exception:
+            vol = 0
+        color = 'rgba(239,68,68,0.35)' if c >= o else 'rgba(59,130,246,0.35)'
+        volumes.append({'time': dates[i], 'value': vol, 'color': color})
+
+    def _ma_pts(series, n_disp, date_list):
+        vals = series.tail(n_disp)
+        pts  = []
+        for i, v in enumerate(vals):
+            if v == v and i < len(date_list):
+                pts.append({'time': date_list[i], 'value': int(round(float(v)))})
+        return pts
+
+    ma20 = _ma_pts(ma20_all, n, dates)
+    ma60 = _ma_pts(ma60_all, n, dates)
+
+    high_arr = display['high'].values.astype(float)
+    low_arr  = display['low'].values.astype(float)
+    PW = 2
+
+    pivot_highs, pivot_lows = [], []
+    for i in range(PW, n - PW):
+        if all(high_arr[i] > high_arr[i - j] for j in range(1, PW + 1)) and \
+           all(high_arr[i] > high_arr[i + j] for j in range(1, PW + 1)):
+            pivot_highs.append((i, high_arr[i]))
+        if all(low_arr[i] < low_arr[i - j] for j in range(1, PW + 1)) and \
+           all(low_arr[i] < low_arr[i + j] for j in range(1, PW + 1)):
+            pivot_lows.append((i, low_arr[i]))
+
+    def _trendline(pivots, date_list, n_total):
+        if len(pivots) < 2:
+            return [], 'none'
+        x1, y1 = pivots[-2]
+        x2, y2 = pivots[-1]
+        if x2 == x1 or y1 == 0:
+            return [], 'none'
+        slope = (y2 - y1) / (x2 - x1)
+        slope_pct = (y2 - y1) / y1 * 100 / (x2 - x1)
+        direction = 'up' if slope_pct > 0.1 else ('down' if slope_pct < -0.1 else 'flat')
+        pts = []
+        for i in range(x1, n_total):
+            val = y1 + slope * (i - x1)
+            if val > 0 and i < len(date_list):
+                pts.append({'time': date_list[i], 'value': int(round(val))})
+        return pts, direction
+
+    resistance_pts, r_dir = _trendline(pivot_highs, dates, n)
+    support_pts,    s_dir = _trendline(pivot_lows,  dates, n)
+
+    has_r = len(resistance_pts) > 0
+    has_s = len(support_pts) > 0
+
+    interp = []
+    if has_s:
+        if s_dir == 'up':
+            interp.append('지지선 ↗ 상향 — 저점이 높아지는 상승 흐름')
+        elif s_dir == 'down':
+            interp.append('지지선 ↘ 하향 — 하락 압력 지속, 지지대 약화')
+        else:
+            interp.append('지지선 → 수평 — 강한 지지대 형성 중')
+    if has_r:
+        if r_dir == 'down':
+            interp.append('저항선 ↘ 하향 — 매도 압력 강함, 돌파 여부 주시')
+        elif r_dir == 'up':
+            interp.append('저항선 ↗ 상향 — 점진적 고점 형성, 강한 상승 패턴')
+        else:
+            interp.append('저항선 → 수평 — 주요 매물대 구간')
+    if has_s and has_r:
+        if s_dir == 'up' and r_dir == 'down':
+            interp.append('★ 수렴형(쐐기) — 조만간 큰 방향 결정 예상')
+        elif s_dir == 'up' and r_dir == 'up':
+            interp.append('▲ 상승 채널 — 우상향 추세 유지 중')
+        elif s_dir == 'down' and r_dir == 'down':
+            interp.append('▼ 하락 채널 — 추세 전환 신호 확인 후 진입 권장')
+        elif s_dir == 'up' and r_dir == 'flat':
+            interp.append('저점 높아지며 수평 저항 근접 — 돌파 시도 주시')
+        elif s_dir == 'flat' and r_dir == 'down':
+            interp.append('저항선 눌려오는 형태 — 지지 여부 확인 필요')
+
+    return jsonify({
+        'name': name, 'ticker': ticker,
+        'candles': candles, 'volumes': volumes,
+        'ma20': ma20, 'ma60': ma60,
+        'support': support_pts, 'resistance': resistance_pts,
+        'interpretation': interp,
+    })
+
+
 @app.errorhandler(500)
 def internal_error(e):
     import traceback
