@@ -930,6 +930,65 @@ def scan_buy_candidates(top_n=10, max_workers=8):
     return phase2[:top_n]
 
 
+def _calc_pullback_score(ohlcv, lookback=60):
+    """눌림목 분석 — 고점 대비 충분히 눌린 후 반등 중인 종목에 점수 부여.
+    lookback일 내 최고점→최저점 낙폭을 기준으로 채점한다.
+    """
+    try:
+        if len(ohlcv) < lookback + 2:
+            return 0, []
+        cur    = float(ohlcv['close'].iloc[-1])
+        window = ohlcv.iloc[-lookback:-1]
+        high_p = float(window['high'].max())
+        low_p  = float(window['low'].min())
+        if high_p <= 0 or low_p <= 0:
+            return 0, []
+        pullback = (low_p - high_p) / high_p * 100   # 음수
+        rebound  = (cur  - low_p)  / low_p  * 100    # 양수면 반등 중
+        if pullback > -10 or rebound < 2:
+            return 0, []
+        pull = abs(pullback)
+        if pull >= 30:
+            return 8, [f'깊은눌림{pull:.0f}%반등']
+        elif pull >= 20:
+            return 6, [f'눌림목{pull:.0f}%반등']
+        else:
+            return 3, [f'눌림목{pull:.0f}%반등']
+    except Exception:
+        return 0, []
+
+
+def _calc_ma_touch_score(ohlcv, lookback=15):
+    """최근 lookback일 내 60일선·120일선 저가 터치 후 위로 반등 시 가산점."""
+    try:
+        if len(ohlcv) < 65:
+            return 0, []
+        close = ohlcv['close']
+        low   = ohlcv['low']
+        cur   = float(close.iloc[-1])
+        TOUCH = 0.03    # ±3% 이내 터치 인정
+        score, tags = 0, []
+        for days, label, pts in [(60, '60일선', 8), (120, '120일선', 10)]:
+            if len(ohlcv) < days + lookback:
+                continue
+            ma_series = close.rolling(days).mean()
+            ma_now    = float(ma_series.iloc[-1])
+            if pd.isna(ma_now) or cur <= ma_now * 1.005:
+                continue
+            for i in range(1, lookback + 1):
+                lp   = float(low.iloc[-i - 1])
+                ma_d = float(ma_series.iloc[-i - 1])
+                if pd.isna(ma_d) or ma_d <= 0:
+                    continue
+                if abs(lp - ma_d) / ma_d <= TOUCH:
+                    score += pts
+                    tags.append(f'{label}터치반등')
+                    break
+        return score, tags
+    except Exception:
+        return 0, []
+
+
 def _check_surge_phase1(name, ticker):
     """급등주 후보 Phase1: 캐시 기반 기술·펀더멘털 점수화 (0~65점)"""
     try:
@@ -1031,10 +1090,30 @@ def _check_surge_phase1(name, ticker):
         # ── 수급 ─────────────────────────────────────────────
         frgn = _count_consecutive_buying(investor_df, '외국인') or _count_consecutive_buying(investor_df, '외인')
         inst = _count_consecutive_buying(investor_df, '기관')
-        if frgn >= 3 or inst >= 3:
-            score += 8; tags.append(f'수급↑{max(frgn,inst)}일')
-        elif frgn >= 1 or inst >= 1:
+        best = max(frgn, inst)
+        if best >= 10:
+            score += 15; tags.append(f'수급↑{best}일')
+        elif best >= 5:
+            score += 12; tags.append(f'수급↑{best}일')
+        elif best >= 3:
+            score += 8;  tags.append(f'수급↑{best}일')
+        elif best >= 1:
+            score += 4
+
+        # 외인+기관 동시매수 추가 가산점
+        joint_d, joint_star = _calc_joint_buying(investor_df, days=20, threshold=5)
+        if joint_star:
+            score += 6; tags.append(f'외인+기관동시{joint_d}일')
+        elif joint_d >= 3:
             score += 3
+
+        # ── 눌림목 분석 ───────────────────────────────────────
+        pb_score, pb_tags = _calc_pullback_score(ohlcv)
+        score += pb_score; tags.extend(pb_tags)
+
+        # ── 60/120일선 저가 터치 후 반등 ─────────────────────
+        mt_score, mt_tags = _calc_ma_touch_score(ohlcv)
+        score += mt_score; tags.extend(mt_tags)
 
         if score < 22:           # 당일 데이터 없이 너무 낮으면 조기 탈락
             return None
@@ -1069,15 +1148,15 @@ def _enrich_surge_today(r):
         t_high   = float(today['high'])
         t_vol    = float(today['volume'])
 
-        # 당일 상승률 (전일 종가 대비)
+        # 당일 상승률 (전일 종가 대비) — 수급·눌림목 대비 비중 낮춤
         chg_pct = (t_close - prev_cls) / prev_cls * 100 if prev_cls else 0
         r['chg_pct'] = round(chg_pct, 2)
         if 5 <= chg_pct <= 12:
-            r['score'] += 12; r['tags'].append(f'+{round(chg_pct,1)}%')
+            r['score'] += 7;  r['tags'].append(f'+{round(chg_pct,1)}%')
         elif 3 <= chg_pct < 5:
-            r['score'] += 5;  r['tags'].append(f'+{round(chg_pct,1)}%')
+            r['score'] += 3;  r['tags'].append(f'+{round(chg_pct,1)}%')
         elif chg_pct > 12:
-            r['score'] += 2   # 너무 급등 — 모멘텀은 있지만 추격 위험
+            r['score'] += 1   # 너무 급등 — 모멘텀은 있지만 추격 위험
 
         # 당일 거래량 20일 평균 대비
         if vol20 and vol20 > 0:
