@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>과매도 · 과매수 레이더</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
+        .topbar { background: #000; border-bottom: 1px solid #202020; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
+        .topbar a { color: #7D7D7D; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .topbar a:hover { color: #f59e0b; }
+        .topbar-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #fff; }
+        .main { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+        .page-title { font-size: clamp(1.6rem, 5vw, 2.4rem); font-weight: 400; letter-spacing: 0.03em; color: #fff; margin-bottom: 4px; }
+        .page-sub { font-size: 0.68rem; color: #7D7D7D; letter-spacing: 0.12em; margin-bottom: 24px; }
+
+        .meta-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+        .meta-item { font-size: 0.65rem; color: #555; letter-spacing: 0.12em; }
+        .meta-item span { color: #969696; }
+        .scan-btn { padding: 7px 16px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; border: none; background: #b45309; cursor: pointer; transition: background 0.15s; }
+        .scan-btn:hover { background: #92400e; }
+        .scan-btn:disabled { background: #333; color: #666; cursor: default; }
+        .scan-msg { font-size: 0.65rem; color: #f59e0b; letter-spacing: 0.08em; }
+
+        /* 탭 */
+        .tab-bar { display: flex; gap: 1px; border-bottom: 1px solid #222; margin-bottom: 0; }
+        .tab-btn { flex: 1; padding: 12px 0; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border: none; background: #111; cursor: pointer; transition: background 0.15s, color 0.15s; }
+        .tab-btn.oversold  { color: #f59e0b; }
+        .tab-btn.overbought{ color: #60a5fa; }
+        .tab-btn.active.oversold  { background: rgba(245,158,11,0.12); border-bottom: 2px solid #f59e0b; }
+        .tab-btn.active.overbought{ background: rgba(96,165,250,0.10); border-bottom: 2px solid #60a5fa; }
+        .tab-btn:not(.active) { opacity: 0.4; }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* 섹션 헤더 */
+        .section-hd { display: flex; align-items: center; gap: 12px; padding: 14px 0 10px; }
+        .section-badge { padding: 4px 12px; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; }
+        .badge-os { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.4); }
+        .badge-ob { background: rgba(96,165,250,0.10); color: #60a5fa; border: 1px solid rgba(96,165,250,0.4); }
+        .section-desc { font-size: 0.65rem; color: #555; letter-spacing: 0.1em; }
+        .section-cnt  { margin-left: auto; font-size: 0.62rem; color: #444; letter-spacing: 0.1em; }
+
+        /* 카드 */
+        .stock-card { display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: #141414; margin-bottom: 1px; cursor: pointer; transition: background 0.15s; border-left: 3px solid transparent; }
+        .stock-card:hover { background: #1e1e1e; }
+        .stock-card.oversold  { border-left-color: rgba(245,158,11,0.5); }
+        .stock-card.overbought{ border-left-color: rgba(96,165,250,0.4); }
+
+        .rank { font-size: clamp(0.9rem, 2.5vw, 1.3rem); font-weight: 900; color: #2a2a2a; width: 32px; text-align: center; flex-shrink: 0; }
+        .rank.top1 { color: #f59e0b; }
+        .rank.top2 { color: #969696; }
+        .rank.top3 { color: #7a5800; }
+        .rank.ob1  { color: #60a5fa; }
+
+        .stock-info { flex: 1; min-width: 0; }
+        .stock-name { font-size: 0.95rem; font-weight: 500; color: #e8e8e8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stock-meta { font-size: 0.62rem; color: #444; letter-spacing: 0.08em; margin-top: 3px; }
+
+        .tag-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+        .tag-os { padding: 2px 8px; font-size: 0.58rem; font-weight: 700; border: 1px solid rgba(245,158,11,0.5); color: #f59e0b; }
+        .tag-ob { padding: 2px 8px; font-size: 0.58rem; font-weight: 700; border: 1px solid rgba(96,165,250,0.5); color: #60a5fa; }
+
+        .score-col { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; min-width: 56px; }
+        .score-num { font-size: 1.2rem; font-weight: 700; line-height: 1; }
+        .score-num.os { color: #f59e0b; }
+        .score-num.ob { color: #60a5fa; }
+        .score-lbl { font-size: 0.52rem; color: #444; letter-spacing: 0.1em; text-transform: uppercase; }
+        .price-col { font-size: 0.85rem; font-weight: 600; color: #c0c0c0; white-space: nowrap; flex-shrink: 0; min-width: 72px; text-align: right; }
+
+        .empty-msg { padding: 28px; text-align: center; color: #333; font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase; }
+
+        @media (max-width: 576px) {
+            .topbar { padding: 10px 12px; }
+            .main { padding: 16px 8px; }
+            .stock-card { padding: 11px 10px; gap: 8px; }
+            .score-num { font-size: 1rem; }
+            .stock-name { font-size: 0.86rem; }
+            .price-col { min-width: 60px; font-size: 0.78rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <a href="/">← BACK</a>
+    <span class="topbar-title">과매도 · 과매수 레이더</span>
+</div>
+
+<div class="main">
+    <div class="page-title">과매도 · 과매수 레이더</div>
+    <div class="page-sub">RSI · Stochastic · Bollinger Band · MFI 4개 오실레이터 기반 — 평일 11:00 / 13:00 자동 업데이트</div>
+
+    <div class="meta-bar">
+        {% if updated_at %}
+        <div class="meta-item">업데이트 <span>{{ updated_at }}</span></div>
+        <div class="meta-item">과매도 <span>{{ oversold|length }}개</span></div>
+        <div class="meta-item">과매수 <span>{{ overbought|length }}개</span></div>
+        {% else %}
+        <div class="meta-item" style="color:#666;">스캔 데이터가 없습니다</div>
+        {% endif %}
+        <button id="scanBtn" class="scan-btn" onclick="rescan()">지금 스캔</button>
+        <span id="scanMsg" class="scan-msg" style="display:none;">스캔 시작됨 — 완료 후 새로고침하세요</span>
+    </div>
+
+    {% if scanning %}
+    <div style="background:#181818;border:1px solid #313131;padding:16px 20px;margin-bottom:20px;font-size:0.72rem;color:#f59e0b;">
+        스캔 진행 중… 완료 후 새로고침하세요.
+    </div>
+    {% endif %}
+
+    <!-- 탭 -->
+    <div class="tab-bar">
+        <button id="tabOs" class="tab-btn oversold active" onclick="switchTab('oversold')">
+            📉 과매도 (매수 후보) {{ oversold|length }}개
+        </button>
+        <button id="tabOb" class="tab-btn overbought" onclick="switchTab('overbought')">
+            📈 과매수 (주의) {{ overbought|length }}개
+        </button>
+    </div>
+
+    <!-- 과매도 패널 -->
+    <div id="panelOs" class="tab-panel active">
+        <div class="section-hd">
+            <span class="section-badge badge-os">과매도</span>
+            <span class="section-desc">RSI·Stoch·BB·MFI 복합 기준 — 반등 가능성 주목</span>
+            <span class="section-cnt">{{ oversold|length }}개 종목</span>
+        </div>
+        {% for s in oversold %}
+        <div class="stock-card oversold" onclick="analyzeStock('{{ s.ticker }}')">
+            <div class="rank {% if loop.index == 1 %}top1{% elif loop.index == 2 %}top2{% elif loop.index == 3 %}top3{% endif %}">{{ loop.index }}</div>
+            <div class="stock-info">
+                <div class="stock-name">{{ s.name }}</div>
+                <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }} · Stoch {{ s.stoch }} · MFI {{ s.mfi }}</div>
+                <div class="tag-row">
+                    {% for t in (s.tags or []) %}
+                    <span class="tag-os">{{ t }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="score-col">
+                <div class="score-num os">{{ s.score100 }}점</div>
+                <div class="score-lbl">강도</div>
+            </div>
+            <div class="price-col">{{ s.price }}원</div>
+        </div>
+        {% else %}
+        <div class="empty-msg">조건에 해당하는 종목이 없습니다</div>
+        {% endfor %}
+    </div>
+
+    <!-- 과매수 패널 -->
+    <div id="panelOb" class="tab-panel">
+        <div class="section-hd">
+            <span class="section-badge badge-ob">과매수</span>
+            <span class="section-desc">RSI·Stoch·BB·MFI 복합 기준 — 단기 조정 주의</span>
+            <span class="section-cnt">{{ overbought|length }}개 종목</span>
+        </div>
+        {% for s in overbought %}
+        <div class="stock-card overbought" onclick="analyzeStock('{{ s.ticker }}')">
+            <div class="rank {% if loop.index == 1 %}ob1{% elif loop.index == 2 %}top2{% elif loop.index == 3 %}top3{% endif %}">{{ loop.index }}</div>
+            <div class="stock-info">
+                <div class="stock-name">{{ s.name }}</div>
+                <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }} · Stoch {{ s.stoch }} · MFI {{ s.mfi }}</div>
+                <div class="tag-row">
+                    {% for t in (s.tags or []) %}
+                    <span class="tag-ob">{{ t }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="score-col">
+                <div class="score-num ob">{{ s.score100 }}점</div>
+                <div class="score-lbl">강도</div>
+            </div>
+            <div class="price-col">{{ s.price }}원</div>
+        </div>
+        {% else %}
+        <div class="empty-msg">조건에 해당하는 종목이 없습니다</div>
+        {% endfor %}
+    </div>
+</div>
+
+<form id="analyzeForm" method="POST" action="/analyze" style="display:none;">
+    <input type="hidden" name="query" id="formQuery">
+    <input type="hidden" name="months" value="3">
+</form>
+<script>
+function analyzeStock(ticker) {
+    document.getElementById('formQuery').value = ticker;
+    document.getElementById('analyzeForm').submit();
+}
+function switchTab(kind) {
+    document.getElementById('panelOs').classList.toggle('active', kind === 'oversold');
+    document.getElementById('panelOb').classList.toggle('active', kind === 'overbought');
+    document.getElementById('tabOs').classList.toggle('active', kind === 'oversold');
+    document.getElementById('tabOb').classList.toggle('active', kind === 'overbought');
+}
+function rescan() {
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = true;
+    btn.textContent = '스캔 중...';
+    document.getElementById('scanMsg').style.display = 'inline';
+    fetch('/api/osc-refresh', {method: 'POST'})
+        .then(r => r.json())
+        .then(() => {
+            document.getElementById('scanMsg').textContent = '스캔 시작됨 — 완료까지 3~5분 소요, 이후 새로고침하세요';
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.textContent = '지금 스캔';
+            document.getElementById('scanMsg').textContent = '요청 실패 — 다시 시도해 주세요';
+        });
+}
+</script>
+</body>
+</html>

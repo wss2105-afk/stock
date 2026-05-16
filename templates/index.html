@@ -801,7 +801,7 @@ fetch('/api/surge-buy-picks')
     }).catch(() => {});
 
 // ── 모달 열기/닫기 ──────────────────────────────────────
-function openOscModal()      { document.getElementById('oscModal').classList.add('open');      }
+function openOscModal()      { window.location.href = '/osc-radar'; }
 function openBounceModal()   { window.location.href = '/ma-bounce'; }
 function openFeaturesModal() { document.getElementById('featuresModal').classList.add('open'); }
 function closeFeaturesModal(){ document.getElementById('featuresModal').classList.remove('open'); }

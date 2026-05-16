@@ -1032,6 +1032,20 @@ def osc_refresh():
     return jsonify({'status': 'scanning'})
 
 
+@app.route('/osc-radar')
+def osc_radar_page():
+    """과매도·과매수 레이더 전용 페이지"""
+    cache = _load_osc_cache()
+    oversold   = cache.get('oversold',   []) if cache else []
+    overbought = cache.get('overbought', []) if cache else []
+    updated_at = cache.get('updated_at', '') if cache else ''
+    return render_template('osc_radar.html',
+                           oversold=oversold,
+                           overbought=overbought,
+                           updated_at=updated_at,
+                           scanning=_osc_scanning)
+
+
 @app.route('/api/recommend-refresh', methods=['POST'])
 def recommend_refresh():
     threading.Thread(target=_run_recommend_scan, daemon=True).start()
