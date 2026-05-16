@@ -1420,25 +1420,73 @@ def api_chart_data(ticker):
            all(low_arr[i] < low_arr[i + j] for j in range(1, PW + 1)):
             pivot_lows.append((i, low_arr[i]))
 
-    def _trendline(pivots, date_list, n_total):
+    def _find_trendlines(pivots, date_list, n_total, is_resistance):
+        """피벗 쌍을 모두 시도해 유효한 추세선을 최대 3개 반환"""
         if len(pivots) < 2:
-            return [], 'none'
-        x1, y1 = pivots[-2]
-        x2, y2 = pivots[-1]
-        if x2 == x1 or y1 == 0:
-            return [], 'none'
-        slope = (y2 - y1) / (x2 - x1)
-        slope_pct = (y2 - y1) / y1 * 100 / (x2 - x1)
-        direction = 'up' if slope_pct > 0.1 else ('down' if slope_pct < -0.1 else 'flat')
-        pts = []
-        for i in range(x1, n_total):
-            val = y1 + slope * (i - x1)
-            if val > 0 and i < len(date_list):
-                pts.append({'time': date_list[i], 'value': int(round(val))})
-        return pts, direction
+            return []
+        TOL = 0.018  # 1.8% 허용 오차
+        candidates = []
+        for a in range(len(pivots) - 1):
+            for b in range(a + 1, len(pivots)):
+                xi, yi = pivots[a]
+                xj, yj = pivots[b]
+                if xj == xi or yi == 0:
+                    continue
+                slope = (yj - yi) / (xj - xi)
+                touches = 2
+                violated = False
+                for k in range(len(pivots)):
+                    if k == a or k == b:
+                        continue
+                    xk, yk = pivots[k]
+                    line_val = yi + slope * (xk - xi)
+                    if line_val <= 0:
+                        continue
+                    diff = (yk - line_val) / line_val
+                    if is_resistance:
+                        if diff > TOL:
+                            violated = True; break
+                        elif abs(diff) <= TOL:
+                            touches += 1
+                    else:
+                        if diff < -TOL:
+                            violated = True; break
+                        elif abs(diff) <= TOL:
+                            touches += 1
+                if not violated:
+                    pts = []
+                    for i in range(xi, n_total):
+                        val = yi + slope * (i - xi)
+                        if val > 0 and i < len(date_list):
+                            pts.append({'time': date_list[i], 'value': int(round(val))})
+                    if pts:
+                        sp = slope / yi * 100 if yi else 0
+                        direction = 'up' if sp > 0.1 else ('down' if sp < -0.1 else 'flat')
+                        candidates.append({'pts': pts, 'touches': touches,
+                                           'direction': direction, 'xi': xi, 'slope': slope})
+        # 터치 많고 최신 피벗 우선 정렬
+        candidates.sort(key=lambda c: (-c['touches'], -c['xi']))
+        # 기울기 유사 중복 제거 후 최대 3개
+        result = []
+        for c in candidates:
+            dup = any(
+                abs(c['slope'] - r['slope']) / (abs(r['slope']) + 1e-9) < 0.25
+                and abs(c['xi'] - r['xi']) <= 8
+                for r in result
+            )
+            if not dup:
+                result.append(c)
+            if len(result) >= 3:
+                break
+        return result
 
-    resistance_pts, r_dir = _trendline(pivot_highs, dates, n)
-    support_pts,    s_dir = _trendline(pivot_lows,  dates, n)
+    resist_lines = _find_trendlines(pivot_highs, dates, n, is_resistance=True)
+    support_lines = _find_trendlines(pivot_lows,  dates, n, is_resistance=False)
+
+    resistance_pts = resist_lines[0]['pts'] if resist_lines else []
+    support_pts    = support_lines[0]['pts'] if support_lines else []
+    r_dir = resist_lines[0]['direction'] if resist_lines else 'none'
+    s_dir = support_lines[0]['direction'] if support_lines else 'none'
 
     has_r = len(resistance_pts) > 0
     has_s = len(support_pts) > 0
@@ -1475,6 +1523,8 @@ def api_chart_data(ticker):
         'candles': candles, 'volumes': volumes,
         'ma20': ma20, 'ma60': ma60,
         'support': support_pts, 'resistance': resistance_pts,
+        'support_lines':    [l['pts'] for l in support_lines],
+        'resistance_lines': [l['pts'] for l in resist_lines],
         'interpretation': interp,
     })
 

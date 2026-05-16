@@ -423,11 +423,15 @@ function _renderCandle(data) {
         _candleObj.priceScale('vol').applyOptions({ scaleMargins:{top:0.82,bottom:0} });
         vs.setData(data.volumes);
     }
-    const _line = (color, style) => _candleObj.addLineSeries({ color, lineWidth:1.5, lineStyle:style||0, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
-    if (data.ma20?.length)       { _line('#f59e0b').setData(data.ma20); }
-    if (data.ma60?.length)       { _line('#60a5fa').setData(data.ma60); }
-    if (data.support?.length)    { _line('#22c55e',2).setData(data.support); }
-    if (data.resistance?.length) { _line('#f97316',2).setData(data.resistance); }
+    const _line = (color, style, w) => _candleObj.addLineSeries({ color, lineWidth:w||1.5, lineStyle:style||0, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
+    if (data.ma20?.length) { _line('#f59e0b').setData(data.ma20); }
+    if (data.ma60?.length) { _line('#60a5fa').setData(data.ma60); }
+    (data.support_lines || (data.support?.length ? [data.support] : [])).forEach((pts, i) => {
+        if (pts?.length) _line('#22c55e', 2, i === 0 ? 1.5 : 1).setData(pts);
+    });
+    (data.resistance_lines || (data.resistance?.length ? [data.resistance] : [])).forEach((pts, i) => {
+        if (pts?.length) _line('#f97316', 2, i === 0 ? 1.5 : 1).setData(pts);
+    });
     _candleObj.timeScale().fitContent();
     new ResizeObserver(() => { if (_candleObj) _candleObj.applyOptions({ width: el.clientWidth }); }).observe(el);
 }
