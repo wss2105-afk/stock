@@ -653,48 +653,41 @@ function _renderBounceChartData(data) {
     }
 }
 
-(function loadBounce() {
-    const body      = document.getElementById('bounceBody');
-    const ridingDiv = document.getElementById('ridingBody');
-    const dateEl    = document.getElementById('bounceDate');
-    const longHd    = document.getElementById('bounceLongHd');
-    const ridingHd  = document.getElementById('bounceRidingHd');
-
+// MA 반등 뱃지 및 기타 픽 정보 로드 (DOM 완전 준비 후 실행)
+document.addEventListener('DOMContentLoaded', function() {
     fetch('/api/surge-picks')
         .then(r => r.json())
         .then(data => {
-            const list = data.bounce && data.bounce.length ? data.bounce : null;
-            if (!list || list.length === 0) {
-                if (data.scanning) {
-                    body.innerHTML = '<div class="bounce-loading">스캔 진행 중... 잠시 후 자동으로 업데이트됩니다.</div>';
-                    setTimeout(loadBounce, 30000);
+            const list = data.bounce || [];
+            // 뱃지: 종목 수 표시
+            const badge = document.getElementById('bounceBtnBadge');
+            if (badge && list.length > 0) {
+                badge.textContent = list.length + '종목';
+                badge.style.display = 'block';
+            }
+            // 모달 내부도 채우기 (DOM 준비됐으므로 안전)
+            const body    = document.getElementById('bounceBody');
+            const riding  = document.getElementById('ridingBody');
+            const dateEl  = document.getElementById('bounceDate');
+            const longHd  = document.getElementById('bounceLongHd');
+            const ridingHd= document.getElementById('bounceRidingHd');
+            if (body) {
+                if (data.scanned_at && dateEl) dateEl.textContent = data.scanned_at + ' 기준';
+                const bounceItems = list.filter(r => r.type !== 'riding');
+                const ridingItems = list.filter(r => r.type === 'riding');
+                if (bounceItems.length > 0) {
+                    if (longHd) longHd.style.display = '';
+                    body.innerHTML = bounceItems.slice(0, 10).map(_renderBounceRow).join('');
                 } else {
-                    body.innerHTML = '<div class="bounce-empty">아직 스캔 데이터가 없습니다.<br>위 <b>지금 스캔</b> 버튼을 클릭하세요 (약 2~5분 소요).</div>';
-                    const btn = document.getElementById('surgeScanBtn');
-                    if (btn) { btn.disabled = false; btn.textContent = '지금 스캔'; }
+                    body.innerHTML = '<div class="bounce-empty">해당 조건 종목 없음</div>';
                 }
-                return;
+                if (ridingItems.length > 0 && riding && ridingHd) {
+                    ridingHd.style.display = '';
+                    riding.style.display = '';
+                    riding.innerHTML = ridingItems.slice(0, 10).map(_renderBounceRow).join('');
+                }
             }
-            if (data.scanned_at) dateEl.textContent = data.scanned_at + ' 기준';
-            else if (data.date) dateEl.textContent = data.date + ' 기준';
-
-            const bounceItems = list.filter(r => r.type !== 'riding');
-            const ridingItems = list.filter(r => r.type === 'riding');
-
-            if (bounceItems.length > 0) {
-                longHd.style.display = '';
-                body.innerHTML = bounceItems.slice(0, 10).map(_renderBounceRow).join('');
-            } else {
-                body.innerHTML = '<div class="bounce-empty">해당 조건 종목 없음</div>';
-            }
-
-            if (ridingItems.length > 0) {
-                ridingHd.style.display = '';
-                ridingDiv.style.display = '';
-                ridingDiv.innerHTML = ridingItems.slice(0, 10).map(_renderBounceRow).join('');
-            }
-
-            // 버튼 뱃지
+            // 픽 정보
             if (data.recommend_date) {
                 const el = document.getElementById('recommendDate');
                 if (el) el.textContent = data.recommend_date + ' 기준';
@@ -713,9 +706,10 @@ function _renderBounceChartData(data) {
             }
         })
         .catch(() => {
-            body.innerHTML = '<div class="bounce-empty">데이터를 불러올 수 없습니다.</div>';
+            const body = document.getElementById('bounceBody');
+            if (body) body.innerHTML = '<div class="bounce-empty">데이터를 불러올 수 없습니다.</div>';
         });
-})();
+});
 
 (function () {
     const input = document.getElementById('searchInput');
@@ -808,7 +802,7 @@ fetch('/api/surge-buy-picks')
 
 // ── 모달 열기/닫기 ──────────────────────────────────────
 function openOscModal()      { document.getElementById('oscModal').classList.add('open');      }
-function openBounceModal()   { document.getElementById('bounceModal').classList.add('open');   }
+function openBounceModal()   { window.location.href = '/ma-bounce'; }
 function openFeaturesModal() { document.getElementById('featuresModal').classList.add('open'); }
 function closeFeaturesModal(){ document.getElementById('featuresModal').classList.remove('open'); }
 function closeModal(e, id) {
