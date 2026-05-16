@@ -207,6 +207,10 @@
             <span id="crossPicksTime" style="color:#64748b;font-size:0.62rem;"></span>
         </div>
         <div id="crossPicksList"></div>
+        <div id="crossPicksMoreWrap" style="display:none;margin-top:8px;">
+            <div id="crossPicksMore" style="display:none;"></div>
+            <button id="crossPicksToggleBtn" onclick="toggleCrossPicks()" style="width:100%;margin-top:6px;padding:6px 0;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:6px;color:#a5b4fc;font-size:0.68rem;font-weight:600;cursor:pointer;letter-spacing:0.04em;">전체보기 ▼</button>
+        </div>
     </div>
 
     <!-- 버튼 그룹 1: 스캔 · 추천 -->
@@ -549,35 +553,63 @@ document.getElementById('scanProgressOverlay').addEventListener('click', functio
 });
 
 // ── 복수 스캔 공통 종목 표시 ─────────────────────────────────────
+let _crossPicksExpanded = false;
+
+function _buildPickRow(p) {
+    const scans   = p.scans.join(' · ');
+    const reasons = p.reasons.slice(0, 3).map(r => `<span style="color:#94a3b8;font-size:0.62rem;">· ${r}</span>`).join(' ');
+    return `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;flex-direction:column;gap:3px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:#e2e8f0;font-size:0.78rem;font-weight:700;">${p.name}</span>
+            <span style="color:#6366f1;font-size:0.65rem;background:rgba(99,102,241,0.15);padding:1px 7px;border-radius:10px;">${p.ticker}</span>
+            <span style="color:#a5b4fc;font-size:0.62rem;margin-left:auto;">${scans}</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${reasons}</div>
+    </div>`;
+}
+
+function toggleCrossPicks() {
+    _crossPicksExpanded = !_crossPicksExpanded;
+    const more = document.getElementById('crossPicksMore');
+    const btn  = document.getElementById('crossPicksToggleBtn');
+    if (_crossPicksExpanded) {
+        more.style.display = 'block';
+        btn.textContent = '접기 ▲';
+    } else {
+        more.style.display = 'none';
+        btn.textContent = '전체보기 ▼';
+    }
+}
+
 function loadCrossPicks() {
     fetch('/api/cross-picks')
         .then(r => r.json())
         .then(data => {
             if (!data.ok || !data.picks || data.picks.length === 0) return;
-            const wrap = document.getElementById('crossPicksWrap');
-            const list = document.getElementById('crossPicksList');
             document.getElementById('crossPicksTime').textContent = data.updated_at + ' KST 기준';
 
-            let html = '';
-            for (const p of data.picks) {
-                const scans   = p.scans.join(' · ');
-                const reasons = p.reasons.slice(0, 3).map(r => `<span style="color:#94a3b8;font-size:0.62rem;">· ${r}</span>`).join(' ');
-                html += `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;flex-direction:column;gap:3px;">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span style="color:#e2e8f0;font-size:0.78rem;font-weight:700;">${p.name}</span>
-                        <span style="color:#6366f1;font-size:0.65rem;background:rgba(99,102,241,0.15);padding:1px 7px;border-radius:10px;">${p.ticker}</span>
-                        <span style="color:#a5b4fc;font-size:0.62rem;margin-left:auto;">${scans}</span>
-                    </div>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px;">${reasons}</div>
-                </div>`;
+            const top3  = data.picks.slice(0, 3);
+            const rest  = data.picks.slice(3);
+
+            document.getElementById('crossPicksList').innerHTML = top3.map(_buildPickRow).join('');
+
+            const moreWrap = document.getElementById('crossPicksMoreWrap');
+            if (rest.length > 0) {
+                document.getElementById('crossPicksMore').innerHTML = rest.map(_buildPickRow).join('');
+                document.getElementById('crossPicksToggleBtn').textContent =
+                    `전체보기 (${data.picks.length}개) ▼`;
+                moreWrap.style.display = 'block';
+            } else {
+                moreWrap.style.display = 'none';
             }
-            list.innerHTML = html;
-            wrap.style.display = 'block';
+
+            document.getElementById('crossPicksWrap').style.display = 'block';
         })
         .catch(() => {});
 }
 loadCrossPicks();
-// 스캔 완료 후에도 갱신
+
+// 스캔 완료 후 자동 갱신
 const _origRender = typeof _renderScanProgress === 'function' ? _renderScanProgress : null;
 if (_origRender) {
     window._renderScanProgress = function(data) {
