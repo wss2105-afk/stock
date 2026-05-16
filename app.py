@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 import os
 import json
 import threading
+import pandas as pd
 from datetime import datetime, timedelta
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
