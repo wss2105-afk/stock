@@ -6,6 +6,7 @@
     <title>{{ name }} 분석결과</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; }
@@ -355,7 +356,19 @@
 
             <!-- 오실레이터 -->
             <div class="section-card">
-                <div class="section-title">오실레이터 <span style="color:#444;font-size:0.6rem;">· 이름 클릭 시 설명</span></div>
+                <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+                    <span>오실레이터 <span style="color:#444;font-size:0.6rem;">· 이름 클릭 시 설명</span></span>
+                    <button id="oscChartBtn" onclick="toggleOscChart()" style="padding:4px 12px;background:none;border:1px solid #333;color:#7D7D7D;font-size:0.58rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">추세 차트 ▼</button>
+                </div>
+                <!-- 통합 오실레이터 추세 차트 (버튼 클릭 시 표시) -->
+                <div id="oscChartWrap" style="display:none;margin-bottom:10px;">
+                    <div style="background:#111;border:1px solid #1e1e1e;border-radius:3px;height:250px;padding:10px 10px 6px;">
+                        <canvas id="oscChartResult"></canvas>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+                        <span id="oscChartLabel" style="font-size:0.58rem;color:#444;letter-spacing:0.08em;"></span>
+                    </div>
+                </div>
                 <div class="osc-row">
 
                     <!-- RSI -->
@@ -902,6 +915,113 @@
     window.addEventListener('resize', function() {
         clearTimeout(_rt); _rt = setTimeout(_doRender, 300);
     });
+</script>
+<script>
+// ── 오실레이터 추세 차트 ──────────────────────────────────
+const _OSC_TICKER = '{{ ticker }}';
+let _oscChart = null;
+let _oscLoaded = false;
+
+function toggleOscChart() {
+    const wrap = document.getElementById('oscChartWrap');
+    const btn  = document.getElementById('oscChartBtn');
+    if (wrap.style.display === 'none') {
+        wrap.style.display = 'block';
+        btn.textContent = '추세 차트 ▲';
+        if (!_oscLoaded) _loadOscChart();
+    } else {
+        wrap.style.display = 'none';
+        btn.textContent = '추세 차트 ▼';
+    }
+}
+
+function _loadOscChart() {
+    const lbl = document.getElementById('oscChartLabel');
+    if (lbl) lbl.textContent = '로딩 중…';
+    fetch('/api/osc-history/' + _OSC_TICKER)
+        .then(r => r.json())
+        .then(d => {
+            if (d.error) { if (lbl) lbl.textContent = '데이터 없음'; return; }
+            const dates = d.dates || [];
+            if (lbl) lbl.textContent = '최근 ' + dates.length + '일';
+            _buildOscChart(d, dates);
+            _oscLoaded = true;
+        })
+        .catch(() => { if (lbl) lbl.textContent = '로드 실패'; });
+}
+
+function _buildOscChart(d, dates) {
+    const canvas = document.getElementById('oscChartResult');
+    if (!canvas) return;
+    if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
+
+    const refLinePlugin = {
+        id: 'oscRef',
+        afterDraw(chart) {
+            const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+            [[30, 'rgba(245,158,11,0.35)'], [70, 'rgba(239,68,68,0.35)']].forEach(([v, c]) => {
+                const yy = y.getPixelForValue(v);
+                ctx.save();
+                ctx.strokeStyle = c;
+                ctx.lineWidth = 1;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(right, yy); ctx.stroke();
+                ctx.restore();
+            });
+        }
+    };
+
+    _oscChart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        plugins: [refLinePlugin],
+        data: {
+            labels: dates,
+            datasets: [
+                { label: 'RSI',   data: d.rsi,   borderColor: '#FFC000', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
+                { label: 'Stoch', data: d.stoch, borderColor: '#22c55e', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
+                { label: 'MFI',   data: d.mfi,   borderColor: '#29ABE2', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
+                { label: 'BB%',   data: d.bb,    borderColor: '#a78bfa', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 350 },
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: {
+                    display: true,
+                    ticks: {
+                        color: '#555', font: { size: 8 }, maxTicksLimit: 8, maxRotation: 0,
+                        callback: (val, idx) => dates[idx]?.slice(5) ?? '',
+                    },
+                    grid: { display: false },
+                },
+                y: {
+                    min: -2, max: 102,
+                    ticks: { color: '#444', font: { size: 8 }, stepSize: 25, callback: v => v < 0 || v > 100 ? '' : v },
+                    grid: { color: 'rgba(255,255,255,0.04)' },
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true, position: 'top',
+                    labels: { color: '#777', font: { size: 9 }, boxWidth: 18, padding: 8, usePointStyle: true }
+                },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: '#1a1a1a', borderColor: '#333', borderWidth: 1,
+                    titleColor: '#777', bodyColor: '#fff',
+                    titleFont: { size: 9 }, bodyFont: { size: 10 },
+                    callbacks: {
+                        title: items => dates[items[0].dataIndex]?.slice(5) ?? '',
+                        label: item => ' ' + item.dataset.label + ': ' + (item.raw ?? '—'),
+                    }
+                }
+            }
+        }
+    });
+}
 </script>
 </body>
 </html>
