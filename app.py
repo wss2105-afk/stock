@@ -149,14 +149,14 @@ def _run_surge_scan():
 
 
 def _evening_scheduler():
-    """매일 10:00 UTC(=19:00 KST) 반등/급등 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
+    """매일 19:00 UTC(=04:00 KST) 반등/급등 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
     import time as _time
     if _load_surge_cache() is None:
         threading.Thread(target=_run_surge_scan, daemon=True).start()
 
     while True:
         now = datetime.today()
-        next_run = now.replace(hour=10, minute=0, second=0, microsecond=0)
+        next_run = now.replace(hour=19, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
         _time.sleep((next_run - now).total_seconds())
