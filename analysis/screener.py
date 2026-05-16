@@ -1042,14 +1042,14 @@ def _check_surge_phase1(name, ticker):
         score = 0
         tags  = []
 
-        # ── 거래대금 (hard: 50억 미만 제외) ──────────────────
+        # ── 거래대금 (hard: 1000억 미만 제외) ───────────────
         avg_tv = (ohlcv['close'] * ohlcv['volume']).tail(20).mean()
-        if avg_tv < 5_000_000_000:
+        if avg_tv < 100_000_000_000:
             return None
-        if avg_tv >= 10_000_000_000:
-            score += 8; tags.append('거래대금100억↑')
+        if avg_tv >= 300_000_000_000:
+            score += 8; tags.append('거래대금3000억↑')
         else:
-            score += 4; tags.append('거래대금50억↑')
+            score += 4; tags.append('거래대금1000억↑')
 
         # ── 펀더멘털 ─────────────────────────────────────────
         # 부채비율 200% 이상 → 제외 (hard)
