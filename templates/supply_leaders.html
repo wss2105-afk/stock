@@ -388,7 +388,7 @@ function _renderSupplyCandle(ticker) {
                 borderUpColor: '#26a69a', borderDownColor: '#ef5350',
                 wickUpColor: '#26a69a', wickDownColor: '#ef5350',
             });
-            candle.setData(d.ohlcv);
+            candle.setData(d.candles);
             if (d.ma20 && d.ma20.length) _supplyLwChart.addLineSeries({ color: '#FFC000', lineWidth: 1, title: 'MA20' }).setData(d.ma20);
             if (d.ma60 && d.ma60.length) _supplyLwChart.addLineSeries({ color: '#29ABE2', lineWidth: 1, title: 'MA60' }).setData(d.ma60);
             if (d.ma120 && d.ma120.length) _supplyLwChart.addLineSeries({ color: '#2ecc71', lineWidth: 1, title: 'MA120' }).setData(d.ma120);
