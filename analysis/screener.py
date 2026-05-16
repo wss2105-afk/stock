@@ -827,7 +827,7 @@ def _check_buy_candidate(name, ticker):
         elif vol5 >= vol20 * 0.9:
             score += 1; reasons.append('거래량 유지 (+1)')
 
-        # 수급 — 외인·기관 10일 중 순매수 빈도 (각각 +5/+2)
+        # 수급 — 외인·기관 10일 중 순매수 빈도 (수급을 가장 강한 시그널로 가중)
         foreign_days = inst_days = foreign_streak = inst_streak = 0
         if not investor_df.empty:
             fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
@@ -837,14 +837,27 @@ def _check_buy_candidate(name, ticker):
                 last10 = investor_df.tail(10)
                 foreign_days = int((last10[fc] > 0).sum())
                 inst_days    = int((last10[ic] > 0).sum())
-                if foreign_days >= 6:
-                    score += 5; tags.append(f'외인{foreign_days}/10일'); reasons.append(f'외인 {foreign_days}/10일 매수 (+5)')
+
+                # 외인 점수 (최대 +10)
+                if foreign_days >= 8:
+                    score += 10; tags.append(f'외인{foreign_days}/10일'); reasons.append(f'외인 {foreign_days}/10일 매수 (+10)')
+                elif foreign_days >= 6:
+                    score += 7;  tags.append(f'외인{foreign_days}/10일'); reasons.append(f'외인 {foreign_days}/10일 매수 (+7)')
                 elif foreign_days >= 4:
-                    score += 2; reasons.append(f'외인 {foreign_days}/10일 매수 (+2)')
-                if inst_days >= 6:
-                    score += 5; tags.append(f'기관{inst_days}/10일'); reasons.append(f'기관 {inst_days}/10일 매수 (+5)')
+                    score += 3;  reasons.append(f'외인 {foreign_days}/10일 매수 (+3)')
+
+                # 기관 점수 (최대 +10)
+                if inst_days >= 8:
+                    score += 10; tags.append(f'기관{inst_days}/10일'); reasons.append(f'기관 {inst_days}/10일 매수 (+10)')
+                elif inst_days >= 6:
+                    score += 7;  tags.append(f'기관{inst_days}/10일'); reasons.append(f'기관 {inst_days}/10일 매수 (+7)')
                 elif inst_days >= 4:
-                    score += 2; reasons.append(f'기관 {inst_days}/10일 매수 (+2)')
+                    score += 3;  reasons.append(f'기관 {inst_days}/10일 매수 (+3)')
+
+                # 외인+기관 동시 매수 보너스
+                if foreign_days >= 6 and inst_days >= 6:
+                    score += 5; tags.append('동시매수'); reasons.append(f'외인+기관 동시 매수 보너스 (+5)')
+
                 foreign_streak = (_count_consecutive_buying(investor_df, '외국인') or
                                   _count_consecutive_buying(investor_df, '외인'))
                 inst_streak    = _count_consecutive_buying(investor_df, '기관')
