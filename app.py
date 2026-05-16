@@ -1069,6 +1069,16 @@ def scan_progress():
     return jsonify(_build_progress_response())
 
 
+@app.route('/api/telegram-test')
+def telegram_test():
+    """텔레그램 봇 연결 테스트"""
+    if not _TG_TOKEN or not _TG_CHAT_ID:
+        return jsonify({'ok': False, 'error': 'TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID 환경변수가 설정되지 않았습니다.'})
+    now_kst = (datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')
+    _send_telegram(f'✅ 주식봇 연결 테스트 성공!\n\n{now_kst} KST\n공통 종목 발견 시 이 채팅으로 알림이 옵니다.')
+    return jsonify({'ok': True, 'message': '텔레그램으로 테스트 메시지를 발송했습니다.'})
+
+
 @app.route('/api/ai-comment')
 def ai_comment_api():
     """AI 분석을 별도로 요청 (result 페이지에서 비동기 호출)"""
