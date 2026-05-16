@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from analysis.screener import scan_top_stocks, scan_supply_leaders, scan_surge_stocks, scan_ma_bounce_stocks, scan_osc_stocks, scan_buy_candidates, scan_surge_buy_candidates
+from analysis.screener import scan_top_stocks, scan_supply_leaders, scan_surge_stocks, scan_ma_bounce_stocks, scan_osc_stocks, scan_buy_candidates, scan_surge_buy_candidates, get_scan_progress
 from analysis.export_growth import load_cache as load_export_cache, scan_export_growth, is_new_update
 from analysis.data_fetcher import get_ticker, get_ohlcv, get_investor_detail, get_supply_zone, is_main_stock, get_today_price, append_today
 from analysis.cache_manager import load_stock_cache, build_all_cache, is_build_needed, get_build_status
@@ -105,6 +105,7 @@ def _run_surge_scan():
     """MA 반등 종목 + 급등 종목 스캔 후 surge_cache 저장 (pick_rec/sup는 각자 스케줄러 캐시 활용)"""
     global _surge_scanning
     _surge_scanning = True
+    _status_set('surge', 'running')
     today = datetime.today().strftime('%Y-%m-%d')
     scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
     try:
@@ -139,8 +140,10 @@ def _run_surge_scan():
                 'pick_exp':   pick_exp,
             }, f, ensure_ascii=False)
         print(f'[{scanned_at}] 반등/급등 스캔 완료 — 반등:{len(bounce)}건, 급등:{len(surge)}건')
+        _status_set('surge', 'done')
     except Exception as e:
         print(f'반등/급등 스캔 오류: {e}')
+        _status_set('surge', 'done')
     finally:
         _surge_scanning = False
 
@@ -208,18 +211,55 @@ _surge_scanning           = False
 _buy_candidate_scanning   = False
 _surge_buy_scanning       = False
 
+# ── 전체 스캔 진행 상태 ──────────────────────────────────────────
+_SCAN_LABELS = {
+    'recommend':  '추천 종목 TOP20',
+    'supply':     '수급 주도 종목',
+    'osc':        '과매도/과매수',
+    'surge':      'MA반등/급등',
+    'buy':        '매수후보(단기)',
+    'surge_buy':  '급등주 매수후보',
+}
+_scan_status: dict = {}
+_scan_status_lock = threading.Lock()
+
+def _status_set(key: str, state: str):
+    with _scan_status_lock:
+        _scan_status[key] = state
+
+def _build_progress_response():
+    prog = get_scan_progress()
+    with _scan_status_lock:
+        status = dict(_scan_status)
+    items = []
+    for key, label in _SCAN_LABELS.items():
+        st  = status.get(key, 'idle')
+        p   = prog.get(key, {})
+        cur = p.get('current', 0)
+        tot = p.get('total', 0)
+        nm  = p.get('name', '')
+        pct = round(cur / tot * 100) if tot > 0 else (100 if st == 'done' else 0)
+        items.append({'key': key, 'label': label, 'status': st,
+                      'current': cur, 'total': tot, 'name': nm, 'pct': pct})
+    any_running = any(s == 'running' for s in status.values())
+    all_done    = bool(status) and all(s == 'done' for s in status.values())
+    return {'items': items, 'running': any_running, 'done': all_done}
+
 def _run_osc_scan():
     """과매도/과매수 스캔 실행 후 캐시 저장"""
     global _osc_scanning
     _osc_scanning = True
+    _status_set('osc', 'running')
     try:
         result = scan_osc_stocks(top_n=30)
         now = datetime.today().strftime('%Y-%m-%d %H:%M')
         with open(_OSC_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump({'updated_at': now, **result}, f, ensure_ascii=False)
         print(f'[{now}] 과매도/과매수 스캔 완료 — 과매도:{len(result["oversold"])} 과매수:{len(result["overbought"])}')
+        _status_set('osc', 'done')
     except Exception as e:
         print(f'과매도/과매수 스캔 오류: {e}')
+        _status_set('osc', 'done')
     finally:
         _osc_scanning = False
 
@@ -296,6 +336,7 @@ _RECOMMEND_ERROR_PATH = os.path.join(_DATA_DIR, 'recommend_error.txt')
 
 def _run_recommend_scan():
     """추천 종목 20선 스캔 후 캐시 저장"""
+    _status_set('recommend', 'running')
     try:
         results = scan_top_stocks(top_n=20, months=6)
         today = datetime.today().strftime('%Y-%m-%d')
@@ -304,10 +345,12 @@ def _run_recommend_scan():
             json.dump({'date': today, 'scanned_at': scanned_at, 'results': results}, f,
                       ensure_ascii=False)
         print(f'[{scanned_at}] 추천 종목 스캔 완료 — {len(results)}건')
+        _status_set('recommend', 'done')
     except Exception as e:
         import traceback
         err = traceback.format_exc()
         print(f'추천 종목 스캔 오류: {e}')
+        _status_set('recommend', 'done')
         with open(_RECOMMEND_ERROR_PATH, 'w') as f:
             f.write(err)
 
@@ -353,14 +396,17 @@ def _load_supply_cache():
 
 
 def _run_supply_scan():
+    _status_set('supply', 'running')
     try:
         results = scan_supply_leaders(months=3)
         scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
         with open(_SUPPLY_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump({'scanned_at': scanned_at, 'results': results}, f, ensure_ascii=False)
         print(f'[{scanned_at}] 수급주도 스캔 완료 — {len(results)}건')
+        _status_set('supply', 'done')
     except Exception as e:
         print(f'수급주도 스캔 오류: {e}')
+        _status_set('supply', 'done')
 
 
 def _supply_scheduler():
@@ -409,14 +455,17 @@ def _load_buy_candidate_cache():
 def _run_buy_candidate_scan():
     global _buy_candidate_scanning
     _buy_candidate_scanning = True
+    _status_set('buy', 'running')
     try:
         results = scan_buy_candidates(top_n=10)
         scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
         with open(_BUY_CANDIDATE_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump({'scanned_at': scanned_at, 'results': results}, f, ensure_ascii=False)
         print(f'[{scanned_at}] 매수후보 스캔 완료 — {len(results)}건')
+        _status_set('buy', 'done')
     except Exception as e:
         print(f'매수후보 스캔 오류: {e}')
+        _status_set('buy', 'done')
     finally:
         _buy_candidate_scanning = False
 
@@ -453,14 +502,17 @@ def _load_surge_buy_cache():
 def _run_surge_buy_scan():
     global _surge_buy_scanning
     _surge_buy_scanning = True
+    _status_set('surge_buy', 'running')
     try:
         results = scan_surge_buy_candidates(top_n=10)
         scanned_at = datetime.today().strftime('%Y-%m-%d %H:%M')
         with open(_SURGE_BUY_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump({'scanned_at': scanned_at, 'results': results}, f, ensure_ascii=False)
         print(f'[{scanned_at}] 급등주 매수후보 스캔 완료 — {len(results)}건')
+        _status_set('surge_buy', 'done')
     except Exception as e:
         print(f'급등주 매수후보 스캔 오류: {e}')
+        _status_set('surge_buy', 'done')
     finally:
         _surge_buy_scanning = False
 
@@ -856,6 +908,9 @@ def buy_candidate_refresh():
 @app.route('/api/scan-all', methods=['POST'])
 def scan_all():
     """모든 스캔 한 번에 실행"""
+    with _scan_status_lock:
+        for key in _SCAN_LABELS:
+            _scan_status[key] = 'pending'
     threading.Thread(target=_run_recommend_scan, daemon=True).start()
     threading.Thread(target=_run_supply_scan, daemon=True).start()
     threading.Thread(target=_run_osc_scan, daemon=True).start()
@@ -864,6 +919,12 @@ def scan_all():
     threading.Thread(target=_run_buy_candidate_scan, daemon=True).start()
     threading.Thread(target=_run_surge_buy_scan, daemon=True).start()
     return jsonify({'status': 'scanning', 'message': '모든 스캔 시작됨 — 완료까지 30~60분 소요'})
+
+
+@app.route('/api/scan-progress')
+def scan_progress():
+    """전체 스캔 진행률 폴링 엔드포인트"""
+    return jsonify(_build_progress_response())
 
 
 @app.route('/api/ai-comment')

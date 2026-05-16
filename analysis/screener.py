@@ -1,4 +1,6 @@
 import json, os, requests, time
+import threading as _threading
+import copy as _copy
 import pandas as pd
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
@@ -8,6 +10,25 @@ from analysis.indicators import calc_indicators, get_ma_arrangement, get_latest_
 from analysis.news import search_naver_news, get_news_signal_score, analyze_news
 from analysis.signal import calc_score, get_recommendation
 from analysis.cache_manager import load_stock_cache
+
+# ── 스캔 진행률 추적 ──────────────────────────────────────────────
+_scan_prog: dict = {}
+_scan_prog_lock = _threading.Lock()
+
+def _prog_init(key: str, total: int):
+    with _scan_prog_lock:
+        _scan_prog[key] = {'current': 0, 'total': total, 'name': ''}
+
+def _prog_tick(key: str, name: str = ''):
+    with _scan_prog_lock:
+        if key in _scan_prog:
+            _scan_prog[key]['current'] += 1
+            if name:
+                _scan_prog[key]['name'] = name
+
+def get_scan_progress() -> dict:
+    with _scan_prog_lock:
+        return _copy.deepcopy(_scan_prog)
 
 _NAVER_HDR = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
@@ -455,11 +476,13 @@ def scan_supply_leaders(months=3, max_workers=8):
     with open(_TICKER_DB_PATH, encoding='utf-8') as f:
         tickers = json.load(f)
 
+    _prog_init('supply', len(tickers))
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_check_supply_one, name, ticker, months): name
                    for name, ticker in tickers.items()}
         for future in as_completed(futures):
+            _prog_tick('supply', futures[future])
             result = future.result()
             if result:
                 results.append(result)
@@ -624,12 +647,14 @@ def scan_ma_bounce_stocks(top_n=20, max_workers=8):
 
     bounce_list = []
     riding_list = []
+    _prog_init('surge', len(tickers) * 2)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # 바닥 반등 스캔
         f_bounce = {executor.submit(_check_ma_bounce, name, ticker): name
                     for name, ticker in tickers.items()}
         for future in as_completed(f_bounce):
+            _prog_tick('surge', f_bounce[future])
             r = future.result()
             if r:
                 bounce_list.append(r)
@@ -639,6 +664,7 @@ def scan_ma_bounce_stocks(top_n=20, max_workers=8):
         f_riding = {executor.submit(_check_ma5_riding, name, ticker): name
                     for name, ticker in tickers.items()}
         for future in as_completed(f_riding):
+            _prog_tick('surge', f_riding[future])
             r = future.result()
             if r:
                 riding_list.append(r)
@@ -718,10 +744,12 @@ def scan_osc_stocks(top_n=30, max_workers=8):
         tickers = json.load(f)
 
     oversold, overbought = [], []
+    _prog_init('osc', len(tickers))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_check_osc_one, name, ticker): name
                    for name, ticker in tickers.items()}
         for future in as_completed(futures):
+            _prog_tick('osc', futures[future])
             r = future.result()
             if r:
                 (oversold if r['kind'] == 'oversold' else overbought).append(r)
@@ -1014,10 +1042,13 @@ def scan_buy_candidates(top_n=10, max_workers=8):
     ticker_list = [(n, t) for n, t in tickers.items() if not _is_etf(n)]
 
     # Phase 1: 캐시 기반 기술·펀더멘털 필터
+    _prog_init('buy', len(ticker_list))
     phase1 = []
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_check_buy_candidate, n, t): (n, t) for n, t in ticker_list}
         for f in as_completed(futures):
+            n, t = futures[f]
+            _prog_tick('buy', n)
             r = f.result()
             if r:
                 phase1.append(r)
@@ -1403,10 +1434,13 @@ def scan_surge_buy_candidates(top_n=10, max_workers=8):
     ticker_list = [(n, t) for n, t in tickers.items() if not _is_etf(n)]
 
     # Phase 1
+    _prog_init('surge_buy', len(ticker_list))
     phase1 = []
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_check_surge_phase1, n, t): (n, t) for n, t in ticker_list}
         for f in as_completed(futures):
+            n, t = futures[f]
+            _prog_tick('surge_buy', n)
             r = f.result()
             if r:
                 phase1.append(r)
@@ -1750,9 +1784,12 @@ def scan_top_stocks(top_n=20, months=6, max_workers=8):
         except Exception:
             return None
 
+    _prog_init('recommend', len(ticker_list))
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_analyze_cached, n, t): (n, t) for n, t in ticker_list}
         for f in as_completed(futures):
+            n, t = futures[f]
+            _prog_tick('recommend', n)
             r = f.result()
             if r:
                 phase1.append(r)

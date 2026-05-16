@@ -258,6 +258,28 @@
     </div>
 
     <button class="features-toggle-btn" onclick="openFeaturesModal()">핵심 기능 안내 보기 ↓</button>
+    <button id="scanAllBtn" onclick="triggerScanAll()" style="display:block;width:100%;margin-top:10px;padding:10px 0;background:linear-gradient(90deg,#1a1f3c,#2d3a8c);color:#fff;border:1px solid rgba(99,132,255,0.4);border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;letter-spacing:0.08em;">⚡ 전체 스캔 실행</button>
+</div>
+
+<!-- 전체 스캔 진행률 오버레이 -->
+<div id="scanProgressOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;align-items:center;justify-content:center;">
+    <div style="background:#12172b;border:1px solid rgba(99,132,255,0.35);border-radius:14px;padding:24px 28px;width:340px;max-width:92vw;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+            <span style="color:#e2e8f0;font-size:0.9rem;font-weight:700;">⚡ 전체 스캔 진행 중</span>
+            <span id="scanProgressTime" style="color:#94a3b8;font-size:0.7rem;"></span>
+        </div>
+        <div id="scanProgressItems"></div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.07);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <span style="color:#94a3b8;font-size:0.7rem;">전체 진행률</span>
+                <span id="scanTotalPct" style="color:#6366f1;font-size:0.75rem;font-weight:700;">0%</span>
+            </div>
+            <div style="height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
+                <div id="scanTotalBar" style="height:100%;width:0%;background:linear-gradient(90deg,#6366f1,#818cf8);border-radius:3px;transition:width 0.4s;"></div>
+            </div>
+            <div id="scanDoneMsg" style="display:none;margin-top:12px;color:#4ade80;font-size:0.75rem;font-weight:600;text-align:center;">✓ 모든 스캔 완료! 각 페이지에서 결과를 확인하세요.</div>
+        </div>
+    </div>
 </div>
 
 <!-- 핵심기능 모달 -->
@@ -437,6 +459,85 @@ function closeBounceChart() {
     document.getElementById('bounceChartModal').style.display = 'none';
     if (_bounceChartObj) { _bounceChartObj.remove(); _bounceChartObj = null; }
 }
+
+// ── 전체 스캔 진행률 ──────────────────────────────────────────
+let _scanPollTimer = null;
+
+function triggerScanAll() {
+    const btn = document.getElementById('scanAllBtn');
+    btn.disabled = true;
+    btn.textContent = '스캔 시작 중...';
+    fetch('/api/scan-all', {method: 'POST'})
+        .then(() => {
+            document.getElementById('scanProgressOverlay').style.display = 'flex';
+            document.getElementById('scanDoneMsg').style.display = 'none';
+            _pollScanProgress();
+        })
+        .catch(() => { btn.disabled = false; btn.textContent = '⚡ 전체 스캔 실행'; });
+}
+
+function _pollScanProgress() {
+    fetch('/api/scan-progress')
+        .then(r => r.json())
+        .then(data => {
+            _renderScanProgress(data);
+            if (!data.done) {
+                _scanPollTimer = setTimeout(_pollScanProgress, 2000);
+            } else {
+                document.getElementById('scanDoneMsg').style.display = 'block';
+                const btn = document.getElementById('scanAllBtn');
+                btn.disabled = false;
+                btn.textContent = '⚡ 전체 스캔 실행';
+            }
+        })
+        .catch(() => { _scanPollTimer = setTimeout(_pollScanProgress, 4000); });
+}
+
+function _renderScanProgress(data) {
+    const items = data.items || [];
+    const now = new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    document.getElementById('scanProgressTime').textContent = now;
+
+    let totalPct = 0, count = 0;
+    let html = '';
+    for (const it of items) {
+        const pct = it.pct || 0;
+        totalPct += pct; count++;
+        const color = it.status === 'done' ? '#4ade80'
+                    : it.status === 'running' ? '#818cf8'
+                    : '#475569';
+        const icon  = it.status === 'done' ? '✓'
+                    : it.status === 'running' ? '◌'
+                    : '·';
+        const sub   = it.status === 'running' && it.name
+                    ? `<span style="color:#94a3b8;font-size:0.62rem;display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.name} (${it.current}/${it.total})</span>`
+                    : it.status === 'done'
+                    ? `<span style="color:#4ade80;font-size:0.62rem;display:block;margin-top:2px;">완료</span>`
+                    : `<span style="color:#475569;font-size:0.62rem;display:block;margin-top:2px;">대기 중</span>`;
+        html += `<div style="margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+                <span style="color:${color};font-size:0.75rem;font-weight:700;width:14px;">${icon}</span>
+                <span style="color:#e2e8f0;font-size:0.75rem;flex:1;">${it.label}</span>
+                <span style="color:${color};font-size:0.7rem;font-weight:600;">${pct}%</span>
+            </div>
+            <div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
+                <div style="height:100%;width:${pct}%;background:${color};border-radius:2px;transition:width 0.4s;"></div>
+            </div>
+            ${sub}
+        </div>`;
+    }
+    document.getElementById('scanProgressItems').innerHTML = html;
+    const avg = count > 0 ? Math.round(totalPct / count) : 0;
+    document.getElementById('scanTotalPct').textContent = avg + '%';
+    document.getElementById('scanTotalBar').style.width = avg + '%';
+}
+
+// 오버레이 배경 클릭으로 닫기 (완료 시만)
+document.getElementById('scanProgressOverlay').addEventListener('click', function(e) {
+    if (e.target === this && document.getElementById('scanDoneMsg').style.display !== 'none') {
+        this.style.display = 'none';
+    }
+});
 
 function _renderBounceChartData(data) {
     const el = document.getElementById('bchartBody');
