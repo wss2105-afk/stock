@@ -24,6 +24,7 @@ _TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tic
 # 실적·수주·정책 모멘텀 키워드 (DART 공시 제목 기반)
 # (탐지 키워드, 표시 태그, 보너스 점수)
 _MOMENTUM_KW = [
+    ('수주잔고',     '수주잔고',    7),  # 잔고 현황 별도 공시 — 신규 수주보다 강한 신호
     ('수주',         '수주',        5),
     ('공급계약',     '공급계약',    5),
     ('납품계약',     '납품계약',    5),
@@ -851,6 +852,14 @@ def _check_buy_candidate(name, ticker):
         if vol5 >= vol20 * 1.3: score += 2
         if ma20_now > ma20_6d and ma60_now > ma60_6d: score += 2
 
+        # ── 눌림목 분석 ───────────────────────────────────────
+        pb_score, pb_tags = _calc_pullback_score(ohlcv)
+        score += pb_score; tags.extend(pb_tags)
+
+        # ── 60/120일선 저가 터치 후 반등 ─────────────────────
+        mt_score, mt_tags = _calc_ma_touch_score(ohlcv)
+        score += mt_score; tags.extend(mt_tags)
+
         return {
             'name': name,
             'ticker': ticker,
@@ -925,6 +934,29 @@ def scan_buy_candidates(top_n=10, max_workers=8):
                 phase2.append(r)
 
     print(f'[매수후보스캔] Phase2(시총·관리종목) 통과: {len(phase2)}개')
+
+    # Phase 3: DART 수주잔고·모멘텀 보너스 (Phase2 통과 종목만, 소수라 빠름)
+    try:
+        from analysis.dart import DART_API_KEY, get_corp_code
+        if DART_API_KEY and phase2:
+            def _buy_dart_bonus(r):
+                try:
+                    corp = get_corp_code(r['ticker'])
+                    mom_score, mom_tags = _dart_momentum_check(corp, DART_API_KEY, days=30)
+                    if mom_score > 0:
+                        r = dict(r)
+                        bonus = min(mom_score, 6)
+                        r['score'] += bonus
+                        r['sort_key'] = r['score'] + (r['foreign_streak'] + r['inst_streak']) * 0.1
+                        r['tags'] = list(r.get('tags', [])) + [f'재료:{t}' for t in mom_tags[:2]]
+                    return r
+                except Exception:
+                    return r
+            with ThreadPoolExecutor(max_workers=3) as ex:
+                phase2 = list(filter(None, ex.map(_buy_dart_bonus, phase2)))
+            print(f'[매수후보스캔] Phase3(DART 모멘텀) 완료')
+    except Exception:
+        pass
 
     phase2.sort(key=lambda x: x['sort_key'], reverse=True)
     return phase2[:top_n]
