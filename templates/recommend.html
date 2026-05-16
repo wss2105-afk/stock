@@ -61,6 +61,12 @@
         .modal-btn { display:block; width:100%; padding:12px; background:#FFC000; color:#000; border:none; font-size:0.75rem; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; cursor:pointer; margin-top:20px; text-align:center; text-decoration:none; }
         .modal-btn:hover { background:#e6ac00; color:#000; }
 
+        /* 오실레이터 미니 차트 */
+        .osc-mini-wrap { background:#111; border:1px solid #1e1e1e; border-radius:4px; padding:7px 8px 4px; }
+        .osc-mini-hdr { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+        .osc-mini-name { font-size:0.55rem; color:#555; letter-spacing:0.12em; text-transform:uppercase; }
+        .osc-mini-val  { font-size:0.68rem; font-weight:700; }
+
         /* 툴팁 */
         .tip { position: relative; cursor: help; }
         .tip::after {
@@ -172,14 +178,20 @@
             </div>
         </div>
         <hr class="modal-divider">
-        <div class="modal-section-title">오실레이터 현황</div>
-        <div style="display:flex;gap:16px;align-items:center;margin-bottom:2px;">
-            <div style="flex:1;display:flex;flex-direction:column;gap:10px;" id="oscGauges">
-                <div style="font-size:0.65rem;color:#444;">로딩 중...</div>
-            </div>
-            <div style="flex-shrink:0;">
-                <canvas id="oscRadar" width="148" height="148"></canvas>
-            </div>
+        <div class="modal-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+            오실레이터 현황
+            <span id="oscPeriodLabel" style="font-size:0.55rem;color:#444;font-weight:400;letter-spacing:0;"></span>
+        </div>
+        <!-- 미니 꺾은선 차트 2x2 그리드 -->
+        <div id="oscChartGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <div class="osc-mini-wrap"><div class="osc-mini-hdr"><span class="osc-mini-name">RSI</span><span class="osc-mini-val" id="oscValRsi">—</span></div><canvas id="oscChartRsi" height="55"></canvas></div>
+            <div class="osc-mini-wrap"><div class="osc-mini-hdr"><span class="osc-mini-name">Stochastic</span><span class="osc-mini-val" id="oscValStoch">—</span></div><canvas id="oscChartStoch" height="55"></canvas></div>
+            <div class="osc-mini-wrap"><div class="osc-mini-hdr"><span class="osc-mini-name">MFI</span><span class="osc-mini-val" id="oscValMfi">—</span></div><canvas id="oscChartMfi" height="55"></canvas></div>
+            <div class="osc-mini-wrap"><div class="osc-mini-hdr"><span class="osc-mini-name">BB 위치</span><span class="osc-mini-val" id="oscValBb">—</span></div><canvas id="oscChartBb" height="55"></canvas></div>
+        </div>
+        <!-- 현재값 레이더 -->
+        <div style="display:flex;justify-content:center;margin-bottom:4px;">
+            <canvas id="oscRadar" width="148" height="148"></canvas>
         </div>
         <hr class="modal-divider">
         <div class="modal-section-title">점수 산출 근거</div>
@@ -280,8 +292,88 @@ function startRecScan() {
         });
 }
 
-// ── 오실레이터 패널 (게이지 바 + 레이더 차트) ──────────────
+// ── 오실레이터 패널 (미니 꺾은선 차트 × 4 + 레이더) ──────────
 let _oscRadarChart = null;
+const _oscLineCharts = {};   // { rsi, stoch, mfi, bb }
+
+function _oscColor(v, lo, hi) {
+    return v <= lo ? '#f59e0b' : v >= hi ? '#ef4444' : '#22c55e';
+}
+
+function _buildMiniChart(canvasId, data, dates, lo, hi, lineColor) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const key = canvasId;
+    if (_oscLineCharts[key]) { _oscLineCharts[key].destroy(); delete _oscLineCharts[key]; }
+
+    // 기준선 (과매도/과매수) 플러그인 — annotation 없이 직접 그리기
+    const refLinePlugin = {
+        id: 'refLines',
+        afterDraw(chart) {
+            const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
+            [[lo, 'rgba(245,158,11,0.5)'], [hi, 'rgba(239,68,68,0.5)']].forEach(([v, c]) => {
+                const yy = y.getPixelForValue(v);
+                ctx.save();
+                ctx.strokeStyle = c;
+                ctx.lineWidth = 1;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(right, yy); ctx.stroke();
+                ctx.restore();
+            });
+        }
+    };
+
+    _oscLineCharts[key] = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        plugins: [refLinePlugin],
+        data: {
+            labels: dates,
+            datasets: [{
+                data: data,
+                borderColor: lineColor,
+                borderWidth: 1.5,
+                pointRadius: 0,
+                pointHoverRadius: 3,
+                fill: {
+                    target: 'origin',
+                    above: lineColor.replace(')', ',0.08)').replace('rgb', 'rgba'),
+                },
+                tension: 0.35,
+                spanGaps: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 350 },
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: { display: false },
+                y: {
+                    min: 0, max: 100,
+                    display: false,
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#333',
+                    borderWidth: 1,
+                    titleColor: '#666',
+                    bodyColor: '#fff',
+                    titleFont: { size: 9 },
+                    bodyFont: { size: 11, weight: '700' },
+                    callbacks: {
+                        title: items => dates[items[0].dataIndex]?.slice(5) ?? '',
+                        label: item => ` ${item.raw ?? '—'}`,
+                    }
+                }
+            }
+        }
+    });
+}
 
 function _drawOscPanel(s) {
     const rsi   = s.rsi   ?? 50;
@@ -289,40 +381,41 @@ function _drawOscPanel(s) {
     const mfi   = s.mfi   ?? 50;
     const bb    = s.bb_pct ?? 50;
 
-    // 게이지 바 ─────────────────────────────────────────
-    function _color(v, lo, hi) {
-        return v <= lo ? '#f59e0b' : v >= hi ? '#ef4444' : '#22c55e';
-    }
-    function _label(v, lo, hi, labels) {
-        return v <= lo ? labels[0] : v >= hi ? labels[2] : labels[1];
-    }
-    function _gaugeHtml(name, val, lo, hi, suffix, labels) {
-        const c   = _color(val, lo, hi);
-        const lbl = _label(val, lo, hi, labels);
-        const pct = Math.min(100, Math.max(0, val));
-        return `<div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-            <span style="font-size:0.6rem;color:#555;letter-spacing:0.1em;">${name}</span>
-            <span style="font-size:0.65rem;font-weight:700;color:${c};">${val}${suffix}&nbsp;<span style="font-size:0.55rem;opacity:0.7;">${lbl}</span></span>
-          </div>
-          <div style="height:5px;background:#1a1a1a;border-radius:3px;position:relative;overflow:hidden;">
-            <div style="position:absolute;left:0;top:0;width:${lo}%;height:100%;background:rgba(245,158,11,0.18);"></div>
-            <div style="position:absolute;right:0;top:0;width:${100-hi}%;height:100%;background:rgba(239,68,68,0.18);"></div>
-            <div style="position:absolute;left:0;top:0;height:100%;width:${pct}%;background:${c};border-radius:3px;transition:width 0.4s;"></div>
-            <div style="position:absolute;left:${lo}%;top:0;width:1px;height:100%;background:rgba(255,255,255,0.18);"></div>
-            <div style="position:absolute;left:${hi}%;top:0;width:1px;height:100%;background:rgba(255,255,255,0.18);"></div>
-          </div>
-        </div>`;
-    }
+    // 현재값 표시
+    const _setVal = (id, v, lo, hi, suffix='') => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const c = _oscColor(v, lo, hi);
+        el.textContent = `${v}${suffix}`;
+        el.style.color = c;
+    };
+    _setVal('oscValRsi',  rsi,   30, 70);
+    _setVal('oscValStoch',stoch, 20, 80);
+    _setVal('oscValMfi',  mfi,   20, 80);
+    _setVal('oscValBb',   bb,    10, 90, '%');
 
-    const gaugesEl = document.getElementById('oscGauges');
-    if (gaugesEl) {
-        gaugesEl.innerHTML =
-            _gaugeHtml('RSI',    rsi,   30, 70, '', ['과매도','중립','과매수']) +
-            _gaugeHtml('Stoch',  stoch, 20, 80, '', ['과매도','중립','과매수']) +
-            _gaugeHtml('MFI',    mfi,   20, 80, '', ['과매도','중립','과매수']) +
-            _gaugeHtml('BB위치', bb,    10, 90, '%',['BB하단','중간','BB상단']);
-    }
+    // 히스토리 로드 → 미니 꺾은선 차트 렌더
+    const lbl = document.getElementById('oscPeriodLabel');
+    if (lbl) lbl.textContent = '로딩 중…';
+    fetch(`/api/osc-history/${s.ticker}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.error) return;
+            const dates = d.dates || [];
+            if (lbl) lbl.textContent = `최근 ${dates.length}일`;
+            _buildMiniChart('oscChartRsi',  d.rsi,   dates, 30, 70, '#FFC000');
+            _buildMiniChart('oscChartStoch',d.stoch, dates, 20, 80, '#22c55e');
+            _buildMiniChart('oscChartMfi',  d.mfi,   dates, 20, 80, '#29ABE2');
+            _buildMiniChart('oscChartBb',   d.bb,    dates, 10, 90, '#a78bfa');
+
+            // 최신값으로 현재값 업데이트 (API 기반)
+            const last = i => { const arr = d[i]; const v = arr?.filter(x=>x!=null).at(-1); return v; };
+            const rv = last('rsi');   if (rv != null) _setVal('oscValRsi',   rv,  30, 70);
+            const sv = last('stoch'); if (sv != null) _setVal('oscValStoch', sv,  20, 80);
+            const mv = last('mfi');   if (mv != null) _setVal('oscValMfi',   mv,  20, 80);
+            const bv = last('bb');    if (bv != null) _setVal('oscValBb',    bv,  10, 90, '%');
+        })
+        .catch(() => { if (lbl) lbl.textContent = ''; });
 
     // 레이더 차트 ─────────────────────────────────────────
     const canvas = document.getElementById('oscRadar');
@@ -333,45 +426,15 @@ function _drawOscPanel(s) {
         data: {
             labels: ['RSI', 'Stoch', 'MFI', 'BB위치'],
             datasets: [
-                {   // 과매도선 (30)
-                    data: [30, 30, 30, 30],
-                    backgroundColor: 'rgba(245,158,11,0.07)',
-                    borderColor: 'rgba(245,158,11,0.35)',
-                    borderWidth: 1, borderDash: [4,3], pointRadius: 0,
-                },
-                {   // 과매수선 (70)
-                    data: [70, 70, 70, 70],
-                    backgroundColor: 'rgba(239,68,68,0.07)',
-                    borderColor: 'rgba(239,68,68,0.35)',
-                    borderWidth: 1, borderDash: [4,3], pointRadius: 0,
-                },
-                {   // 현재값
-                    data: [rsi, stoch, mfi, bb],
-                    backgroundColor: 'rgba(255,192,0,0.14)',
-                    borderColor: '#FFC000',
-                    borderWidth: 2,
-                    pointBackgroundColor: '#FFC000',
-                    pointBorderColor: '#161616',
-                    pointBorderWidth: 1.5,
-                    pointRadius: 4,
-                    pointHoverRadius: 5,
-                },
+                { data: [30,30,30,30], backgroundColor:'rgba(245,158,11,0.07)', borderColor:'rgba(245,158,11,0.35)', borderWidth:1, borderDash:[4,3], pointRadius:0 },
+                { data: [70,70,70,70], backgroundColor:'rgba(239,68,68,0.07)',  borderColor:'rgba(239,68,68,0.35)',  borderWidth:1, borderDash:[4,3], pointRadius:0 },
+                { data: [rsi,stoch,mfi,bb], backgroundColor:'rgba(255,192,0,0.14)', borderColor:'#FFC000', borderWidth:2,
+                  pointBackgroundColor:'#FFC000', pointBorderColor:'#161616', pointBorderWidth:1.5, pointRadius:4, pointHoverRadius:5 },
             ]
         },
         options: {
-            scales: {
-                r: {
-                    min: 0, max: 100,
-                    ticks: { display: false, stepSize: 25 },
-                    grid:       { color: 'rgba(255,255,255,0.07)' },
-                    angleLines: { color: 'rgba(255,255,255,0.07)' },
-                    pointLabels: {
-                        color: '#666',
-                        font: { size: 9, family: "'Helvetica Neue', Arial, sans-serif" }
-                    },
-                }
-            },
-            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: { r: { min:0, max:100, ticks:{display:false,stepSize:25}, grid:{color:'rgba(255,255,255,0.07)'}, angleLines:{color:'rgba(255,255,255,0.07)'}, pointLabels:{color:'#666',font:{size:9}} } },
+            plugins: { legend:{display:false}, tooltip:{enabled:false} },
             animation: { duration: 380 }
         }
     });

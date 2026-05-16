@@ -1257,6 +1257,40 @@ def api_chart_data(ticker):
     })
 
 
+@app.route('/api/osc-history/<ticker>')
+def api_osc_history(ticker):
+    """최근 60일 오실레이터(RSI·Stoch·MFI·BB%) 히스토리 반환"""
+    try:
+        cached = load_stock_cache(ticker)
+        if not cached:
+            return jsonify({'error': 'no cache'}), 404
+        ohlcv = cached.get('ohlcv')
+        if ohlcv is None or ohlcv.empty or len(ohlcv) < 30:
+            return jsonify({'error': 'no data'}), 404
+
+        df = calc_indicators(ohlcv)
+        df = df.tail(60)
+
+        def _s(col, scale=1.0, default=50.0):
+            if col not in df.columns:
+                return [default] * len(df)
+            return [
+                round(float(v) * scale, 1) if not pd.isna(v) else None
+                for v in df[col]
+            ]
+
+        dates = [str(idx)[:10] for idx in df.index]
+        return jsonify({
+            'dates': dates,
+            'rsi':   _s('rsi'),
+            'stoch': _s('stoch_k'),
+            'mfi':   _s('mfi'),
+            'bb':    _s('bb_pct', scale=100.0, default=50.0),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.errorhandler(500)
 def internal_error(e):
     import traceback
