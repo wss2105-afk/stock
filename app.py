@@ -82,7 +82,7 @@ def _auto_update_tickers():
 threading.Thread(target=_auto_update_tickers, daemon=True).start()
 
 
-_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
+_DATA_DIR = '/data' if os.path.isdir('/data') else os.path.join(os.path.dirname(__file__), 'data')
 os.makedirs(_DATA_DIR, exist_ok=True)
 
 _SURGE_CACHE_PATH          = os.path.join(_DATA_DIR, 'surge_cache.json')
