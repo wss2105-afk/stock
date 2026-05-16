@@ -56,6 +56,13 @@
         .chart-interp-hd { font-size: 0.58rem; color: #444; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
         .chart-interp-list { list-style: none; padding: 0; margin: 0; }
         .chart-interp-list li { font-size: 0.75rem; color: #d1d5db; padding: 2px 0; }
+        /* 선정 이유 패널 */
+        .chart-reasons { padding: 10px 20px 12px; border-top: 1px solid #111; }
+        .chart-reasons-hd { font-size: 0.58rem; color: #444; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+        .reason-item { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; border-bottom: 1px solid #111; }
+        .reason-item:last-child { border-bottom: none; }
+        .reason-text { font-size: 0.73rem; color: #d1d5db; }
+        .reason-score { font-size: 0.68rem; font-weight: 700; color: #ef4444; white-space: nowrap; margin-left: 12px; }
         .rank { font-size: clamp(1.2rem, 4vw, 1.8rem); font-weight: 900; color: #2a0000; text-align: center; }
         .rank.r1 { color: #dc2626; }
         .rank.r2 { color: #ef4444; }
@@ -121,7 +128,7 @@
     <div class="cond-wrap">
         <span class="cond-chip hard">시총 3,000억↑ ★</span>
         <span class="cond-chip hard">60일선 위 ★</span>
-        <span class="cond-chip hard">4분기 흑자 ★</span>
+        <span class="cond-chip hard">최근분기 흑자 ★</span>
         <span class="cond-chip hard">부채비율 200%↓ ★</span>
         <span class="cond-chip hard">거래대금 300억↑ ★</span>
         <span class="cond-chip">거래대금 3000억↑ +8</span>
@@ -131,6 +138,8 @@
         <span class="cond-chip">RSI 50~70 +5</span>
         <span class="cond-chip">MACD 0선위·히스토그램↑ +5</span>
         <span class="cond-chip">외인·기관 순매수 +8</span>
+        <span class="cond-chip">흑자전환 감지 +12</span>
+        <span class="cond-chip">하락후반등시작 +8~15</span>
         <span class="cond-chip">거래량↓+외인/기관매집 +10</span>
         <span class="cond-chip">당일 상승률 5~12% +4</span>
         <span class="cond-chip">당일 거래량 200%↑ +15</span>
@@ -255,6 +264,10 @@
             <span class="chart-leg-item"><span style="color:#f97316;">╌</span> 저항선</span>
             <span class="chart-leg-item" style="margin-left:auto;">▲빨강 상승 / ▼파랑 하락</span>
         </div>
+        <div class="chart-reasons" id="chartReasons" style="display:none;">
+            <div class="chart-reasons-hd">선정 이유</div>
+            <div id="chartReasonsList"></div>
+        </div>
         <div class="chart-interp" id="chartInterp">
             <div class="chart-interp-hd">추세선 해석</div>
             <ul class="chart-interp-list" id="chartInterpList"></ul>
@@ -263,6 +276,13 @@
 </div>
 
 <script>
+// 종목별 선정 이유 데이터
+const surgeStockReasons = {
+    {% for r in results %}
+    "{{ r.ticker }}": {{ (r.reasons or []) | tojson }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
 let _chartObj = null;
 
 function openChart(ticker, name) {
@@ -274,6 +294,21 @@ function openChart(ticker, name) {
     document.getElementById('chartBody').innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.8rem;">차트 로딩 중...</div>';
     document.getElementById('chartInterp').style.display = 'none';
     if (_chartObj) { _chartObj.remove(); _chartObj = null; }
+
+    // 선정 이유 렌더
+    const reasons = surgeStockReasons[ticker] || [];
+    const reasonsEl = document.getElementById('chartReasons');
+    if (reasons.length) {
+        document.getElementById('chartReasonsList').innerHTML = reasons.map(r => {
+            const m = r.match(/\(([+-]\d+)\)/);
+            const scoreHtml = m ? `<span class="reason-score">${m[1]}점</span>` : '';
+            const text = r.replace(/\s*\([+-]?\d+\)$/, '');
+            return `<div class="reason-item"><span class="reason-text">${text}</span>${scoreHtml}</div>`;
+        }).join('');
+        reasonsEl.style.display = '';
+    } else {
+        reasonsEl.style.display = 'none';
+    }
 
     fetch('/api/chart-data/' + ticker)
         .then(r => r.json())

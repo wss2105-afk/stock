@@ -6,6 +6,7 @@
     <title>나만의 검색기</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #f4f6fb; color: #1a1f3c; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; }
@@ -398,7 +399,9 @@ function _renderBounceRow(r) {
     const extra = isRiding
         ? (r.ma5_slope != null ? `5일선 기울기 +${r.ma5_slope}%` : '')
         : (r.vol_ratio != null ? `거래량 ${r.vol_ratio}배` : '');
-    return `<a class="bounce-row${isRiding ? ' riding-row' : ''}" href="/analyze?query=${encodeURIComponent(r.ticker)}&months=3">
+    const tn = (r.ticker||'').replace(/'/g,"\\\'");
+    const nn = (r.name||'').replace(/'/g,"\\\'");
+    return `<div class="bounce-row${isRiding ? ' riding-row' : ''}" onclick="openBounceChart('${tn}','${nn}')">
         <div>
             <div><span class="bounce-name">${r.name}</span><span class="bounce-ticker">${r.ticker}</span></div>
             ${maTags ? '<div class="bounce-ma-tags">' + maTags + '</div>' : ''}
@@ -406,7 +409,68 @@ function _renderBounceRow(r) {
         <div class="${chgClass}">${chg}</div>
         <div class="bounce-vol">${extra}</div>
         <div class="bounce-price">${r.price}원</div>
-    </a>`;
+    </div>`;
+}
+
+// ── 반등 종목 차트 팝업 ─────────────────────────────────
+let _bounceChartObj = null;
+
+function openBounceChart(ticker, name) {
+    const modal = document.getElementById('bounceChartModal');
+    modal.style.display = 'flex';
+    document.getElementById('bchartName').textContent = name;
+    document.getElementById('bchartTick').textContent = ticker;
+    document.getElementById('bchartFullLink').href = '/analyze?query=' + encodeURIComponent(ticker) + '&months=3';
+    document.getElementById('bchartBody').innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#777;font-size:0.8rem;">차트 로딩 중...</div>';
+    document.getElementById('bchartInterp').style.display = 'none';
+    if (_bounceChartObj) { _bounceChartObj.remove(); _bounceChartObj = null; }
+
+    fetch('/api/chart-data/' + ticker)
+        .then(r => r.json())
+        .then(data => _renderBounceChartData(data))
+        .catch(() => {
+            document.getElementById('bchartBody').innerHTML = '<div style="padding:40px;text-align:center;color:#f87171;">데이터를 불러올 수 없습니다</div>';
+        });
+}
+
+function closeBounceChart() {
+    document.getElementById('bounceChartModal').style.display = 'none';
+    if (_bounceChartObj) { _bounceChartObj.remove(); _bounceChartObj = null; }
+}
+
+function _renderBounceChartData(data) {
+    const el = document.getElementById('bchartBody');
+    el.innerHTML = '';
+    _bounceChartObj = LightweightCharts.createChart(el, {
+        layout: { background: { type: 'solid', color: '#0d0d0d' }, textColor: '#6b7280' },
+        grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
+        crosshair: { mode: 1 },
+        rightPriceScale: { borderColor: '#1f1f1f' },
+        timeScale: { borderColor: '#1f1f1f', timeVisible: false },
+        width: el.clientWidth, height: el.clientHeight || 340,
+    });
+    const cs = _bounceChartObj.addCandlestickSeries({
+        upColor: '#ef4444', downColor: '#3b82f6',
+        borderUpColor: '#ef4444', borderDownColor: '#3b82f6',
+        wickUpColor: '#ef4444', wickDownColor: '#3b82f6',
+    });
+    cs.setData(data.candles);
+    if (data.volumes && data.volumes.length) {
+        const vs = _bounceChartObj.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
+        _bounceChartObj.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+        vs.setData(data.volumes);
+    }
+    const _line = (c, s) => _bounceChartObj.addLineSeries({ color: c, lineWidth: 1.5, lineStyle: s||0, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
+    if (data.ma20)       { _line('#f59e0b').setData(data.ma20); }
+    if (data.ma60)       { _line('#60a5fa').setData(data.ma60); }
+    if (data.support)    { _line('#22c55e',2).setData(data.support); }
+    if (data.resistance) { _line('#f97316',2).setData(data.resistance); }
+    _bounceChartObj.timeScale().fitContent();
+    new ResizeObserver(() => { if (_bounceChartObj) _bounceChartObj.applyOptions({ width: el.clientWidth }); }).observe(el);
+    if (data.interpretation && data.interpretation.length) {
+        document.getElementById('bchartInterpList').innerHTML = data.interpretation.map(t => `<li>${t}</li>`).join('');
+        document.getElementById('bchartInterp').style.display = 'block';
+    }
 }
 
 (function loadBounce() {
@@ -575,6 +639,7 @@ document.addEventListener('keydown', e => {
         document.getElementById('oscModal').classList.remove('open');
         document.getElementById('bounceModal').classList.remove('open');
         document.getElementById('featuresModal').classList.remove('open');
+        closeBounceChart();
     }
 });
 </script>
@@ -596,6 +661,34 @@ document.addEventListener('keydown', e => {
             <div class="osc-body" id="oscBody">
                 <div class="osc-loading">스캔 중...</div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── 반등 종목 차트 팝업 모달 ──────────────────────── -->
+<div id="bounceChartModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:2000;align-items:center;justify-content:center;padding:16px;flex-direction:column;" onclick="if(event.target===this)closeBounceChart()">
+    <div style="background:#0d0d0d;border:1px solid #252525;border-radius:12px;width:100%;max-width:860px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.8);">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #1a1a1a;">
+            <div>
+                <span id="bchartName" style="font-size:0.92rem;font-weight:700;color:#fff;"></span>
+                <span id="bchartTick" style="font-size:0.62rem;color:#444;font-family:monospace;margin-left:8px;"></span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <a id="bchartFullLink" href="#" style="font-size:0.68rem;color:#7D7D7D;text-decoration:none;border:1px solid #2a2a2a;padding:4px 12px;border-radius:3px;">→ 전체 분석</a>
+                <button onclick="closeBounceChart()" style="background:none;border:none;color:#555;font-size:1.2rem;cursor:pointer;line-height:1;padding:4px;">✕</button>
+            </div>
+        </div>
+        <div id="bchartBody" style="height:340px;"></div>
+        <div style="padding:8px 20px;border-top:1px solid #111;display:flex;gap:18px;flex-wrap:wrap;">
+            <span style="font-size:0.6rem;color:#555;"><span style="color:#f59e0b;">▬</span> MA20</span>
+            <span style="font-size:0.6rem;color:#555;"><span style="color:#60a5fa;">▬</span> MA60</span>
+            <span style="font-size:0.6rem;color:#555;"><span style="color:#22c55e;">╌</span> 지지선</span>
+            <span style="font-size:0.6rem;color:#555;"><span style="color:#f97316;">╌</span> 저항선</span>
+            <span style="font-size:0.6rem;color:#555;margin-left:auto;">▲빨강 상승 / ▼파랑 하락</span>
+        </div>
+        <div id="bchartInterp" style="padding:10px 20px 14px;border-top:1px solid #111;display:none;">
+            <div style="font-size:0.58rem;color:#444;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;">추세선 해석</div>
+            <ul id="bchartInterpList" style="list-style:none;padding:0;margin:0;"></ul>
         </div>
     </div>
 </div>

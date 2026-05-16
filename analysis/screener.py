@@ -78,6 +78,71 @@ def _calc_joint_buying(investor_df, days=20, threshold=15):
     return joint_days, joint_days > threshold
 
 
+def _calc_turnaround_score(fundamental):
+    """흑자전환 감지: 직전 분기 손실 → 최근 1~2분기 흑자"""
+    op_list = fundamental.get('operating_profit', [])
+    if not op_list or len(op_list) < 3:
+        return 0, []
+    parsed = [_parse_op_val(v) for v in op_list[:4]]
+    p0 = parsed[0]
+    if p0 is None or p0 <= 0:
+        return 0, []
+    prev = [v for v in parsed[1:] if v is not None]
+    if not prev or not any(v <= 0 for v in prev):
+        return 0, []
+    return 12, ['흑자전환']
+
+
+def _calc_rebound_signal(df):
+    """하락 추세 후 반등 시작 감지 (RSI·MACD·Stoch 복합)"""
+    if len(df) < 25:
+        return 0, []
+    close = df['close']
+    c_now = float(close.iloc[-1])
+    c_5d  = float(close.iloc[-6])
+    c_20d = float(close.iloc[-21])
+    c_25d = float(close.iloc[-26]) if len(df) >= 26 else float(close.iloc[0])
+
+    was_declining = c_20d < c_25d   # 최근 25일 기준 하락 추세 존재
+    now_rising    = c_now > c_5d    # 최근 5일 반등 중
+    if not (was_declining and now_rising):
+        return 0, []
+
+    score = 0; tags = []; confirmed = 0
+
+    if 'rsi' in df.columns:
+        rsi_s = df['rsi'].tail(15).dropna()
+        if len(rsi_s) >= 5:
+            rsi_min = float(rsi_s.min())
+            rsi_now = float(rsi_s.iloc[-1])
+            rsi_5d  = float(rsi_s.iloc[-5])
+            if rsi_min < 35 and rsi_now > rsi_5d and rsi_now > 35:
+                score += 8; tags.append('RSI반등'); confirmed += 1
+
+    if 'macd_hist' in df.columns:
+        hist = df['macd_hist'].tail(10).dropna()
+        if len(hist) >= 6:
+            past_neg = any(float(v) < 0 for v in hist.iloc[:6])
+            now_pos  = float(hist.iloc[-1]) > 0
+            if past_neg and now_pos:
+                score += 7; tags.append('MACD반전'); confirmed += 1
+
+    if 'stoch_k' in df.columns:
+        st = df['stoch_k'].tail(12).dropna()
+        if len(st) >= 5:
+            st_min = float(st.min())
+            st_now = float(st.iloc[-1])
+            st_5d  = float(st.iloc[-5])
+            if st_min < 25 and st_now > st_5d and st_now > 20:
+                score += 5; tags.append('Stoch반등'); confirmed += 1
+
+    if confirmed == 0:
+        return 0, []
+    if confirmed >= 2:
+        tags.insert(0, '반등시작')
+    return min(score, 15), tags
+
+
 def _calc_accumulation_score(ohlcv, investor_df):
     """거래량 감소 + 외인/기관 매집 패턴 (스텔스 매집) 점수화"""
     if ohlcv is None or len(ohlcv) < 25:
@@ -1103,20 +1168,20 @@ def _check_surge_phase1(name, ticker):
 
         score = 0
         tags  = []
+        reasons = []
 
         # ── 거래대금 (hard: 300억 미만 제외) ───────────────
         avg_tv = (ohlcv['close'] * ohlcv['volume']).tail(20).mean()
         if avg_tv < 30_000_000_000:
             return None
         if avg_tv >= 300_000_000_000:
-            score += 8; tags.append('거래대금3000억↑')
+            score += 8; tags.append('거래대금3000억↑'); reasons.append('거래대금 3000억↑ (+8)')
         elif avg_tv >= 100_000_000_000:
-            score += 4; tags.append('거래대금1000억↑')
+            score += 4; tags.append('거래대금1000억↑'); reasons.append('거래대금 1000억↑ (+4)')
         else:
-            score += 2; tags.append('거래대금300억↑')
+            score += 2; tags.append('거래대금300억↑');  reasons.append('거래대금 300억↑ (+2)')
 
         # ── 펀더멘털 ─────────────────────────────────────────
-        # 부채비율 200% 이상 → 제외 (hard)
         debt_raw = fundamental.get('debt_ratio', 'N/A')
         if debt_raw != 'N/A':
             try:
@@ -1126,102 +1191,117 @@ def _check_surge_phase1(name, ticker):
             except Exception:
                 pass
 
-        # 최근 4분기 흑자 (hard)
+        # 최근 1분기 흑자 (hard) — 흑자전환 포착을 위해 4분기 전체 흑자 조건 완화
         op_list = fundamental.get('operating_profit', [])
-        if op_list and len(op_list) >= 4:
+        if op_list and len(op_list) >= 2:
             parsed = [_parse_op_val(v) for v in op_list[:4]]
-            if any(v is not None and v <= 0 for v in parsed):
-                return None
+            if parsed[0] is not None and parsed[0] <= 0:
+                return None   # 최근 분기 적자면 제외
 
-        # 실적 YoY 개선
-        if op_list and len(op_list) >= 4:
+        # 흑자전환 감지 (이전 분기 손실 → 최근 흑자)
+        ta_score, ta_tags = _calc_turnaround_score(fundamental)
+        if ta_score:
+            score += ta_score; tags.extend(ta_tags)
+            reasons.append(f'흑자전환 감지 (+{ta_score})')
+        elif op_list and len(op_list) >= 4:
             p = [_parse_op_val(v) for v in op_list[:4]]
             if p[0] is not None and p[3] is not None and p[3] > 0 and p[0] > p[3]:
-                score += 7; tags.append('YoY개선')
+                score += 7; tags.append('YoY개선'); reasons.append('실적 YoY 개선 (+7)')
 
         # ── 이동평균선 ───────────────────────────────────────
         if 'ma60' not in df.columns or pd.isna(last['ma60']):
             return None
         ma60 = float(last['ma60'])
         if cur <= ma60:
-            return None                          # hard: 60일선 아래면 제외
-        score += 4; tags.append('60일선위')
+            return None
+        score += 4; tags.append('60일선위'); reasons.append('주가 60일선 위 (+4)')
 
         if 'ma20' in df.columns and len(df) >= 66:
             ma20_now = float(df['ma20'].iloc[-1])
             ma20_6d  = float(df['ma20'].iloc[-7])
             ma60_6d  = float(df['ma60'].iloc[-7])
             if not pd.isna(ma20_now) and not pd.isna(ma20_6d) and ma20_now > ma20_6d:
-                score += 3
+                score += 3; reasons.append('20일선 우상향 (+3)')
             if not pd.isna(ma60) and not pd.isna(ma60_6d) and ma60 > ma60_6d:
-                score += 2; tags.append('MA우상향')
+                score += 2; tags.append('MA우상향'); reasons.append('60일선 우상향 (+2)')
 
         # 20일/60일 신고가 돌파
         if len(ohlcv) >= 61:
             h20 = float(ohlcv['high'].iloc[-21:-1].max())
             h60 = float(ohlcv['high'].iloc[-61:-1].max())
             if cur > h60:
-                score += 12; tags.append('60일신고가')
+                score += 12; tags.append('60일신고가'); reasons.append('60일 신고가 돌파 (+12)')
             elif cur > h20:
-                score += 8;  tags.append('20일신고가')
+                score += 8;  tags.append('20일신고가'); reasons.append('20일 신고가 돌파 (+8)')
 
         # ── RSI 50~70 ────────────────────────────────────────
         if 'rsi' in df.columns and not pd.isna(last['rsi']):
             rsi = float(last['rsi'])
             if 50 <= rsi <= 70:
-                score += 5; tags.append(f'RSI{round(rsi):.0f}')
+                score += 5; tags.append(f'RSI{round(rsi):.0f}'); reasons.append(f'RSI {round(rsi):.0f} 모멘텀 구간 (+5)')
             elif rsi > 70:
-                score += 2
+                score += 2; reasons.append(f'RSI {round(rsi):.0f} 과매수권 (+2)')
 
         # ── MACD ─────────────────────────────────────────────
         macd_val = float(last['macd'])  if ('macd'      in df.columns and not pd.isna(last['macd']))      else None
         hist_val = float(last['macd_hist']) if ('macd_hist' in df.columns and not pd.isna(last['macd_hist'])) else None
         if macd_val is not None and macd_val > 0:
-            score += 3; tags.append('MACD0선위')
+            score += 3; tags.append('MACD0선위'); reasons.append('MACD 0선 위 (+3)')
         if hist_val is not None:
             h_series = df['macd_hist'].tail(5).dropna()
             if len(h_series) >= 4 and hist_val > float(h_series.iloc[-4]):
-                score += 2; tags.append('히스토그램↑')
+                score += 2; tags.append('히스토그램↑'); reasons.append('MACD 히스토그램 상승 (+2)')
 
         # ── 수급 ─────────────────────────────────────────────
         frgn = _count_consecutive_buying(investor_df, '외국인') or _count_consecutive_buying(investor_df, '외인')
         inst = _count_consecutive_buying(investor_df, '기관')
         best = max(frgn, inst)
         if best >= 10:
-            score += 22; tags.append(f'수급↑{best}일')
+            score += 22; tags.append(f'수급↑{best}일'); reasons.append(f'외인/기관 {best}일 연속 순매수 (+22)')
         elif best >= 5:
-            score += 17; tags.append(f'수급↑{best}일')
+            score += 17; tags.append(f'수급↑{best}일'); reasons.append(f'외인/기관 {best}일 연속 순매수 (+17)')
         elif best >= 3:
-            score += 12; tags.append(f'수급↑{best}일')
+            score += 12; tags.append(f'수급↑{best}일'); reasons.append(f'외인/기관 {best}일 연속 순매수 (+12)')
         elif best >= 1:
-            score += 6
+            score += 6;  reasons.append(f'외인/기관 {best}일 순매수 (+6)')
 
-        # 외인+기관 동시매수 추가 가산점
         joint_d, joint_star = _calc_joint_buying(investor_df, days=20, threshold=5)
         if joint_star:
-            score += 12; tags.append(f'외인+기관동시{joint_d}일')
+            score += 12; tags.append(f'외인+기관동시{joint_d}일'); reasons.append(f'외인+기관 동시매수 {joint_d}/20일 (+12)')
         elif joint_d >= 3:
-            score += 6
+            score += 6; reasons.append(f'외인+기관 동시매수 {joint_d}일 (+6)')
 
-        # ── 스텔스 매집 (거래량↓ + 외인/기관 순매수) ─────────
+        # ── 스텔스 매집 ───────────────────────────────────────
         acc_score, acc_tags = _calc_accumulation_score(ohlcv, investor_df)
-        score += acc_score; tags.extend(acc_tags)
+        if acc_score:
+            score += acc_score; tags.extend(acc_tags)
+            reasons.append(f'{acc_tags[0]} (+{acc_score})')
+
+        # ── 하락 후 반등 시작 ──────────────────────────────────
+        rb_score, rb_tags = _calc_rebound_signal(df)
+        if rb_score:
+            score += rb_score; tags.extend(rb_tags)
+            reasons.append(f'{" ".join(rb_tags)} (+{rb_score})')
 
         # ── 눌림목 분석 ───────────────────────────────────────
         pb_score, pb_tags = _calc_pullback_score(ohlcv)
-        score += pb_score; tags.extend(pb_tags)
+        if pb_score:
+            score += pb_score; tags.extend(pb_tags)
+            reasons.append(f'{pb_tags[0]} (+{pb_score})')
 
         # ── 60/120일선 저가 터치 후 반등 ─────────────────────
         mt_score, mt_tags = _calc_ma_touch_score(ohlcv)
-        score += mt_score; tags.extend(mt_tags)
+        if mt_score:
+            score += mt_score; tags.extend(mt_tags)
+            reasons.append(f'{" ".join(mt_tags)} (+{mt_score})')
 
-        if score < 22:           # 당일 데이터 없이 너무 낮으면 조기 탈락
+        if score < 22:
             return None
 
         return {
             'name': name, 'ticker': ticker,
             'price': f"{int(cur):,}",
-            'score': score, 'tags': tags,
+            'score': score, 'tags': tags, 'reasons': reasons,
             'debt_ratio': debt_raw,
             'avg_tv_b': round(avg_tv / 1e8, 0),
             'foreign_streak': frgn, 'inst_streak': inst,
@@ -1248,15 +1328,21 @@ def _enrich_surge_today(r):
         t_high   = float(today['high'])
         t_vol    = float(today['volume'])
 
+        if 'reasons' not in r:
+            r['reasons'] = []
+
         # 당일 상승률 (전일 종가 대비) — 수급·매집 대비 비중 추가 축소
         chg_pct = (t_close - prev_cls) / prev_cls * 100 if prev_cls else 0
         r['chg_pct'] = round(chg_pct, 2)
         if 5 <= chg_pct <= 12:
             r['score'] += 4;  r['tags'].append(f'+{round(chg_pct,1)}%')
+            r['reasons'].append(f'당일 상승률 {round(chg_pct,1)}% (+4)')
         elif 3 <= chg_pct < 5:
             r['score'] += 2;  r['tags'].append(f'+{round(chg_pct,1)}%')
+            r['reasons'].append(f'당일 상승률 {round(chg_pct,1)}% (+2)')
         elif chg_pct > 12:
-            r['score'] += 1   # 너무 급등 — 모멘텀은 있지만 추격 위험
+            r['score'] += 1
+            r['reasons'].append(f'당일 상승률 {round(chg_pct,1)}% — 추격 주의 (+1)')
 
         # 당일 거래량 20일 평균 대비
         if vol20 and vol20 > 0:
@@ -1264,10 +1350,12 @@ def _enrich_surge_today(r):
             r['vol_ratio'] = round(vr, 1)
             if vr >= 2.0:
                 r['score'] += 15; r['tags'].append(f'거래량{round(vr,1)}배↑')
+                r['reasons'].append(f'당일 거래량 {round(vr,1)}배 급증 (+15)')
             elif vr >= 1.5:
                 r['score'] += 8;  r['tags'].append(f'거래량{round(vr,1)}배')
+                r['reasons'].append(f'당일 거래량 {round(vr,1)}배 증가 (+8)')
             elif vr >= 1.0:
-                r['score'] += 3
+                r['score'] += 3;  r['reasons'].append(f'거래량 평균 수준 유지 (+3)')
 
         # 종가가 당일 고가권 마감 (고가의 95%↑)
         if t_high > 0:
@@ -1275,8 +1363,10 @@ def _enrich_surge_today(r):
             r['close_high_ratio'] = round(chr_, 3)
             if chr_ >= 0.97:
                 r['score'] += 10; r['tags'].append('고가권마감')
+                r['reasons'].append(f'종가 고가권 마감 ({round(chr_*100,1)}%) (+10)')
             elif chr_ >= 0.93:
                 r['score'] += 5;  r['tags'].append('고가근접')
+                r['reasons'].append(f'종가 고가 근접 ({round(chr_*100,1)}%) (+5)')
 
         # 오늘 가격으로 업데이트
         r['price'] = f"{int(t_close):,}"
@@ -1291,6 +1381,7 @@ def _enrich_surge_today(r):
                     bonus = min(mom_score, 8)
                     r['score'] += bonus
                     r['tags'] += [f'재료:{t}' for t in mom_tags[:2]]
+                    r['reasons'].append(f'DART 공시 재료: {", ".join(mom_tags[:2])} (+{bonus})')
         except Exception:
             pass
 
