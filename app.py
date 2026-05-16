@@ -1007,7 +1007,8 @@ def export_surge():
                            updated_at=cache.get('updated_at', ''),
                            total=cache.get('count', 0),
                            high_count=len(high),
-                           moderate_count=len(moderate))
+                           moderate_count=len(moderate),
+                           dart_limit_hit=cache.get('dart_limit_hit', False))
 
 
 @app.route('/export-surge/refresh', methods=['POST'])

@@ -106,6 +106,12 @@
         <span id="scanMsg" style="font-size:0.65rem;color:#fc4c02;display:none;letter-spacing:0.08em;">스캔 중… (수 분 소요, 완료 후 새로고침)</span>
     </div>
 
+    {% if dart_limit_hit %}
+    <div style="background:#1a0a00;border:1px solid #7c2d00;padding:12px 18px;margin-bottom:16px;font-size:0.72rem;color:#fb923c;letter-spacing:0.06em;">
+        ⚠ DART API 일일 사용한도 초과 — 오늘 너무 많은 스캔으로 한도가 소진됐습니다. 자정(KST) 이후에 다시 스캔하세요.
+    </div>
+    {% endif %}
+
     {% if updated_at %}
 
     <!-- ── 강한 성장 섹션 (30%↑) ── -->

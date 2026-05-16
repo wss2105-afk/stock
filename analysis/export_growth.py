@@ -47,16 +47,22 @@ _QOQ_MAP = {
 }
 
 
+class _DartLimitError(Exception):
+    """DART API 사용한도 초과 — 스캔 중단 신호"""
+
 def _dart_revenue(corp_code, dart_key, year, reprt_code):
-    """DART API로 특정 분기 매출액 반환. 없으면 None."""
+    """DART API로 특정 분기 매출액 반환. 없으면 None. 한도 초과 시 예외."""
     url = 'https://opendart.fss.or.kr/api/fnlttSinglAcnt.json'
     params = {'crtfc_key': dart_key, 'corp_code': corp_code,
               'bsns_year': str(year), 'reprt_code': reprt_code}
     try:
-        res = requests.get(url, params=params, timeout=5)
+        res = requests.get(url, params=params, timeout=10)
         if res.status_code != 200:
             return None
-        items = res.json().get('list', [])
+        data = res.json()
+        if data.get('status') == '020' and '사용한도' in data.get('message', ''):
+            raise _DartLimitError('DART API 일일 사용한도 초과')
+        items = data.get('list', [])
         for it in items:
             nm = it.get('account_nm', '')
             if '매출' in nm and '증감' not in nm and '성장' not in nm:
@@ -66,6 +72,8 @@ def _dart_revenue(corp_code, dart_key, year, reprt_code):
                         return int(raw)
                     except ValueError:
                         pass
+    except _DartLimitError:
+        raise
     except Exception:
         pass
     return None
@@ -155,6 +163,8 @@ def _scan_one(name, ticker, corp_code, dart_key, growth_threshold, high_threshol
             'is_yoy':    yoy_growth is not None and yoy_growth >= high_threshold,
             'is_qoq':    qoq_growth is not None and qoq_growth >= high_threshold,
         }
+    except _DartLimitError:
+        raise  # 상위로 전파해서 스캔 중단
     except Exception:
         return None
 
@@ -186,7 +196,8 @@ def scan_export_growth(growth_threshold=10, high_threshold=30, max_stocks=800):
             corp_map[ticker] = code
 
     results = []
-    with ThreadPoolExecutor(max_workers=12) as executor:
+    dart_limit_hit = False
+    with ThreadPoolExecutor(max_workers=6) as executor:
         futures = {
             executor.submit(
                 _scan_one, name, ticker, corp_map[ticker],
@@ -196,22 +207,33 @@ def scan_export_growth(growth_threshold=10, high_threshold=30, max_stocks=800):
             if ticker in corp_map
         }
         for future in as_completed(futures):
-            r = future.result()
-            if r:
-                results.append(r)
+            try:
+                r = future.result()
+                if r:
+                    results.append(r)
+            except _DartLimitError:
+                dart_limit_hit = True
+                executor.shutdown(wait=False, cancel_futures=True)
+                break
+
+    if dart_limit_hit:
+        print('[수출주 스캔] DART API 일일 사용한도 초과 — 스캔 중단, 내일 자정 후 재시도')
+        _save_cache(results, growth_threshold, limit_hit=True)
+        return results
 
     results.sort(key=lambda x: x['max_growth'], reverse=True)
     _save_cache(results, growth_threshold)
     return results
 
 
-def _save_cache(results, growth_threshold):
+def _save_cache(results, growth_threshold, limit_hit=False):
     high_list     = [r for r in results if r['tier'] == 'high']
     moderate_list = [r for r in results if r['tier'] == 'moderate']
     cache = {
         'updated_at':     datetime.now().strftime('%Y-%m-%d %H:%M'),
         'updated_ts':     time.time(),
         'count':          len(results),
+        'dart_limit_hit': limit_hit,
         'high_count':     len(high_list),
         'moderate_count': len(moderate_list),
         'growth_threshold': growth_threshold,
