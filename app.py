@@ -569,19 +569,24 @@ _alerted_date: str  = ''      # 날짜 바뀌면 초기화용
 
 
 def _find_cross_picks():
-    """6개 스캔 결과에서 2개 이상 중복 종목 반환 [{ticker, name, scans, reasons}]"""
-    sources: dict = {}
+    """스캔별 가중 점수 합산으로 복수 스캔 종목 선정.
+    과매도 → 양수 기여 / 과매수 → 음수 패널티. 점수 내림차순 반환."""
 
-    def _add(key, ticker, name, reasons):
-        sources.setdefault(key, []).append((ticker, name, reasons))
+    # (ticker, name, reasons, score)
+    sources: dict[str, list] = {}
 
+    def _add(key, ticker, name, reasons, score: int = 0):
+        sources.setdefault(key, []).append((ticker, name, reasons, score))
+
+    # 추천종목 +30
     try:
         c = _load_recommend_cache()
         for r in (c.get('results', []) if c else []):
-            _add('추천종목', r['ticker'], r['name'], r.get('reasons', []))
+            _add('추천종목', r['ticker'], r['name'], r.get('reasons', []), 30)
     except Exception:
         pass
 
+    # 수급주도 +25
     try:
         c = _load_supply_cache()
         for r in (c.get('results', []) if c else []):
@@ -590,50 +595,76 @@ def _find_cross_picks():
                 rs.append(f"외인 {r['foreign_streak']}일 연속 매수")
             if r.get('inst_streak', 0) >= 3:
                 rs.append(f"기관 {r['inst_streak']}일 연속 매수")
-            _add('수급주도', r['ticker'], r['name'], rs)
+            _add('수급주도', r['ticker'], r['name'], rs, 25)
     except Exception:
         pass
 
+    # 과매도 → 강도 비례 양수 (+8 ~ +25)
     try:
         c = _load_osc_cache()
         for r in (c.get('oversold', []) if c else []):
-            _add('과매도', r['ticker'], r['name'], [f"과매도 점수 {r.get('score', '')}"])
+            s100 = r.get('score100', 50)
+            sc = max(8, round(s100 * 0.25))
+            _add('과매도', r['ticker'], r['name'],
+                 [f"과매도 강도 {s100}점 (RSI·Stoch·BB·MFI)"], sc)
     except Exception:
         pass
 
+    # 과매수 → 강도 비례 음수 패널티 (-8 ~ -25)
+    try:
+        c = _load_osc_cache()
+        for r in (c.get('overbought', []) if c else []):
+            s100 = r.get('score100', 50)
+            sc = -max(8, round(s100 * 0.25))
+            _add('과매수⚠', r['ticker'], r['name'],
+                 [f"과매수 강도 {s100}점 — 단기 조정 주의"], sc)
+    except Exception:
+        pass
+
+    # MA반등 +20
     try:
         c = _load_surge_cache()
         for r in (c.get('bounce', []) if c else []):
             _add('MA반등', r['ticker'], r['name'],
-                 [f"{r.get('ma_label','')} 반등 (눌림 {r.get('pullback_pct','')}%)"])
+                 [f"{r.get('ma_label','')} 반등 (눌림 {r.get('pullback_pct','')}%)"], 20)
     except Exception:
         pass
 
+    # 매수후보단기 +25
     try:
         c = _load_buy_candidate_cache()
         for r in (c.get('results', []) if c else []):
-            _add('매수후보단기', r['ticker'], r['name'], r.get('reasons', []))
+            _add('매수후보단기', r['ticker'], r['name'], r.get('reasons', []), 25)
     except Exception:
         pass
 
+    # 급등주매수후보 +20
     try:
         c = _load_surge_buy_cache()
         for r in (c.get('results', []) if c else []):
-            _add('급등주매수후보', r['ticker'], r['name'], r.get('reasons', []))
+            _add('급등주매수후보', r['ticker'], r['name'], r.get('reasons', []), 20)
     except Exception:
         pass
 
     ticker_map: dict = {}
     for scan_key, entries in sources.items():
-        for ticker, name, reasons in entries:
+        for ticker, name, reasons, score in entries:
             if ticker not in ticker_map:
-                ticker_map[ticker] = {'ticker': ticker, 'name': name, 'scans': [], 'reasons': []}
+                ticker_map[ticker] = {
+                    'ticker': ticker, 'name': name,
+                    'scans': [], 'reasons': [], 'total_score': 0
+                }
             ticker_map[ticker]['scans'].append(scan_key)
+            ticker_map[ticker]['total_score'] += score
             for r in reasons:
                 if r and r not in ticker_map[ticker]['reasons']:
                     ticker_map[ticker]['reasons'].append(r)
 
-    return [v for v in ticker_map.values() if len(v['scans']) >= 2]
+    # 2개 이상 스캔 등장 + 합산 점수 양수인 종목만, 점수 내림차순
+    picks = [v for v in ticker_map.values()
+             if len(v['scans']) >= 2 and v['total_score'] > 0]
+    picks.sort(key=lambda x: x['total_score'], reverse=True)
+    return picks
 
 
 def _send_telegram(text: str):
@@ -661,8 +692,9 @@ def _send_cross_alert(picks: list):
     lines = [f'📊 <b>복수 스캔 공통 종목</b> ({now_kst} KST)\n']
     for p in picks:
         scans_str   = ' · '.join(p['scans'])
+        score_str   = f" [합산 +{p.get('total_score', 0)}점]"
         reasons_str = '\n'.join(f'  · {r}' for r in p['reasons'][:4]) if p['reasons'] else '  · —'
-        lines.append(f"<b>{p['name']}</b> ({p['ticker']})\n"
+        lines.append(f"<b>{p['name']}</b> ({p['ticker']}){score_str}\n"
                      f"  📌 {scans_str}\n"
                      f"{reasons_str}")
     lines.append('\n⚠️ 투자 판단은 본인 책임입니다.')
