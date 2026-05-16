@@ -200,6 +200,15 @@
         <span>🔍 <span class="loading-dots">분석 중</span></span>
     </div>
 
+    <!-- 복수 스캔 공통 종목 -->
+    <div id="crossPicksWrap" style="display:none;margin-bottom:14px;background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(139,92,246,0.08));border:1px solid rgba(99,102,241,0.35);border-radius:10px;padding:12px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="color:#a5b4fc;font-size:0.72rem;font-weight:700;letter-spacing:0.06em;">⚡ 복수 스캔 공통 선별 종목</span>
+            <span id="crossPicksTime" style="color:#64748b;font-size:0.62rem;"></span>
+        </div>
+        <div id="crossPicksList"></div>
+    </div>
+
     <!-- 버튼 그룹 1: 스캔 · 추천 -->
     <div class="btn-group-wrap">
         <div class="btn-group-label">스캔 · 추천</div>
@@ -538,6 +547,44 @@ document.getElementById('scanProgressOverlay').addEventListener('click', functio
         this.style.display = 'none';
     }
 });
+
+// ── 복수 스캔 공통 종목 표시 ─────────────────────────────────────
+function loadCrossPicks() {
+    fetch('/api/cross-picks')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok || !data.picks || data.picks.length === 0) return;
+            const wrap = document.getElementById('crossPicksWrap');
+            const list = document.getElementById('crossPicksList');
+            document.getElementById('crossPicksTime').textContent = data.updated_at + ' KST 기준';
+
+            let html = '';
+            for (const p of data.picks) {
+                const scans   = p.scans.join(' · ');
+                const reasons = p.reasons.slice(0, 3).map(r => `<span style="color:#94a3b8;font-size:0.62rem;">· ${r}</span>`).join(' ');
+                html += `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;flex-direction:column;gap:3px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="color:#e2e8f0;font-size:0.78rem;font-weight:700;">${p.name}</span>
+                        <span style="color:#6366f1;font-size:0.65rem;background:rgba(99,102,241,0.15);padding:1px 7px;border-radius:10px;">${p.ticker}</span>
+                        <span style="color:#a5b4fc;font-size:0.62rem;margin-left:auto;">${scans}</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;">${reasons}</div>
+                </div>`;
+            }
+            list.innerHTML = html;
+            wrap.style.display = 'block';
+        })
+        .catch(() => {});
+}
+loadCrossPicks();
+// 스캔 완료 후에도 갱신
+const _origRender = typeof _renderScanProgress === 'function' ? _renderScanProgress : null;
+if (_origRender) {
+    window._renderScanProgress = function(data) {
+        _origRender(data);
+        if (data.done) setTimeout(loadCrossPicks, 2000);
+    };
+}
 
 function _renderBounceChartData(data) {
     const el = document.getElementById('bchartBody');

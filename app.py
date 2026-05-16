@@ -1069,6 +1069,17 @@ def scan_progress():
     return jsonify(_build_progress_response())
 
 
+@app.route('/api/cross-picks')
+def api_cross_picks():
+    """공통 선별 종목 조회"""
+    try:
+        picks = _find_cross_picks()
+        now_kst = (datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')
+        return jsonify({'ok': True, 'picks': picks, 'updated_at': now_kst})
+    except Exception as e:
+        return jsonify({'ok': False, 'picks': [], 'error': str(e)})
+
+
 @app.route('/api/telegram-test')
 def telegram_test():
     """텔레그램 봇 연결 테스트"""
