@@ -369,40 +369,15 @@ document.addEventListener('keydown', e => {
 // ── 캔들 차트 + 오실레이터 모달 ──────────────────────────────
 let _candleObj = null;
 let _recOscChart = null;
-let _recOscLoaded = false;
 let _currentTicker = null;
 
-function openTopChart(ticker, name) {
-    _currentTicker = ticker;
-    _recOscLoaded = false;
-    document.getElementById('recOscWrap').style.display = 'none';
-    document.getElementById('recOscBtn').textContent = '오실레이터 ▼';
-    if (_recOscChart) { _recOscChart.destroy(); _recOscChart = null; }
-
-    document.getElementById('candleName').textContent = name;
-    document.getElementById('candleTick').textContent = ticker;
-    document.getElementById('candleFullLink').href = '/analyze?query=' + encodeURIComponent(ticker) + '&months=3';
-    document.getElementById('candleBody').innerHTML = '<div style="height:320px;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.8rem;">차트 로딩 중...</div>';
-    if (_candleObj) { _candleObj.remove(); _candleObj = null; }
-
-    document.getElementById('candleModal').classList.add('open');
-
-    fetch('/api/chart-data/' + ticker)
-        .then(r => r.json())
-        .then(data => _renderCandle(data))
-        .catch(() => {
-            document.getElementById('candleBody').innerHTML = '<div style="padding:40px;text-align:center;color:#f87171;">데이터를 불러올 수 없습니다</div>';
-        });
-}
-
-function openCandleModal() {
-    const ticker = document.getElementById('modalTicker').textContent;
-    const name   = document.getElementById('modalName').textContent;
+function openCandleModal(ticker, name) {
+    if (!ticker) {
+        ticker = document.getElementById('modalTicker').textContent;
+        name   = document.getElementById('modalName').textContent;
+    }
     if (!ticker) return;
     _currentTicker = ticker;
-    _recOscLoaded = false;
-    document.getElementById('recOscWrap').style.display = 'none';
-    document.getElementById('recOscBtn').textContent = '오실레이터 ▼';
     if (_recOscChart) { _recOscChart.destroy(); _recOscChart = null; }
 
     document.getElementById('candleName').textContent = name;
