@@ -35,12 +35,27 @@
         .search-group button:hover { background: #3d4eac; }
 
         /* RECOMMEND BTN */
-        .recommend-btn { display: block; max-width: 560px; margin: 12px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 500; letter-spacing: -0.13px; color: #2d3a8c; border: 1.5px solid rgba(45,58,140,0.2); border-radius: 8px; background: #fff; text-align: center; text-decoration: none; box-shadow: 0 2px 10px rgba(45,58,140,0.08); transition: box-shadow 0.15s, border-color 0.15s; position: relative; }
+        .recommend-btn { display: block; max-width: 560px; margin: 12px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 500; letter-spacing: -0.13px; color: #2d3a8c; border: 1.5px solid rgba(45,58,140,0.2); border-radius: 8px; background: #fff; text-align: left; text-decoration: none; box-shadow: 0 2px 10px rgba(45,58,140,0.08); transition: box-shadow 0.15s, border-color 0.15s; position: relative; }
         .recommend-btn:hover { box-shadow: 0 4px 18px rgba(45,58,140,0.16); border-color: rgba(45,58,140,0.4); color: #2d3a8c; }
-        .export-btn { display: block; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 600; letter-spacing: -0.13px; color: #fff; border: none; border-radius: 8px; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); text-align: center; text-decoration: none; box-shadow: 0 4px 14px rgba(249,115,22,0.3); transition: box-shadow 0.15s, transform 0.1s; position: relative; }
+        .export-btn { display: block; max-width: 560px; margin: 8px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 600; letter-spacing: -0.13px; color: #fff; border: none; border-radius: 8px; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); text-align: center; text-decoration: none; box-shadow: 0 4px 14px rgba(249,115,22,0.3); transition: box-shadow 0.15s, transform 0.1s; position: relative; }
         .export-btn:hover { box-shadow: 0 6px 22px rgba(249,115,22,0.4); transform: translateY(-1px); color: #fff; }
         .new-badge { display: inline-block; background: #ef4444; color: #fff; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 3px; vertical-align: middle; margin-left: 6px; animation: pulse-badge 1.8s ease-in-out infinite; }
         @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+        /* 버튼 그룹 */
+        .btn-group-wrap { width: 100%; max-width: 560px; margin: 14px auto 0; }
+        .btn-group-label { font-family: 'Courier New', monospace; font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(45,58,140,0.3); margin-bottom: 6px; padding-left: 2px; }
+        .btn-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .btn-grid-item { max-width: none !important; margin: 0 !important; width: 100%; }
+        .btn-grid-full { width: 100%; max-width: none !important; }
+        .radar-btn  { display: block; width: 100%; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 600; letter-spacing: -0.13px; color: #1e3a8a; border: 1.5px solid rgba(37,99,235,0.3); border-radius: 8px; background: rgba(219,234,254,0.45); text-align: left; cursor: pointer; box-shadow: 0 2px 10px rgba(37,99,235,0.1); transition: box-shadow 0.15s, border-color 0.15s; }
+        .radar-btn:hover { box-shadow: 0 4px 18px rgba(37,99,235,0.2); border-color: rgba(37,99,235,0.5); background: rgba(219,234,254,0.7); }
+        .bounce-btn { display: block; width: 100%; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 600; letter-spacing: -0.13px; color: #78350f; border: 1.5px solid rgba(217,119,6,0.35); border-radius: 8px; background: rgba(254,243,199,0.5); text-align: left; cursor: pointer; box-shadow: 0 2px 10px rgba(217,119,6,0.1); transition: box-shadow 0.15s, border-color 0.15s; }
+        .bounce-btn:hover { box-shadow: 0 4px 18px rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); background: rgba(254,243,199,0.8); }
+        .buy-candidate-btn { display: block; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 700; letter-spacing: -0.13px; color: #fff; border: none; border-radius: 8px; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); text-align: center; text-decoration: none; box-shadow: 0 4px 14px rgba(22,163,74,0.35); transition: box-shadow 0.15s, transform 0.1s; position: relative; }
+        .buy-candidate-btn:hover { box-shadow: 0 6px 22px rgba(22,163,74,0.5); transform: translateY(-1px); color: #fff; }
+        .surge-buy-btn { display: block; max-width: 560px; margin: 10px auto 0; padding: 12px 20px; font-size: 0.82rem; font-weight: 700; letter-spacing: -0.13px; color: #fff; border: none; border-radius: 8px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); text-align: center; text-decoration: none; box-shadow: 0 4px 14px rgba(220,38,38,0.35); transition: box-shadow 0.15s, transform 0.1s; position: relative; }
+        .surge-buy-btn:hover { box-shadow: 0 6px 22px rgba(220,38,38,0.5); transform: translateY(-1px); color: #fff; }
 
         /* 로딩 오버레이 */
         .search-loading { display: none; max-width: 560px; margin: 16px auto 0; padding: 14px 20px; background: #fff; border: 1.5px solid rgba(45,58,140,0.2); border-radius: 8px; box-shadow: 0 4px 20px rgba(45,58,140,0.1); text-align: center; }
@@ -119,7 +134,7 @@
         .features { padding: 80px 24px; max-width: 1000px; margin: 0 auto; }
         .features-mono { font-family: 'Courier New', monospace; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08px; color: rgba(45,58,140,0.4); margin-bottom: 32px; }
         .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-        .feature-card { background: #fff; border: 1.5px solid rgba(45,58,140,0.1); border-radius: 10px; padding: 28px 24px; box-shadow: 0 2px 12px rgba(45,58,140,0.07); transition: box-shadow 0.15s, transform 0.15s; }
+        .feature-card { background: #fff; border: 1.5px solid rgba(45,58,140,0.1); border-radius: 10px; padding: 28px 24px; box-shadow: 0 2px 12px rgba(45,58,140,0.07); transition: box-shadow 0.15s, transform 0.15s; cursor: pointer; }
         .feature-card:hover { box-shadow: 0 6px 24px rgba(45,58,140,0.14); transform: translateY(-2px); }
         .feature-num { font-family: 'Courier New', monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08px; color: rgba(45,58,140,0.35); margin-bottom: 14px; }
         .feature-title { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.2px; color: #1a1f3c; margin-bottom: 8px; }
@@ -175,83 +190,104 @@
     <div class="search-loading" id="searchLoading">
         <span>🔍 <span class="loading-dots">분석 중</span></span>
     </div>
-    <a href="/recommend" class="recommend-btn">
-        추천 종목 TOP 20
-        <span id="recommendDate" style="font-size:0.65rem;color:#888;margin-left:6px;"></span>
-        →
-        <span id="pickRec" style="display:none;float:right;font-size:0.7rem;color:#FFC000;"></span>
-    </a>
-    <a href="/supply-leaders" class="recommend-btn" style="border-color:rgba(255,192,0,0.3);background:rgba(255,192,0,0.04);">
-        <span style="color:#FFC000;font-weight:600;">수급 주도 종목</span> — 외인·기관 연속 매수 실시간 스캔 →
-        <span id="pickSup" style="display:none;float:right;font-size:0.7rem;color:#FFC000;"></span>
-    </a>
-    <a href="/export-surge" class="export-btn" id="exportBtn">
-        매출 급성장 수출주 스캔 →
-        <span class="new-badge" id="newBadge" style="display:none;">NEW</span>
-        <span id="pickExp" style="display:none;float:right;font-size:0.7rem;color:#ffe0c0;"></span>
-    </a>
 
-    <button onclick="openOscModal()" class="radar-btn">
-        <span style="font-size:1.1rem;margin-right:6px;">◎</span> 과매도 · 과매수 레이더
-        <span id="oscBtnBadge" style="display:none;float:right;font-size:0.7rem;color:#93c5fd;"></span>
-        <span style="float:right;opacity:0.5;">→</span>
-    </button>
-    <button onclick="openBounceModal()" class="bounce-btn">
-        <span style="font-size:1.1rem;margin-right:6px;">↗</span> 이동평균선 반등 · 상승타기
-        <span id="bounceBtnBadge" style="display:none;float:right;font-size:0.7rem;color:#fde68a;"></span>
-        <span style="float:right;opacity:0.5;">→</span>
-    </button>
-    <a href="/buy-candidates" class="buy-candidate-btn">
-        <span style="font-size:1.05rem;margin-right:6px;">📈</span> 매수후보(단기)
-        <span id="buyCandidateDate" style="font-size:0.65rem;color:rgba(255,255,255,0.65);margin-left:6px;"></span>
-        <span style="float:right;opacity:0.7;">→</span>
-    </a>
-    <a href="/surge-buy-candidates" class="surge-buy-btn">
-        <span style="font-size:1.05rem;margin-right:6px;">🚀</span> 급등주 매수후보 <span style="font-size:0.65rem;font-weight:400;opacity:0.75;">(점수화 종합)</span>
-        <span id="surgeBuyDate" style="font-size:0.65rem;color:rgba(255,255,255,0.65);margin-left:6px;"></span>
-        <span style="float:right;opacity:0.7;">→</span>
-    </a>
+    <!-- 버튼 그룹 1: 스캔 · 추천 -->
+    <div class="btn-group-wrap">
+        <div class="btn-group-label">스캔 · 추천</div>
+        <div class="btn-row-2">
+            <a href="/recommend" class="recommend-btn btn-grid-item">
+                추천 종목 TOP 20
+                <span id="recommendDate" style="font-size:0.6rem;color:#aaa;margin-left:4px;display:block;"></span>
+                <span id="pickRec" style="display:none;font-size:0.65rem;color:#FFC000;"></span>
+            </a>
+            <a href="/supply-leaders" class="recommend-btn btn-grid-item" style="border-color:rgba(255,192,0,0.3);background:rgba(255,192,0,0.04);">
+                <span style="color:#FFC000;font-weight:600;">수급 주도 종목</span>
+                <span style="display:block;font-size:0.65rem;color:rgba(26,31,60,0.45);margin-top:2px;">외인·기관 연속 순매수</span>
+                <span id="pickSup" style="display:none;font-size:0.65rem;color:#FFC000;"></span>
+            </a>
+        </div>
+        <a href="/export-surge" class="export-btn btn-grid-full" id="exportBtn">
+            매출 급성장 수출주 스캔
+            <span class="new-badge" id="newBadge" style="display:none;">NEW</span>
+            <span style="float:right;opacity:0.7;">→</span>
+            <span id="pickExp" style="display:none;float:right;font-size:0.7rem;color:#ffe0c0;"></span>
+        </a>
+    </div>
+
+    <!-- 버튼 그룹 2: 기술 분석 레이더 -->
+    <div class="btn-group-wrap">
+        <div class="btn-group-label">기술 분석 레이더</div>
+        <div class="btn-row-2">
+            <button onclick="openOscModal()" class="radar-btn btn-grid-item" style="text-align:center;">
+                <span style="font-size:1.1rem;display:block;margin-bottom:3px;">◎</span>
+                과매도 · 과매수
+                <span id="oscBtnBadge" style="display:none;font-size:0.65rem;color:#93c5fd;display:block;"></span>
+            </button>
+            <button onclick="openBounceModal()" class="bounce-btn btn-grid-item" style="text-align:center;">
+                <span style="font-size:1.1rem;display:block;margin-bottom:3px;">↗</span>
+                MA반등 · 상승타기
+                <span id="bounceBtnBadge" style="display:none;font-size:0.65rem;color:#fde68a;display:block;"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 버튼 그룹 3: 매수후보 -->
+    <div class="btn-group-wrap">
+        <div class="btn-group-label">매수후보</div>
+        <div class="btn-row-2">
+            <a href="/buy-candidates" class="buy-candidate-btn btn-grid-item" style="text-align:center;">
+                <span style="font-size:1.1rem;display:block;margin-bottom:3px;">📈</span>
+                매수후보 단기
+                <span id="buyCandidateDate" style="font-size:0.6rem;color:rgba(255,255,255,0.55);display:block;margin-top:2px;"></span>
+            </a>
+            <a href="/surge-buy-candidates" class="surge-buy-btn btn-grid-item" style="text-align:center;">
+                <span style="font-size:1.1rem;display:block;margin-bottom:3px;">🚀</span>
+                급등주 매수후보
+                <span id="surgeBuyDate" style="font-size:0.6rem;color:rgba(255,255,255,0.55);display:block;margin-top:2px;"></span>
+            </a>
+        </div>
+    </div>
 </div>
 
 
 <div class="features">
     <div class="features-mono">핵심 기능</div>
     <div class="features-grid">
-        <div class="feature-card">
+        <div class="feature-card" onclick="window.open('/','_blank')">
             <div class="feature-num">01</div>
             <div class="feature-title">기술적 분석</div>
             <div class="feature-desc">RSI · MACD · Stochastic · Bollinger Band · MFI 5가지 오실레이터와 이동평균선 배열을 종합해 100점 만점으로 매수·매도 타이밍을 제시합니다.</div>
-            <a href="#" class="feature-btn" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById('searchInput').focus(),400);">→ 종목 검색하기</a>
+            <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
         </div>
-        <div class="feature-card">
+        <div class="feature-card" onclick="window.open('/supply-leaders','_blank')">
             <div class="feature-num">02</div>
             <div class="feature-title">수급 분석</div>
             <div class="feature-desc">외인·기관 연속 순매수 추적, 최근 10거래일 매수세 급증 감지(2배 이상), 20일 동시매수 비율 분석으로 스마트머니 흐름을 파악합니다.</div>
-            <a href="/supply-leaders" class="feature-btn">→ 수급 주도 종목 보기</a>
+            <a href="/supply-leaders" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 수급 주도 종목 보기 ↗</a>
         </div>
-        <div class="feature-card">
+        <div class="feature-card" onclick="window.open('/','_blank')">
             <div class="feature-num">03</div>
             <div class="feature-title">기업 분석</div>
             <div class="feature-desc">PER · PBR · ROE · 영업이익률 · 부채비율 · 52주 고저 · 시가총액, DART 최근 공시까지 한 화면에서 확인합니다.</div>
-            <a href="#" class="feature-btn" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById('searchInput').focus(),400);">→ 종목 검색하기</a>
+            <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
         </div>
-        <div class="feature-card">
+        <div class="feature-card" onclick="window.open('/','_blank')">
             <div class="feature-num">04</div>
             <div class="feature-title">뉴스 감성 분석</div>
             <div class="feature-desc">최근 30일 네이버 뉴스를 긍정·부정·중립으로 분류하고 핵심 키워드와 단독 보도를 추출해 시장 분위기를 수치로 보여줍니다.</div>
-            <a href="#" class="feature-btn" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById('searchInput').focus(),400);">→ 종목 검색하기</a>
+            <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
         </div>
-        <div class="feature-card">
+        <div class="feature-card" onclick="window.open('/','_blank')">
             <div class="feature-num">05</div>
             <div class="feature-title">AI 종합 분석</div>
             <div class="feature-desc">Claude AI가 지표·수급·펀더멘털·뉴스를 종합 분석해 현재 상황과 매수·매도 판단을 초보자도 이해할 수 있는 언어로 설명해드립니다.</div>
-            <a href="#" class="feature-btn" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById('searchInput').focus(),400);">→ 종목 검색하기</a>
+            <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
         </div>
-        <div class="feature-card">
+        <div class="feature-card" onclick="window.open('/recommend','_blank')">
             <div class="feature-num">06</div>
             <div class="feature-title">추천 종목 스캔</div>
             <div class="feature-desc">800개 종목을 자동 스캔해 외인·기관 수급이 강한 TOP 20을 추출합니다. 매수세 2배 급증(🟠) · 동시매수 우위(🟡) 종목을 별도 표시합니다.</div>
-            <a href="/recommend" class="feature-btn">→ 추천 TOP 20 보기</a>
+            <a href="/recommend" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 추천 TOP 20 보기 ↗</a>
         </div>
     </div>
 </div>
