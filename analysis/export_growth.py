@@ -53,7 +53,7 @@ def _dart_revenue(corp_code, dart_key, year, reprt_code):
     params = {'crtfc_key': dart_key, 'corp_code': corp_code,
               'bsns_year': str(year), 'reprt_code': reprt_code}
     try:
-        res = requests.get(url, params=params, timeout=8)
+        res = requests.get(url, params=params, timeout=5)
         if res.status_code != 200:
             return None
         items = res.json().get('list', [])
@@ -184,7 +184,7 @@ def scan_export_growth(growth_threshold=10, high_threshold=30, max_stocks=800):
             corp_map[ticker] = code
 
     results = []
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=12) as executor:
         futures = {
             executor.submit(
                 _scan_one, name, ticker, corp_map[ticker],
