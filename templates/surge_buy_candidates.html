@@ -6,6 +6,7 @@
     <title>급등주 매수후보</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
@@ -35,8 +36,17 @@
         .scan-btn:disabled { background: #3b1010; color: #f87171; cursor: not-allowed; }
 
         /* 카드 */
-        .stock-card { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 14px; padding: 18px 20px; background: #0f0000; margin-bottom: 2px; text-decoration: none; color: inherit; transition: background 0.15s; border-left: 3px solid transparent; cursor: pointer; }
+        .stock-card-wrap { margin-bottom: 2px; }
+        .stock-card { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 14px; padding: 18px 20px; background: #0f0000; text-decoration: none; color: inherit; transition: background 0.15s; border-left: 3px solid transparent; cursor: pointer; }
         .stock-card:hover { background: #1a0000; border-left-color: #dc2626; }
+        .reasons-panel { display: none; background: #0d0000; border-left: 3px solid #dc2626; padding: 14px 20px 14px 78px; }
+        .reasons-panel.open { display: block; }
+        .reasons-title { font-size: 0.62rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 8px; }
+        .reasons-list { list-style: none; padding: 0; margin: 0 0 10px; }
+        .reasons-list li { font-size: 0.72rem; color: #fca5a5; padding: 2px 0; }
+        .reasons-list li::before { content: '▸ '; color: #dc2626; }
+        .chart-open-btn { display: inline-block; margin-top: 4px; font-size: 0.68rem; color: #dc2626; text-decoration: none; border: 1px solid rgba(220,38,38,0.4); padding: 4px 12px; border-radius: 3px; cursor: pointer; background: none; }
+        .chart-open-btn:hover { background: rgba(220,38,38,0.1); color: #f87171; }
 
         /* 차트 모달 */
         .chart-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
@@ -165,45 +175,56 @@
 
     {% if results %}
     {% for r in results %}
-    <div class="stock-card" data-ticker="{{ r.ticker }}" data-name="{{ r.name }}" onclick="openChart(this.dataset.ticker, this.dataset.name)">
-        <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">
-            {{ loop.index }}
-        </div>
-        <div>
+    <div class="stock-card-wrap">
+        <div class="stock-card" onclick="toggleReasons(this)">
+            <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">
+                {{ loop.index }}
+            </div>
             <div>
-                <span class="stock-name">{{ r.name }}</span>
-                <span class="stock-ticker">{{ r.ticker }}</span>
-            </div>
-            <div class="stock-tags">
-                {% for tag in r.tags %}
-                <span class="stock-tag
-                    {%- if '개선' in tag or '흑자' in tag or '신고가' in tag or '우상향' in tag %} green
-                    {%- elif '재료' in tag or 'YoY' in tag %} yellow
-                    {%- endif %}">{{ tag }}</span>
-                {% endfor %}
-            </div>
-            <div class="score-bar-wrap">
-                <div class="score-bar">
-                    <div class="score-bar-fill" style="width:{{ [r.score, 100]|min }}%;"></div>
+                <div>
+                    <span class="stock-name">{{ r.name }}</span>
+                    <span class="stock-ticker">{{ r.ticker }}</span>
                 </div>
-                <span class="score-num">{{ r.score }}점</span>
+                <div class="stock-tags">
+                    {% for tag in r.tags %}
+                    <span class="stock-tag
+                        {%- if '개선' in tag or '흑자' in tag or '신고가' in tag or '우상향' in tag %} green
+                        {%- elif '재료' in tag or 'YoY' in tag %} yellow
+                        {%- endif %}">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                <div class="score-bar-wrap">
+                    <div class="score-bar">
+                        <div class="score-bar-fill" style="width:{{ [r.score, 100]|min }}%;"></div>
+                    </div>
+                    <span class="score-num">{{ r.score }}점</span>
+                </div>
+                <div class="stock-indicators">
+                    거래대금 {{ r.avg_tv_b | int }}억
+                    {% if r.vol_ratio is defined %}&nbsp;·&nbsp; 거래량 {{ r.vol_ratio }}배{% endif %}
+                    {% if r.debt_ratio and r.debt_ratio != 'N/A' %}&nbsp;·&nbsp; 부채 {{ r.debt_ratio }}%{% endif %}
+                </div>
             </div>
-            <div class="stock-indicators">
-                거래대금 {{ r.avg_tv_b | int }}억
-                {% if r.vol_ratio is defined %}&nbsp;·&nbsp; 거래량 {{ r.vol_ratio }}배{% endif %}
-                {% if r.debt_ratio and r.debt_ratio != 'N/A' %}&nbsp;·&nbsp; 부채 {{ r.debt_ratio }}%{% endif %}
+            <div class="right-col">
+                <div class="stock-price">{{ r.price }}원</div>
+                {% if r.chg_pct is defined %}
+                <div class="{% if r.chg_pct >= 0 %}chg-up{% else %}chg-down{% endif %}">
+                    {{ '+' if r.chg_pct >= 0 }}{{ '%.2f'|format(r.chg_pct) }}%
+                </div>
+                {% endif %}
+                {% if r.market_cap is defined %}
+                <div class="stock-cap">시총 {{ '{:,}'.format(r.market_cap) }}억</div>
+                {% endif %}
             </div>
         </div>
-        <div class="right-col">
-            <div class="stock-price">{{ r.price }}원</div>
-            {% if r.chg_pct is defined %}
-            <div class="{% if r.chg_pct >= 0 %}chg-up{% else %}chg-down{% endif %}">
-                {{ '+' if r.chg_pct >= 0 }}{{ '%.2f'|format(r.chg_pct) }}%
-            </div>
-            {% endif %}
-            {% if r.market_cap is defined %}
-            <div class="stock-cap">시총 {{ '{:,}'.format(r.market_cap) }}억</div>
-            {% endif %}
+        <div class="reasons-panel">
+            <div class="reasons-title">선정 이유 — 총 {{ r.score }}점</div>
+            <ul class="reasons-list">
+                {% for reason in r.reasons %}
+                <li>{{ reason }}</li>
+                {% endfor %}
+            </ul>
+            <button class="chart-open-btn" data-ticker="{{ r.ticker }}" data-name="{{ r.name }}" onclick="openChart(this.dataset.ticker, this.dataset.name)">→ 차트 보기</button>
         </div>
     </div>
     {% endfor %}
@@ -264,28 +285,38 @@
             <span class="chart-leg-item"><span style="color:#f97316;">╌</span> 저항선</span>
             <span class="chart-leg-item" style="margin-left:auto;">▲빨강 상승 / ▼파랑 하락</span>
         </div>
-        <div class="chart-reasons" id="chartReasons" style="display:none;">
-            <div class="chart-reasons-hd">선정 이유</div>
-            <div id="chartReasonsList"></div>
-        </div>
         <div class="chart-interp" id="chartInterp">
             <div class="chart-interp-hd">추세선 해석</div>
             <ul class="chart-interp-list" id="chartInterpList"></ul>
+        </div>
+        <!-- 오실레이터 추세 차트 -->
+        <div style="padding:8px 20px;border-top:1px solid #111;display:flex;justify-content:flex-end;">
+            <button id="oscToggleBtn" onclick="toggleOsc()" style="padding:4px 12px;background:none;border:1px solid #2a2a2a;color:#555;font-size:0.58rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">오실레이터 ▼</button>
+        </div>
+        <div id="oscWrap" style="display:none;padding:0 12px 12px;">
+            <div style="background:#0a0a0a;border:1px solid #1a1a1a;height:220px;padding:8px 8px 4px;">
+                <canvas id="oscModalChart"></canvas>
+            </div>
+            <div style="text-align:right;margin-top:3px;"><span id="oscModalLabel" style="font-size:0.58rem;color:#444;"></span></div>
         </div>
     </div>
 </div>
 
 <script>
-// 종목별 선정 이유 데이터
-const surgeStockReasons = {
-    {% for r in results %}
-    "{{ r.ticker }}": {{ (r.reasons or []) | tojson }}{% if not loop.last %},{% endif %}
-    {% endfor %}
-};
-
 let _chartObj = null;
+let _oscChart = null;
+let _oscTicker = null;
+
+function toggleReasons(card) {
+    card.nextElementSibling.classList.toggle('open');
+}
 
 function openChart(ticker, name) {
+    _oscTicker = ticker;
+    document.getElementById('oscWrap').style.display = 'none';
+    document.getElementById('oscToggleBtn').textContent = '오실레이터 ▼';
+    if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
+
     const modal = document.getElementById('chartModal');
     modal.classList.add('open');
     document.getElementById('chartName').textContent = name;
@@ -295,27 +326,79 @@ function openChart(ticker, name) {
     document.getElementById('chartInterp').style.display = 'none';
     if (_chartObj) { _chartObj.remove(); _chartObj = null; }
 
-    // 선정 이유 렌더
-    const reasons = surgeStockReasons[ticker] || [];
-    const reasonsEl = document.getElementById('chartReasons');
-    if (reasons.length) {
-        document.getElementById('chartReasonsList').innerHTML = reasons.map(r => {
-            const m = r.match(/\(([+-]\d+)\)/);
-            const scoreHtml = m ? `<span class="reason-score">${m[1]}점</span>` : '';
-            const text = r.replace(/\s*\([+-]?\d+\)$/, '');
-            return `<div class="reason-item"><span class="reason-text">${text}</span>${scoreHtml}</div>`;
-        }).join('');
-        reasonsEl.style.display = '';
-    } else {
-        reasonsEl.style.display = 'none';
-    }
-
     fetch('/api/chart-data/' + ticker)
         .then(r => r.json())
         .then(data => _renderChart(data))
         .catch(() => {
             document.getElementById('chartBody').innerHTML = '<div style="padding:40px;text-align:center;color:#f87171;">데이터를 불러올 수 없습니다</div>';
         });
+}
+
+function toggleOsc() {
+    const wrap = document.getElementById('oscWrap');
+    const btn = document.getElementById('oscToggleBtn');
+    if (wrap.style.display === 'none') {
+        wrap.style.display = 'block';
+        btn.textContent = '오실레이터 ▲';
+        if (_oscTicker && !_oscChart) _loadOsc(_oscTicker);
+    } else {
+        wrap.style.display = 'none';
+        btn.textContent = '오실레이터 ▼';
+    }
+}
+
+function _loadOsc(ticker) {
+    const lbl = document.getElementById('oscModalLabel');
+    if (lbl) lbl.textContent = '로딩 중…';
+    fetch('/api/osc-history/' + ticker)
+        .then(r => r.json())
+        .then(d => {
+            if (d.error) { if (lbl) lbl.textContent = '데이터 없음'; return; }
+            const dates = d.dates || [];
+            if (lbl) lbl.textContent = '최근 ' + dates.length + '일';
+            _buildOsc(d, dates);
+        })
+        .catch(() => { if (lbl) lbl.textContent = '로드 실패'; });
+}
+
+function _buildOsc(d, dates) {
+    const canvas = document.getElementById('oscModalChart');
+    if (!canvas) return;
+    if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
+    const refPlugin = {
+        id: 'ref', afterDraw(chart) {
+            const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+            [[30,'rgba(245,158,11,0.35)'],[70,'rgba(239,68,68,0.35)']].forEach(([v,c]) => {
+                const yy = y.getPixelForValue(v);
+                ctx.save(); ctx.strokeStyle=c; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+                ctx.beginPath(); ctx.moveTo(left,yy); ctx.lineTo(right,yy); ctx.stroke(); ctx.restore();
+            });
+        }
+    };
+    _oscChart = new Chart(canvas.getContext('2d'), {
+        type: 'line', plugins: [refPlugin],
+        data: { labels: dates, datasets: [
+            { label:'RSI',   data:d.rsi,   borderColor:'#FFC000', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
+            { label:'Stoch', data:d.stoch, borderColor:'#22c55e', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
+            { label:'MFI',   data:d.mfi,   borderColor:'#29ABE2', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
+            { label:'BB%',   data:d.bb,    borderColor:'#a78bfa', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
+        ]},
+        options: {
+            responsive:true, maintainAspectRatio:false, animation:{duration:300},
+            interaction:{mode:'index',intersect:false},
+            scales: {
+                x:{ display:true, ticks:{color:'#555',font:{size:8},maxTicksLimit:8,maxRotation:0,callback:(v,i)=>dates[i]?.slice(5)??''}, grid:{display:false} },
+                y:{ min:-2, max:102, ticks:{color:'#444',font:{size:8},stepSize:25,callback:v=>v<0||v>100?'':v}, grid:{color:'rgba(255,255,255,0.04)'} }
+            },
+            plugins: {
+                legend:{ display:true, position:'top', labels:{color:'#777',font:{size:9},boxWidth:18,padding:8,usePointStyle:true} },
+                tooltip:{ enabled:true, backgroundColor:'#1a1a1a', borderColor:'#333', borderWidth:1,
+                    titleColor:'#777', bodyColor:'#fff', titleFont:{size:9}, bodyFont:{size:10},
+                    callbacks:{ title:items=>dates[items[0].dataIndex]?.slice(5)??'', label:item=>' '+item.dataset.label+': '+(item.raw??'—') }
+                }
+            }
+        }
+    });
 }
 
 function closeChart() {

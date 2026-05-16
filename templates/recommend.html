@@ -6,6 +6,7 @@
     <title>추천 종목</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
@@ -60,6 +61,20 @@
         .reason-point.neu { color:#555; }
         .modal-btn { display:block; width:100%; padding:12px; background:#FFC000; color:#000; border:none; font-size:0.75rem; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; cursor:pointer; margin-top:20px; text-align:center; text-decoration:none; }
         .modal-btn:hover { background:#e6ac00; color:#000; }
+
+        /* 캔들 차트 모달 */
+        .chart-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:300; align-items:center; justify-content:center; padding:16px; }
+        .chart-modal.open { display:flex; }
+        .chart-box { background:#0d0d0d; border:1px solid #252525; border-radius:12px; width:100%; max-width:860px; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.7); }
+        .chart-hdr { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #1a1a1a; }
+        .chart-hdr-name { font-size:0.92rem; font-weight:700; color:#fff; }
+        .chart-hdr-tick { font-size:0.62rem; color:#444; font-family:monospace; margin-left:8px; }
+        .chart-full-btn { font-size:0.68rem; color:#7D7D7D; text-decoration:none; border:1px solid #2a2a2a; padding:4px 12px; border-radius:3px; }
+        .chart-full-btn:hover { color:#fff; }
+        .chart-close-btn { background:none; border:none; color:#555; font-size:1.2rem; cursor:pointer; padding:4px; }
+        .chart-close-btn:hover { color:#fff; }
+        #candleBody { height:320px; }
+        .chart-leg { padding:8px 20px; border-top:1px solid #111; display:flex; gap:18px; flex-wrap:wrap; align-items:center; font-size:0.6rem; color:#555; }
 
         /* 오실레이터 미니 차트 */
         .osc-mini-wrap { background:#111; border:1px solid #1e1e1e; border-radius:4px; padding:7px 8px 4px; }
@@ -208,7 +223,44 @@
         <hr class="modal-divider">
         <div class="modal-section-title">점수 산출 근거</div>
         <div id="modalReasons"></div>
-        <a class="modal-btn" id="modalDetailBtn" href="#">상세 분석 보기 →</a>
+        <div style="display:flex;gap:8px;margin-top:20px;">
+            <button onclick="openCandleModal()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #333;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">차트 + 오실레이터 보기</button>
+            <a class="modal-btn" id="modalDetailBtn" href="#" style="flex:1;margin-top:0;">상세 분석 →</a>
+        </div>
+    </div>
+</div>
+
+<!-- 캔들 차트 + 오실레이터 모달 -->
+<div id="candleModal" class="chart-modal" onclick="if(event.target===this)closeCandleModal()">
+    <div class="chart-box">
+        <div class="chart-hdr">
+            <div>
+                <span class="chart-hdr-name" id="candleName"></span>
+                <span class="chart-hdr-tick" id="candleTick"></span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <a class="chart-full-btn" id="candleFullLink" href="#">→ 전체 분석</a>
+                <button class="chart-close-btn" onclick="closeCandleModal()">✕</button>
+            </div>
+        </div>
+        <div id="candleBody"></div>
+        <div class="chart-leg">
+            <span><span style="color:#f59e0b;">▬</span> MA20</span>
+            <span><span style="color:#60a5fa;">▬</span> MA60</span>
+            <span><span style="color:#22c55e;">╌</span> 지지선</span>
+            <span><span style="color:#f97316;">╌</span> 저항선</span>
+            <span style="margin-left:auto;">▲빨강 상승 / ▼파랑 하락</span>
+        </div>
+        <!-- 오실레이터 -->
+        <div style="padding:8px 20px;border-top:1px solid #111;display:flex;justify-content:flex-end;">
+            <button id="recOscBtn" onclick="toggleRecOsc()" style="padding:4px 12px;background:none;border:1px solid #2a2a2a;color:#555;font-size:0.58rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">오실레이터 ▼</button>
+        </div>
+        <div id="recOscWrap" style="display:none;padding:0 12px 12px;">
+            <div style="background:#0a0a0a;border:1px solid #1a1a1a;height:220px;padding:8px 8px 4px;">
+                <canvas id="recOscChart"></canvas>
+            </div>
+            <div style="text-align:right;margin-top:3px;"><span id="recOscLabel" style="font-size:0.58rem;color:#444;"></span></div>
+        </div>
     </div>
 </div>
 
@@ -439,7 +491,145 @@ function closeModal(e) {
 function closeModalDirect() {
     document.getElementById('scoreModal').classList.remove('open');
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeModalDirect(); closeCandleModal(); }
+});
+
+// ── 캔들 차트 + 오실레이터 모달 ──────────────────────────────
+let _candleObj = null;
+let _recOscChart = null;
+let _recOscLoaded = false;
+let _currentTicker = null;
+
+function openCandleModal() {
+    const ticker = document.getElementById('modalTicker').textContent;
+    const name   = document.getElementById('modalName').textContent;
+    if (!ticker) return;
+    _currentTicker = ticker;
+    _recOscLoaded = false;
+    document.getElementById('recOscWrap').style.display = 'none';
+    document.getElementById('recOscBtn').textContent = '오실레이터 ▼';
+    if (_recOscChart) { _recOscChart.destroy(); _recOscChart = null; }
+
+    document.getElementById('candleName').textContent = name;
+    document.getElementById('candleTick').textContent = ticker;
+    document.getElementById('candleFullLink').href = '/analyze?query=' + encodeURIComponent(ticker) + '&months=3';
+    document.getElementById('candleBody').innerHTML = '<div style="height:320px;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.8rem;">차트 로딩 중...</div>';
+    if (_candleObj) { _candleObj.remove(); _candleObj = null; }
+
+    document.getElementById('candleModal').classList.add('open');
+
+    fetch('/api/chart-data/' + ticker)
+        .then(r => r.json())
+        .then(data => _renderCandle(data))
+        .catch(() => {
+            document.getElementById('candleBody').innerHTML = '<div style="padding:40px;text-align:center;color:#f87171;">데이터를 불러올 수 없습니다</div>';
+        });
+}
+
+function closeCandleModal() {
+    document.getElementById('candleModal').classList.remove('open');
+    if (_candleObj) { _candleObj.remove(); _candleObj = null; }
+}
+
+function _renderCandle(data) {
+    const el = document.getElementById('candleBody');
+    el.innerHTML = '';
+    _candleObj = LightweightCharts.createChart(el, {
+        layout: { background: { type: 'solid', color: '#0d0d0d' }, textColor: '#6b7280' },
+        grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
+        crosshair: { mode: 1 },
+        rightPriceScale: { borderColor: '#1f1f1f' },
+        timeScale: { borderColor: '#1f1f1f', timeVisible: false },
+        width: el.clientWidth, height: 320,
+    });
+    const cs = _candleObj.addCandlestickSeries({
+        upColor:'#ef4444', downColor:'#3b82f6',
+        borderUpColor:'#ef4444', borderDownColor:'#3b82f6',
+        wickUpColor:'#ef4444', wickDownColor:'#3b82f6',
+    });
+    cs.setData(data.candles);
+    if (data.volumes?.length) {
+        const vs = _candleObj.addHistogramSeries({ priceFormat:{type:'volume'}, priceScaleId:'vol' });
+        _candleObj.priceScale('vol').applyOptions({ scaleMargins:{top:0.82,bottom:0} });
+        vs.setData(data.volumes);
+    }
+    const _line = (color, style) => _candleObj.addLineSeries({ color, lineWidth:1.5, lineStyle:style||0, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
+    if (data.ma20?.length)       { _line('#f59e0b').setData(data.ma20); }
+    if (data.ma60?.length)       { _line('#60a5fa').setData(data.ma60); }
+    if (data.support?.length)    { _line('#22c55e',2).setData(data.support); }
+    if (data.resistance?.length) { _line('#f97316',2).setData(data.resistance); }
+    _candleObj.timeScale().fitContent();
+    new ResizeObserver(() => { if (_candleObj) _candleObj.applyOptions({ width: el.clientWidth }); }).observe(el);
+}
+
+function toggleRecOsc() {
+    const wrap = document.getElementById('recOscWrap');
+    const btn  = document.getElementById('recOscBtn');
+    if (wrap.style.display === 'none') {
+        wrap.style.display = 'block';
+        btn.textContent = '오실레이터 ▲';
+        if (_currentTicker && !_recOscLoaded) _loadRecOsc(_currentTicker);
+    } else {
+        wrap.style.display = 'none';
+        btn.textContent = '오실레이터 ▼';
+    }
+}
+
+function _loadRecOsc(ticker) {
+    const lbl = document.getElementById('recOscLabel');
+    if (lbl) lbl.textContent = '로딩 중…';
+    fetch('/api/osc-history/' + ticker)
+        .then(r => r.json())
+        .then(d => {
+            if (d.error) { if (lbl) lbl.textContent = '데이터 없음'; return; }
+            const dates = d.dates || [];
+            if (lbl) lbl.textContent = '최근 ' + dates.length + '일';
+            _buildRecOsc(d, dates);
+            _recOscLoaded = true;
+        })
+        .catch(() => { if (lbl) lbl.textContent = '로드 실패'; });
+}
+
+function _buildRecOsc(d, dates) {
+    const canvas = document.getElementById('recOscChart');
+    if (!canvas) return;
+    if (_recOscChart) { _recOscChart.destroy(); _recOscChart = null; }
+    const refPlugin = {
+        id: 'ref', afterDraw(chart) {
+            const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+            [[30,'rgba(245,158,11,0.35)'],[70,'rgba(239,68,68,0.35)']].forEach(([v,c]) => {
+                const yy = y.getPixelForValue(v);
+                ctx.save(); ctx.strokeStyle=c; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+                ctx.beginPath(); ctx.moveTo(left,yy); ctx.lineTo(right,yy); ctx.stroke(); ctx.restore();
+            });
+        }
+    };
+    _recOscChart = new Chart(canvas.getContext('2d'), {
+        type:'line', plugins:[refPlugin],
+        data:{ labels:dates, datasets:[
+            { label:'RSI',   data:d.rsi,   borderColor:'#FFC000', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
+            { label:'Stoch', data:d.stoch, borderColor:'#22c55e', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
+            { label:'MFI',   data:d.mfi,   borderColor:'#29ABE2', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
+            { label:'BB%',   data:d.bb,    borderColor:'#a78bfa', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
+        ]},
+        options:{
+            responsive:true, maintainAspectRatio:false, animation:{duration:300},
+            interaction:{mode:'index',intersect:false},
+            scales:{
+                x:{ display:true, ticks:{color:'#555',font:{size:8},maxTicksLimit:8,maxRotation:0,callback:(v,i)=>dates[i]?.slice(5)??''}, grid:{display:false} },
+                y:{ min:-2, max:102, ticks:{color:'#444',font:{size:8},stepSize:25,callback:v=>v<0||v>100?'':v}, grid:{color:'rgba(255,255,255,0.04)'} }
+            },
+            plugins:{
+                legend:{ display:true, position:'top', labels:{color:'#777',font:{size:9},boxWidth:18,padding:8,usePointStyle:true} },
+                tooltip:{ enabled:true, backgroundColor:'#1a1a1a', borderColor:'#333', borderWidth:1,
+                    titleColor:'#777', bodyColor:'#fff', titleFont:{size:9}, bodyFont:{size:10},
+                    callbacks:{ title:items=>dates[items[0].dataIndex]?.slice(5)??'', label:item=>' '+item.dataset.label+': '+(item.raw??'—') }
+                }
+            }
+        }
+    });
+}
 
 function showCriteria() {
     const html = `<!DOCTYPE html>
