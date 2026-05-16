@@ -78,6 +78,42 @@ def _calc_joint_buying(investor_df, days=20, threshold=15):
     return joint_days, joint_days > threshold
 
 
+def _calc_accumulation_score(ohlcv, investor_df):
+    """거래량 감소 + 외인/기관 매집 패턴 (스텔스 매집) 점수화"""
+    if ohlcv is None or len(ohlcv) < 25:
+        return 0, []
+    if investor_df is None or investor_df.empty:
+        return 0, []
+
+    recent_vol = ohlcv['volume'].tail(10).mean()
+    prior_vol  = ohlcv['volume'].iloc[-20:-10].mean()
+    if prior_vol <= 0:
+        return 0, []
+    vol_declining = recent_vol < prior_vol * 0.85   # 15% 이상 거래량 감소
+
+    fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
+    ic = next((c for c in investor_df.columns if '기관' in c
+               and '금융' not in c and '연기금' not in c), None)
+    if not fc and not ic:
+        return 0, []
+
+    last10     = investor_df.tail(10)
+    frgn_days  = int((last10[fc] > 0).sum()) if fc else 0
+    inst_days  = int((last10[ic] > 0).sum()) if ic else 0
+    frgn_ok    = frgn_days >= 6
+    inst_ok    = inst_days >= 6
+
+    if vol_declining and (frgn_ok or inst_ok):
+        buyers = ('외인' if frgn_ok else '') + ('기관' if inst_ok else '')
+        return 10, [f'거래량↓{buyers}매집']
+    if frgn_ok and inst_ok:                          # 거래량 감소 없이도 동시 꾸준한 매집
+        return 5, ['외인기관동시매집']
+    if vol_declining and (frgn_days >= 4 or inst_days >= 4):
+        buyers = ('외인' if frgn_days >= 4 else '') + ('기관' if inst_days >= 4 else '')
+        return 5, [f'거래량↓{buyers}매집']
+    return 0, []
+
+
 def _calc_buying_surge_star(investor_df, recent_days=10, past_days=20):
     """최근 10거래일 기관+외인 매수세가 직전 20거래일 대비 2배 이상 증가 여부"""
     if investor_df.empty or len(investor_df) < recent_days + past_days:
@@ -862,6 +898,12 @@ def _check_buy_candidate(name, ticker):
                                   _count_consecutive_buying(investor_df, '외인'))
                 inst_streak    = _count_consecutive_buying(investor_df, '기관')
 
+        # 스텔스 매집 (거래량↓ + 외인/기관 순매수)
+        acc_score, acc_tags = _calc_accumulation_score(ohlcv, investor_df)
+        if acc_score:
+            score += acc_score; tags.extend(acc_tags)
+            reasons.append(f'{acc_tags[0]} (+{acc_score})')
+
         # 눌림목 분석
         pb_score, pb_tags = _calc_pullback_score(ohlcv)
         if pb_score:
@@ -1161,6 +1203,10 @@ def _check_surge_phase1(name, ticker):
         elif joint_d >= 3:
             score += 6
 
+        # ── 스텔스 매집 (거래량↓ + 외인/기관 순매수) ─────────
+        acc_score, acc_tags = _calc_accumulation_score(ohlcv, investor_df)
+        score += acc_score; tags.extend(acc_tags)
+
         # ── 눌림목 분석 ───────────────────────────────────────
         pb_score, pb_tags = _calc_pullback_score(ohlcv)
         score += pb_score; tags.extend(pb_tags)
@@ -1202,13 +1248,13 @@ def _enrich_surge_today(r):
         t_high   = float(today['high'])
         t_vol    = float(today['volume'])
 
-        # 당일 상승률 (전일 종가 대비) — 수급·눌림목 대비 비중 낮춤
+        # 당일 상승률 (전일 종가 대비) — 수급·매집 대비 비중 추가 축소
         chg_pct = (t_close - prev_cls) / prev_cls * 100 if prev_cls else 0
         r['chg_pct'] = round(chg_pct, 2)
         if 5 <= chg_pct <= 12:
-            r['score'] += 7;  r['tags'].append(f'+{round(chg_pct,1)}%')
+            r['score'] += 4;  r['tags'].append(f'+{round(chg_pct,1)}%')
         elif 3 <= chg_pct < 5:
-            r['score'] += 3;  r['tags'].append(f'+{round(chg_pct,1)}%')
+            r['score'] += 2;  r['tags'].append(f'+{round(chg_pct,1)}%')
         elif chg_pct > 12:
             r['score'] += 1   # 너무 급등 — 모멘텀은 있지만 추격 위험
 

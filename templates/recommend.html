@@ -200,6 +200,7 @@ const stockData = {
         rec_color: "{{ s.rec_color }}",
         price: {{ s.price | tojson }},
         reasons: {{ s.reasons | tojson }},
+        rsi: {{ s.rsi | default(50) }},
         stoch: {{ s.stoch | default(50) }},
         mfi: {{ s.mfi | default(50) }},
         bb_pct: {{ s.bb_pct | default(50) }},
