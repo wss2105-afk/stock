@@ -838,25 +838,25 @@ def _check_buy_candidate(name, ticker):
                 foreign_days = int((last10[fc] > 0).sum())
                 inst_days    = int((last10[ic] > 0).sum())
 
-                # 외인 점수 (최대 +10)
+                # 외인 점수 (최대 +16)
                 if foreign_days >= 8:
-                    score += 10; tags.append(f'외인{foreign_days}/10일'); reasons.append(f'외인 {foreign_days}/10일 매수 (+10)')
+                    score += 16; tags.append(f'외인{foreign_days}/10일'); reasons.append(f'외인 {foreign_days}/10일 매수 (+16)')
                 elif foreign_days >= 6:
-                    score += 7;  tags.append(f'외인{foreign_days}/10일'); reasons.append(f'외인 {foreign_days}/10일 매수 (+7)')
+                    score += 12; tags.append(f'외인{foreign_days}/10일'); reasons.append(f'외인 {foreign_days}/10일 매수 (+12)')
                 elif foreign_days >= 4:
-                    score += 3;  reasons.append(f'외인 {foreign_days}/10일 매수 (+3)')
+                    score += 5;  reasons.append(f'외인 {foreign_days}/10일 매수 (+5)')
 
-                # 기관 점수 (최대 +10)
+                # 기관 점수 (최대 +16)
                 if inst_days >= 8:
-                    score += 10; tags.append(f'기관{inst_days}/10일'); reasons.append(f'기관 {inst_days}/10일 매수 (+10)')
+                    score += 16; tags.append(f'기관{inst_days}/10일'); reasons.append(f'기관 {inst_days}/10일 매수 (+16)')
                 elif inst_days >= 6:
-                    score += 7;  tags.append(f'기관{inst_days}/10일'); reasons.append(f'기관 {inst_days}/10일 매수 (+7)')
+                    score += 12; tags.append(f'기관{inst_days}/10일'); reasons.append(f'기관 {inst_days}/10일 매수 (+12)')
                 elif inst_days >= 4:
-                    score += 3;  reasons.append(f'기관 {inst_days}/10일 매수 (+3)')
+                    score += 5;  reasons.append(f'기관 {inst_days}/10일 매수 (+5)')
 
                 # 외인+기관 동시 매수 보너스
                 if foreign_days >= 6 and inst_days >= 6:
-                    score += 5; tags.append('동시매수'); reasons.append(f'외인+기관 동시 매수 보너스 (+5)')
+                    score += 10; tags.append('동시매수'); reasons.append(f'외인+기관 동시 매수 보너스 (+10)')
 
                 foreign_streak = (_count_consecutive_buying(investor_df, '외국인') or
                                   _count_consecutive_buying(investor_df, '외인'))
@@ -1146,20 +1146,20 @@ def _check_surge_phase1(name, ticker):
         inst = _count_consecutive_buying(investor_df, '기관')
         best = max(frgn, inst)
         if best >= 10:
-            score += 15; tags.append(f'수급↑{best}일')
+            score += 22; tags.append(f'수급↑{best}일')
         elif best >= 5:
-            score += 12; tags.append(f'수급↑{best}일')
+            score += 17; tags.append(f'수급↑{best}일')
         elif best >= 3:
-            score += 8;  tags.append(f'수급↑{best}일')
+            score += 12; tags.append(f'수급↑{best}일')
         elif best >= 1:
-            score += 4
+            score += 6
 
         # 외인+기관 동시매수 추가 가산점
         joint_d, joint_star = _calc_joint_buying(investor_df, days=20, threshold=5)
         if joint_star:
-            score += 6; tags.append(f'외인+기관동시{joint_d}일')
+            score += 12; tags.append(f'외인+기관동시{joint_d}일')
         elif joint_d >= 3:
-            score += 3
+            score += 6
 
         # ── 눌림목 분석 ───────────────────────────────────────
         pb_score, pb_tags = _calc_pullback_score(ohlcv)
