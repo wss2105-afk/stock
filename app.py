@@ -1377,6 +1377,39 @@ def debug_reports(ticker):
     })
 
 
+@app.route('/api/debug/dart-raw/<ticker>')
+def debug_dart_raw(ticker):
+    """DART API 원시 응답 직접 확인 — 예: /api/debug/dart-raw/005930"""
+    import requests as _req
+    import time as _time
+    from analysis.dart import DART_API_KEY, get_corp_code
+    corp_code = get_corp_code(ticker)
+    if not corp_code:
+        return jsonify({'error': 'no corp_code', 'ticker': ticker, 'dart_key_set': bool(DART_API_KEY)})
+    url = 'https://opendart.fss.or.kr/api/fnlttSinglAcnt.json'
+    results = {}
+    for year, code, label in [('2025', '11014', 'Q3-2025'), ('2025', '11012', 'H1-2025'), ('2025', '11013', 'Q1-2025'), ('2026', '11013', 'Q1-2026')]:
+        params = {'crtfc_key': DART_API_KEY, 'corp_code': corp_code, 'bsns_year': year, 'reprt_code': code}
+        try:
+            t0 = _time.time()
+            res = _req.get(url, params=params, timeout=20)
+            elapsed = round(_time.time() - t0, 2)
+            data = res.json()
+            items = data.get('list', [])
+            revenue_items = [it for it in items if '매출' in it.get('account_nm', '') and '증감' not in it.get('account_nm', '')]
+            results[label] = {
+                'status_code': res.status_code,
+                'elapsed_sec': elapsed,
+                'dart_status': data.get('status'),
+                'dart_message': data.get('message'),
+                'total_items': len(items),
+                'revenue_items': revenue_items[:3],
+            }
+        except Exception as e:
+            results[label] = {'error': str(e)}
+    return jsonify({'ticker': ticker, 'corp_code': corp_code, 'dart_key_set': bool(DART_API_KEY), 'results': results})
+
+
 @app.route('/api/debug/export/<ticker>')
 def debug_export(ticker):
     """수출주 분기 매출 데이터 fetch 테스트 — 예: /api/debug/export/005930"""
