@@ -40,7 +40,11 @@ _ETF_PATTERNS = [
     'ETF','리츠','인프라펀드',
 ]
 
-_TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
+_TICKER_DB_PATH = (
+    '/data/krx_tickers.json'
+    if os.path.exists('/data/krx_tickers.json')
+    else os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
+)
 
 # 실적·수주·정책 모멘텀 키워드 (DART 공시 제목 기반)
 # (탐지 키워드, 표시 태그, 보너스 점수)

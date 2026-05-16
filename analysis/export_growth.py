@@ -169,6 +169,8 @@ def scan_export_growth(growth_threshold=10, high_threshold=30, max_stocks=800):
         return []
 
     if not os.path.exists(_TICKER_PATH):
+        print(f'[수출주 스캔] 종목 파일 없음: {_TICKER_PATH}')
+        _save_cache([], growth_threshold)
         return []
 
     with open(_TICKER_PATH, encoding='utf-8') as f:

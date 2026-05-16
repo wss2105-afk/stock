@@ -1195,6 +1195,28 @@ def surge_refresh():
     return jsonify({'status': 'scanning'})
 
 
+@app.route('/ma-bounce')
+def ma_bounce_page():
+    """MA 반등 분석 전용 페이지 — surge_cache 볼륨에서 즉시 로드"""
+    cache = _load_surge_cache()
+    bounce = cache.get('bounce', []) if cache else []
+    scanned_at = cache.get('scanned_at', '') if cache else ''
+    bounce_list  = [r for r in bounce if r.get('type') == 'bounce']
+    riding_list  = [r for r in bounce if r.get('type') == 'riding']
+    return render_template('ma_bounce.html',
+                           bounce_list=bounce_list,
+                           riding_list=riding_list,
+                           scanned_at=scanned_at,
+                           total=len(bounce),
+                           scanning=_surge_scanning)
+
+
+@app.route('/api/ma-bounce-refresh', methods=['POST'])
+def ma_bounce_refresh():
+    threading.Thread(target=_run_surge_scan, daemon=True).start()
+    return jsonify({'status': 'scanning'})
+
+
 @app.route('/api/search-suggest')
 def search_suggest():
     q = request.args.get('q', '').strip()
@@ -1358,25 +1380,34 @@ def debug_reports(ticker):
 @app.route('/api/debug/export/<ticker>')
 def debug_export(ticker):
     """수출주 분기 매출 데이터 fetch 테스트 — 예: /api/debug/export/005930"""
+    import traceback as _tb
     from analysis.export_growth import _fetch_quarterly_revenue
+    from analysis.dart import DART_API_KEY, get_corp_code
     try:
-        rev = _fetch_quarterly_revenue(ticker)
-        if len(rev) >= 4:
-            latest, prev_q, q2, q3 = rev[0], rev[1], rev[2], rev[3]
-            yoy = round((latest - q3) / q3 * 100, 1) if q3 > 0 else None
-            qoq = round((latest - prev_q) / prev_q * 100, 1) if prev_q > 0 else None
-        else:
-            yoy = qoq = None
+        corp_code = get_corp_code(ticker)
+        if not corp_code:
+            return jsonify({
+                'ticker': ticker, 'corp_code': None,
+                'dart_key_set': bool(DART_API_KEY),
+                'error': 'corp_code를 찾을 수 없음', 'status': 'no_corp_code',
+            })
+        latest, yoy_rev, qoq_rev = _fetch_quarterly_revenue(corp_code, DART_API_KEY)
+        yoy_growth = round((latest - yoy_rev) / yoy_rev * 100, 1) if latest and yoy_rev and yoy_rev > 0 else None
+        qoq_growth = round((latest - qoq_rev) / qoq_rev * 100, 1) if latest and qoq_rev and qoq_rev > 0 else None
         return jsonify({
             'ticker': ticker,
-            'revenue_quarters': rev,
-            'count': len(rev),
-            'yoy_growth': yoy,
-            'qoq_growth': qoq,
-            'status': 'ok' if len(rev) >= 4 else 'data_insufficient',
+            'corp_code': corp_code,
+            'dart_key_set': bool(DART_API_KEY),
+            'latest_revenue': latest,
+            'yoy_revenue': yoy_rev,
+            'qoq_revenue': qoq_rev,
+            'yoy_growth': yoy_growth,
+            'qoq_growth': qoq_growth,
+            'status': 'ok' if latest else 'no_data',
         })
     except Exception as e:
-        return jsonify({'ticker': ticker, 'error': str(e), 'status': 'error'})
+        return jsonify({'ticker': ticker, 'error': str(e),
+                        'traceback': _tb.format_exc(), 'status': 'error'})
 
 
 @app.route('/api/chart-data/<ticker>')

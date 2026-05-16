@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이동평균선 반등 분석</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
+        .topbar { background: #000; border-bottom: 1px solid #202020; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
+        .topbar a { color: #7D7D7D; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .topbar a:hover { color: #22c55e; }
+        .topbar-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #fff; }
+        .main { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+        .page-title { font-size: clamp(1.6rem, 5vw, 2.4rem); font-weight: 400; letter-spacing: 0.03em; color: #fff; margin-bottom: 4px; }
+        .page-sub { font-size: 0.68rem; color: #7D7D7D; letter-spacing: 0.12em; margin-bottom: 24px; }
+
+        .scanning-box { background: #181818; border: 1px solid #313131; padding: 40px 24px; text-align: center; margin: 40px 0; }
+        .scanning-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #22c55e; margin-bottom: 14px; }
+        .scanning-sub { font-size: 0.8rem; color: #555; line-height: 1.8; }
+
+        .meta-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+        .meta-item { font-size: 0.65rem; color: #555; letter-spacing: 0.12em; }
+        .meta-item span { color: #969696; }
+        .scan-btn { display: inline-flex; align-items: center; gap: 8px; padding: 7px 16px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; border: none; background: #22c55e; cursor: pointer; transition: background 0.15s; }
+        .scan-btn:hover { background: #16a34a; }
+        .scan-btn:disabled { background: #333; color: #666; cursor: default; }
+
+        .section-hd { display: flex; align-items: center; gap: 12px; padding: 14px 0 10px; border-top: 1px solid #222; margin-top: 24px; }
+        .section-hd:first-of-type { margin-top: 0; border-top: none; }
+        .section-badge { padding: 4px 12px; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; }
+        .badge-bounce { background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.4); }
+        .badge-riding { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.4); }
+        .section-desc { font-size: 0.65rem; color: #555; letter-spacing: 0.1em; }
+        .section-cnt { margin-left: auto; font-size: 0.62rem; color: #444; letter-spacing: 0.1em; }
+
+        .stock-card { display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: #141414; margin-bottom: 1px; cursor: pointer; transition: background 0.15s; border-left: 3px solid transparent; }
+        .stock-card:hover { background: #1e1e1e; }
+        .stock-card.bounce { border-left-color: rgba(34,197,94,0.5); }
+        .stock-card.riding { border-left-color: rgba(59,130,246,0.4); }
+
+        .rank { font-size: clamp(0.9rem, 2.5vw, 1.3rem); font-weight: 900; color: #2a2a2a; width: 32px; text-align: center; flex-shrink: 0; }
+        .rank.top1 { color: #22c55e; }
+        .rank.top2 { color: #969696; }
+        .rank.top3 { color: #7a5800; }
+
+        .stock-info { flex: 1; min-width: 0; }
+        .stock-name { font-size: 0.95rem; font-weight: 500; color: #e8e8e8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stock-meta { font-size: 0.62rem; color: #444; letter-spacing: 0.08em; margin-top: 3px; }
+
+        .badge-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+        .ma-badge { padding: 2px 7px; font-size: 0.57rem; font-weight: 700; letter-spacing: 0.06em; border: 1px solid rgba(34,197,94,0.4); color: #22c55e; background: rgba(34,197,94,0.06); }
+        .ma-badge-blue { border-color: rgba(59,130,246,0.4); color: #60a5fa; background: rgba(59,130,246,0.06); }
+
+        .stat-col { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; min-width: 64px; }
+        .stat-num { font-size: 1.2rem; font-weight: 700; line-height: 1; }
+        .stat-num.green { color: #22c55e; }
+        .stat-num.blue  { color: #60a5fa; }
+        .stat-lbl { font-size: 0.52rem; color: #444; letter-spacing: 0.1em; text-transform: uppercase; }
+        .price-col { font-size: 0.85rem; font-weight: 600; color: #c0c0c0; white-space: nowrap; flex-shrink: 0; min-width: 72px; text-align: right; }
+
+        .empty-msg { padding: 28px; text-align: center; color: #333; font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase; }
+        .scan-msg { font-size: 0.65rem; color: #22c55e; letter-spacing: 0.08em; }
+
+        @media (max-width: 576px) {
+            .topbar { padding: 10px 12px; }
+            .main { padding: 16px 8px; }
+            .stock-card { padding: 11px 10px; gap: 8px; }
+            .stat-num { font-size: 1rem; }
+            .stock-name { font-size: 0.86rem; }
+            .price-col { min-width: 60px; font-size: 0.78rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <a href="/">← BACK</a>
+    <span class="topbar-title">이동평균선 반등 분석</span>
+</div>
+
+<div class="main">
+    <div class="page-title">이동평균선 반등 분석</div>
+    <div class="page-sub">10/20/60/120일선 바닥 터치 후 반등 종목 · 5일선 상승 타기 종목 — 볼륨 캐시 즉시 로드</div>
+
+    <div class="meta-bar">
+        {% if scanned_at %}
+        <div class="meta-item">스캔 일시 <span>{{ scanned_at }}</span></div>
+        <div class="meta-item">바닥반등 <span>{{ bounce_list|length }}개</span></div>
+        <div class="meta-item">5일선타기 <span>{{ riding_list|length }}개</span></div>
+        {% else %}
+        <div class="meta-item" style="color:#666;">스캔 데이터가 없습니다</div>
+        {% endif %}
+        <button id="scanBtn" class="scan-btn" onclick="rescan()">지금 스캔</button>
+        <span id="scanMsg" class="scan-msg" style="display:none;">스캔 시작됨 — 완료 후 새로고침하세요</span>
+    </div>
+
+    {% if scanning %}
+    <div class="scanning-box">
+        <div class="scanning-title">스캔 진행 중</div>
+        <div class="scanning-sub">MA 반등 종목을 분석 중입니다. 잠시 후 새로고침 해주세요.</div>
+    </div>
+    {% endif %}
+
+    <!-- ── 바닥 반등 섹션 ── -->
+    <div class="section-hd">
+        <span class="section-badge badge-bounce">바닥 반등</span>
+        <span class="section-desc">10/20/60/120일선 터치 후 반등한 종목</span>
+        <span class="section-cnt">{{ bounce_list|length }}개 종목</span>
+    </div>
+
+    {% for s in bounce_list %}
+    <div class="stock-card bounce" onclick="analyzeStock('{{ s.ticker }}')">
+        <div class="rank {% if loop.index == 1 %}top1{% elif loop.index == 2 %}top2{% elif loop.index == 3 %}top3{% endif %}">{{ loop.index }}</div>
+        <div class="stock-info">
+            <div class="stock-name">{{ s.name }}</div>
+            <div class="stock-meta">{{ s.ticker }} · 거래량비 {{ s.vol_ratio }}배</div>
+            <div class="badge-row">
+                {% for ma in (s.touched_mas or []) %}
+                <span class="ma-badge">{{ ma }}선 반등</span>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="stat-col">
+            <div class="stat-num green">+{{ s.rebound_pct }}%</div>
+            <div class="stat-lbl">반등률</div>
+        </div>
+        <div class="price-col">{{ s.price }}원</div>
+    </div>
+    {% else %}
+    <div class="empty-msg">조건에 해당하는 종목이 없습니다</div>
+    {% endfor %}
+
+    <!-- ── 5일선 타기 섹션 ── -->
+    <div class="section-hd">
+        <span class="section-badge badge-riding">5일선 타기</span>
+        <span class="section-desc">5일 이동평균선 위에서 연속 상승 중인 종목</span>
+        <span class="section-cnt">{{ riding_list|length }}개 종목</span>
+    </div>
+
+    {% for s in riding_list %}
+    <div class="stock-card riding" onclick="analyzeStock('{{ s.ticker }}')">
+        <div class="rank {% if loop.index == 1 %}top1{% elif loop.index == 2 %}top2{% elif loop.index == 3 %}top3{% endif %}">{{ loop.index }}</div>
+        <div class="stock-info">
+            <div class="stock-name">{{ s.name }}</div>
+            <div class="stock-meta">{{ s.ticker }} · 거래량비 {{ s.vol_ratio }}배 · 전일대비 {{ '+' if s.chg_pct > 0 else '' }}{{ s.chg_pct }}%</div>
+            <div class="badge-row">
+                <span class="ma-badge ma-badge-blue">5일선 상승</span>
+                {% if s.ma5_slope is defined and s.ma5_slope %}
+                <span class="ma-badge ma-badge-blue">기울기 +{{ s.ma5_slope }}%</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="stat-col">
+            <div class="stat-num blue">{% if s.ma5_gap is defined %}+{{ s.ma5_gap }}%{% endif %}</div>
+            <div class="stat-lbl">5일선乖離</div>
+        </div>
+        <div class="price-col">{{ s.price }}원</div>
+    </div>
+    {% else %}
+    <div class="empty-msg">조건에 해당하는 종목이 없습니다</div>
+    {% endfor %}
+</div>
+
+<form id="analyzeForm" method="POST" action="/analyze" style="display:none;">
+    <input type="hidden" name="query" id="formQuery">
+    <input type="hidden" name="months" value="6">
+</form>
+<script>
+function analyzeStock(ticker) {
+    document.getElementById('formQuery').value = ticker;
+    document.getElementById('analyzeForm').submit();
+}
+function rescan() {
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = true;
+    btn.textContent = '스캔 중...';
+    const msg = document.getElementById('scanMsg');
+    msg.style.display = 'inline';
+    fetch('/api/ma-bounce-refresh', {method: 'POST'})
+        .then(r => r.json())
+        .then(() => {
+            msg.textContent = '스캔 시작됨 — 완료까지 5~10분 소요, 이후 새로고침하세요';
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.textContent = '지금 스캔';
+            msg.textContent = '요청 실패 — 다시 시도해 주세요';
+        });
+}
+</script>
+</body>
+</html>
