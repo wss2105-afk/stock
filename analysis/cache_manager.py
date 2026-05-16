@@ -26,8 +26,8 @@ def is_cache_valid(ticker):
         return False
     try:
         mtime = os.path.getmtime(path)
-        built_date = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d')
-        return built_date == datetime.today().strftime('%Y-%m-%d')
+        age_hours = (datetime.now() - datetime.fromtimestamp(mtime)).total_seconds() / 3600
+        return age_hours < 30  # Railway UTC 자정 넘어도 전날 캐시 유효 처리
     except Exception:
         return False
 

@@ -145,14 +145,14 @@ def _run_surge_scan():
 
 
 def _evening_scheduler():
-    """매일 21:00 반등/급등 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
+    """매일 10:00 UTC(=19:00 KST) 반등/급등 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
     import time as _time
     if _load_surge_cache() is None:
         threading.Thread(target=_run_surge_scan, daemon=True).start()
 
     while True:
         now = datetime.today()
-        next_run = now.replace(hour=21, minute=0, second=0, microsecond=0)
+        next_run = now.replace(hour=10, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
         _time.sleep((next_run - now).total_seconds())
@@ -465,11 +465,11 @@ def _run_surge_buy_scan():
 
 
 def _surge_buy_scheduler():
-    """평일 16:30 급등주 매수후보 자동 스캔 (장 마감 후 당일 데이터 반영)"""
+    """평일 07:30 UTC(=16:30 KST) 급등주 매수후보 자동 스캔 (장 마감 후 당일 데이터 반영)"""
     import time as _time
     while True:
         now = datetime.today()
-        next_run = now.replace(hour=16, minute=30, second=0, microsecond=0)
+        next_run = now.replace(hour=7, minute=30, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
         while next_run.weekday() >= 5:
