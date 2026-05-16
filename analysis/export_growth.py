@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-_DATA_DIR   = os.path.join(os.path.dirname(__file__), '..', 'data')
+_DATA_DIR   = '/data' if os.path.isdir('/data') else os.path.join(os.path.dirname(__file__), '..', 'data')
 _CACHE_PATH = os.path.join(_DATA_DIR, 'export_cache.json')
 _TICKER_PATH = os.path.join(_DATA_DIR, 'krx_tickers.json')
 
