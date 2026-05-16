@@ -563,7 +563,9 @@ function _buildPickRow(p) {
     const scoreHtml = score !== ''
         ? `<span style="color:${scoreColor};font-size:0.65rem;font-weight:800;background:rgba(74,222,128,0.1);padding:1px 8px;border-radius:10px;border:1px solid rgba(74,222,128,0.25);">+${score}점</span>`
         : '';
-    return `<div style="padding:7px 0;border-bottom:1px solid rgba(74,222,128,0.12);display:flex;flex-direction:column;gap:3px;">
+    return `<div onclick="window.location.href='/analyze?query=${encodeURIComponent(p.ticker)}&months=3'"
+        style="padding:7px 0;border-bottom:1px solid rgba(74,222,128,0.12);display:flex;flex-direction:column;gap:3px;cursor:pointer;transition:background 0.15s;"
+        onmouseover="this.style.background='rgba(74,222,128,0.05)'" onmouseout="this.style.background=''">
         <div style="display:flex;align-items:center;gap:8px;">
             <span style="color:#f1f5f9;font-size:0.78rem;font-weight:700;">${p.name}</span>
             <span style="color:#4ade80;font-size:0.65rem;background:rgba(74,222,128,0.15);padding:1px 7px;border-radius:10px;">${p.ticker}</span>
