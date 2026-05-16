@@ -364,7 +364,7 @@ def recommend_error():
 
 
 def _recommend_scheduler():
-    """매일 07:00 추천 종목 자동 스캔
+    """매일 20:00 UTC(=05:00 KST) 추천 종목 자동 스캔
     - 앱 시작 시 캐시 없으면 1회 백그라운드 스캔 (재배포 후 빈 화면 방지)
     - 페이지 방문 시 스캔 없음 — 캐시만 표시
     """
@@ -374,7 +374,7 @@ def _recommend_scheduler():
 
     while True:
         now = datetime.today()
-        next_run = now.replace(hour=7, minute=0, second=0, microsecond=0)
+        next_run = now.replace(hour=20, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
         _time.sleep((next_run - now).total_seconds())
@@ -410,7 +410,7 @@ def _run_supply_scan():
 
 
 def _supply_scheduler():
-    """평일 09:30 / 14:00 수급주도 종목 스캔
+    """평일 02:30 / 05:30 UTC(=11:30 / 14:30 KST) 수급주도 종목 스캔
     - 캐시 없으면 앱 시작 시 1회 백그라운드 스캔
     - 페이지 방문 시 스캔 없음
     """
@@ -421,7 +421,7 @@ def _supply_scheduler():
     while True:
         now = datetime.today()
         candidates = []
-        for h, m in ((9, 30), (14, 0)):
+        for h, m in ((2, 30), (5, 30)):
             t = now.replace(hour=h, minute=m, second=0, microsecond=0)
             if t > now:
                 candidates.append(t)
@@ -471,14 +471,14 @@ def _run_buy_candidate_scan():
 
 
 def _buy_candidate_scheduler():
-    """매일 07:30 매수후보(단기) 자동 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
+    """매일 16:00 UTC(=01:00 KST) 매수후보(단기) 자동 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
     import time as _time
     if _load_buy_candidate_cache() is None:
         threading.Thread(target=_run_buy_candidate_scan, daemon=True).start()
 
     while True:
         now = datetime.today()
-        next_run = now.replace(hour=7, minute=30, second=0, microsecond=0)
+        next_run = now.replace(hour=16, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
         _time.sleep((next_run - now).total_seconds())
@@ -518,18 +518,15 @@ def _run_surge_buy_scan():
 
 
 def _surge_buy_scheduler():
-    """평일 07:30 UTC(=16:30 KST) 급등주 매수후보 자동 스캔 (장 마감 후 당일 데이터 반영)"""
+    """매일 18:00 UTC(=03:00 KST) 급등주 매수후보 자동 스캔"""
     import time as _time
     while True:
         now = datetime.today()
-        next_run = now.replace(hour=7, minute=30, second=0, microsecond=0)
+        next_run = now.replace(hour=18, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
-        while next_run.weekday() >= 5:
-            next_run += timedelta(days=1)
         _time.sleep((next_run - now).total_seconds())
-        if datetime.today().weekday() < 5:
-            _run_surge_buy_scan()
+        _run_surge_buy_scan()
 
 
 threading.Thread(target=_surge_buy_scheduler, daemon=True).start()
