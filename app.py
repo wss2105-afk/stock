@@ -1481,7 +1481,9 @@ def api_chart_data(ticker):
 
 @app.route('/api/osc-history/<ticker>')
 def api_osc_history(ticker):
-    """최근 60일 오실레이터(RSI·Stoch·MFI·BB%) 히스토리 반환"""
+    """최근 60일 종합 오실레이터 히스토리 반환
+    종합 = (RSI + Stoch%K + (WR+100) + clip(CCI,-200,200)+200)/4) / 4  → 0~100
+    """
     try:
         ohlcv = None
         cached = load_stock_cache(ticker)
@@ -1495,22 +1497,42 @@ def api_osc_history(ticker):
         df = calc_indicators(ohlcv)
         df = df.tail(60)
 
-        def _s(col, scale=1.0, default=50.0):
+        import numpy as np
+
+        def _col(col, default=None):
             if col not in df.columns:
                 return [default] * len(df)
-            return [
-                round(float(v) * scale, 1) if not pd.isna(v) else None
-                for v in df[col]
-            ]
+            return [None if pd.isna(v) else round(float(v), 2) for v in df[col]]
+
+        rsi_vals   = _col('rsi', 50.0)
+        stoch_vals = _col('stoch_k', 50.0)
+        wr_vals    = _col('williams_r', -50.0)   # -100 ~ 0
+        cci_vals   = _col('cci', 0.0)             # -200 ~ +200 내외
+
+        # 종합 오실레이터 계산 (행별로)
+        composite = []
+        for rsi, stoch, wr, cci in zip(rsi_vals, stoch_vals, wr_vals, cci_vals):
+            if any(v is None for v in [rsi, stoch, wr, cci]):
+                composite.append(None)
+                continue
+            wr_norm  = wr + 100                              # 0~100
+            cci_norm = (max(-200.0, min(200.0, cci)) + 200) / 4  # 0~100
+            comp = (rsi + stoch + wr_norm + cci_norm) / 4
+            composite.append(round(comp, 1))
 
         dates = [str(idx)[:10] for idx in df.index]
-        return jsonify({
-            'dates': dates,
-            'rsi':   _s('rsi'),
-            'stoch': _s('stoch_k'),
-            'mfi':   _s('mfi'),
-            'bb':    _s('bb_pct', scale=100.0, default=50.0),
-        })
+
+        data = []
+        for i in range(len(df)):
+            data.append({
+                'composite': composite[i],
+                'rsi':       rsi_vals[i],
+                'stoch':     stoch_vals[i],
+                'wr':        wr_vals[i],
+                'cci':       cci_vals[i],
+            })
+
+        return jsonify({'dates': dates, 'data': data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

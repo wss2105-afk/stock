@@ -297,7 +297,7 @@
 
 <!-- 오실레이터 전용 모달 -->
 <div id="oscModal" class="chart-modal" onclick="if(event.target===this)closeOscModal()">
-    <div class="chart-box" style="max-width:640px;">
+    <div class="chart-box" style="max-width:660px;">
         <div class="chart-hdr">
             <div>
                 <span class="chart-name" id="oscModalName"></span>
@@ -313,12 +313,15 @@
                 <canvas id="oscStandaloneChart"></canvas>
             </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#1a1a1a;border-top:1px solid #1a1a1a;">
-            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">RSI</div><div id="oscSaRsi" style="font-size:1rem;font-weight:700;margin-top:3px;color:#FFC000;">—</div></div>
-            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">Stoch</div><div id="oscSaStoch" style="font-size:1rem;font-weight:700;margin-top:3px;color:#22c55e;">—</div></div>
-            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">MFI</div><div id="oscSaMfi" style="font-size:1rem;font-weight:700;margin-top:3px;color:#29ABE2;">—</div></div>
-            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">BB위치</div><div id="oscSaBb" style="font-size:1rem;font-weight:700;margin-top:3px;color:#a78bfa;">—</div></div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#1a1a1a;border-top:1px solid #1a1a1a;">
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">종합</div><div id="oscSaComp" style="font-size:1.1rem;font-weight:700;margin-top:3px;color:#FFC000;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">RSI</div><div id="oscSaRsi" style="font-size:1rem;font-weight:700;margin-top:3px;color:#94a3b8;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">Stoch</div><div id="oscSaStoch" style="font-size:1rem;font-weight:700;margin-top:3px;color:#94a3b8;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">WR+100</div><div id="oscSaWr" style="font-size:1rem;font-weight:700;margin-top:3px;color:#94a3b8;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">CCI</div><div id="oscSaCci" style="font-size:1rem;font-weight:700;margin-top:3px;color:#94a3b8;">—</div></div>
         </div>
+        <div id="oscInterpPanel" style="display:none;padding:10px 14px;background:#0a0a0a;border-top:1px solid #1a1a1a;font-size:0.72rem;color:#ccc;line-height:1.7;"></div>
+        <button onclick="toggleOscInterp()" id="oscInterpBtn" style="width:100%;padding:8px;background:transparent;border:none;border-top:1px solid #1a1a1a;color:#555;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">해석 보기 ▼</button>
     </div>
 </div>
 
@@ -359,7 +362,10 @@ function openOsc(ticker, name) {
     document.getElementById('oscModalName').textContent = name;
     document.getElementById('oscModalTick').textContent = ticker;
     document.getElementById('oscModalPeriod').textContent = '로딩 중…';
-    ['oscSaRsi','oscSaStoch','oscSaMfi','oscSaBb'].forEach(id => document.getElementById(id).textContent = '—');
+    ['oscSaComp','oscSaRsi','oscSaStoch','oscSaWr','oscSaCci'].forEach(id => document.getElementById(id).textContent = '—');
+    document.getElementById('oscSaComp').style.color = '#FFC000';
+    document.getElementById('oscInterpPanel').style.display = 'none';
+    document.getElementById('oscInterpBtn').textContent = '해석 보기 ▼';
     document.getElementById('oscModal').classList.add('open');
     fetch('/api/osc-history/' + ticker)
         .then(r => r.json())
@@ -367,12 +373,17 @@ function openOsc(ticker, name) {
             if (d.error) { document.getElementById('oscModalPeriod').textContent = '데이터 없음'; return; }
             const dates = d.dates || [];
             document.getElementById('oscModalPeriod').textContent = '최근 ' + dates.length + '일';
-            const last = (arr) => arr?.filter(x => x != null).at(-1);
-            const rv = last(d.rsi);   if (rv != null) document.getElementById('oscSaRsi').textContent   = rv;
-            const sv = last(d.stoch); if (sv != null) document.getElementById('oscSaStoch').textContent = sv;
-            const mv = last(d.mfi);   if (mv != null) document.getElementById('oscSaMfi').textContent   = mv;
-            const bv = last(d.bb);    if (bv != null) document.getElementById('oscSaBb').textContent    = bv + '%';
-            _buildOsc(d, dates);
+            const last = d.data[d.data.length - 1] || {};
+            const compColor = v => v >= 80 ? '#ef5350' : v >= 60 ? '#FFC000' : v >= 40 ? '#888' : v >= 20 ? '#22c55e' : '#29ABE2';
+            if (last.composite != null) {
+                document.getElementById('oscSaComp').textContent = last.composite.toFixed(1);
+                document.getElementById('oscSaComp').style.color = compColor(last.composite);
+            }
+            if (last.rsi   != null) document.getElementById('oscSaRsi').textContent   = last.rsi.toFixed(1);
+            if (last.stoch != null) document.getElementById('oscSaStoch').textContent = last.stoch.toFixed(1);
+            if (last.wr    != null) document.getElementById('oscSaWr').textContent    = (last.wr + 100).toFixed(1);
+            if (last.cci   != null) document.getElementById('oscSaCci').textContent   = last.cci.toFixed(0);
+            _buildOsc(d.data, dates);
         })
         .catch(() => { document.getElementById('oscModalPeriod').textContent = '로드 실패'; });
 }
@@ -382,40 +393,78 @@ function closeOscModal() {
     if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
 }
 
-function _buildOsc(d, dates) {
+const _INTERP_ZONES = [
+    [80, 100, '강한 과열 (80↑)', '신규 매수 자제. 단기 차익 실현 검토 구간.', '#ef5350'],
+    [60,  80, '과열권 (60~80)',  '모멘텀 강하나 추가 상승 여력 제한. 트레일링 스탑 고려.', '#FFC000'],
+    [40,  60, '중립 (40~60)',    '방향성 불명확. 다른 기술적 신호 병행 판단 필요.', '#888888'],
+    [20,  40, '침체권 (20~40)', '약세 우위. 반등 조짐 시 분할 매수 검토 가능.', '#22c55e'],
+    [ 0,  20, '강한 침체 (20↓)','극단적 과매도. 저점 매수 기회, 추세 반전 확인 필수.', '#29ABE2'],
+];
+
+function toggleOscInterp() {
+    const panel = document.getElementById('oscInterpPanel');
+    const btn = document.getElementById('oscInterpBtn');
+    if (panel.style.display === 'none' || !panel.style.display) {
+        const compVal = parseFloat(document.getElementById('oscSaComp').textContent);
+        const zone = _INTERP_ZONES.find(([lo,hi]) => !isNaN(compVal) && compVal >= lo && compVal <= hi) || null;
+        const zoneHtml = zone ? `<div style="color:${zone[4]};font-weight:700;margin-bottom:6px;">▶ ${zone[2]}</div><div style="color:#aaa;margin-bottom:10px;">${zone[3]}</div>` : '';
+        panel.innerHTML = zoneHtml +
+            `<div style="font-size:0.62rem;color:#555;margin-bottom:6px;letter-spacing:0.1em;text-transform:uppercase;">구성 지표</div>` +
+            `<div>RSI <b>${document.getElementById('oscSaRsi').textContent}</b> — 30이하 과매도 · 70이상 과매수</div>` +
+            `<div>Stoch %K <b>${document.getElementById('oscSaStoch').textContent}</b> — 20이하 과매도 · 80이상 과매수</div>` +
+            `<div>Williams %R+100 <b>${document.getElementById('oscSaWr').textContent}</b> — 0~20 과매도 · 80~100 과매수</div>` +
+            `<div>CCI <b>${document.getElementById('oscSaCci').textContent}</b> — ±100 이상은 추세 신호</div>` +
+            `<div style="font-size:0.6rem;color:#444;margin-top:8px;">종합 = (RSI + Stoch%K + (WR+100) + MinMax(CCI)) ÷ 4</div>`;
+        panel.style.display = 'block';
+        btn.textContent = '해석 닫기 ▲';
+    } else {
+        panel.style.display = 'none';
+        btn.textContent = '해석 보기 ▼';
+    }
+}
+
+function _buildOsc(data, dates) {
     const canvas = document.getElementById('oscStandaloneChart');
     if (!canvas) return;
     if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
+    const compVals = data.map(d => d.composite);
+    const borderColors = compVals.map(v =>
+        v == null ? '#888' : v >= 80 ? '#ef5350' : v >= 60 ? '#FFC000' : v >= 40 ? '#888' : v >= 20 ? '#22c55e' : '#29ABE2'
+    );
     const refPlugin = {
         id: 'ref', afterDraw(chart) {
             const { ctx, chartArea: { left, right }, scales: { y } } = chart;
-            [[30,'rgba(245,158,11,0.35)'],[70,'rgba(239,68,68,0.35)']].forEach(([v,c]) => {
+            [[80,'rgba(239,83,80,0.25)'],[60,'rgba(255,192,0,0.2)'],[40,'rgba(136,136,136,0.15)'],[20,'rgba(34,197,94,0.2)']].forEach(([v,c]) => {
                 const yy = y.getPixelForValue(v);
-                ctx.save(); ctx.strokeStyle=c; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+                ctx.save(); ctx.strokeStyle=c; ctx.lineWidth=1; ctx.setLineDash([4,4]);
                 ctx.beginPath(); ctx.moveTo(left,yy); ctx.lineTo(right,yy); ctx.stroke(); ctx.restore();
             });
         }
     };
     _oscChart = new Chart(canvas.getContext('2d'), {
         type: 'line', plugins: [refPlugin],
-        data: { labels: dates, datasets: [
-            { label:'RSI',   data:d.rsi,   borderColor:'#FFC000', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
-            { label:'Stoch', data:d.stoch, borderColor:'#22c55e', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
-            { label:'MFI',   data:d.mfi,   borderColor:'#29ABE2', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
-            { label:'BB%',   data:d.bb,    borderColor:'#a78bfa', borderWidth:1.5, pointRadius:0, pointHoverRadius:3, tension:0.35, spanGaps:true },
-        ]},
+        data: { labels: dates, datasets: [{
+            label: '종합 오실레이터', data: compVals,
+            borderColor: borderColors,
+            segment: { borderColor: ctx2 => borderColors[ctx2.p1DataIndex] || '#888' },
+            backgroundColor: 'rgba(255,192,0,0.05)',
+            fill: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.3, spanGaps: true,
+        }]},
         options: {
             responsive:true, maintainAspectRatio:false, animation:{duration:300},
             interaction:{mode:'index',intersect:false},
             scales: {
-                x:{ display:true, ticks:{color:'#555',font:{size:8},maxTicksLimit:8,maxRotation:0,callback:(v,i)=>dates[i]?.slice(5)??''}, grid:{display:false} },
-                y:{ min:-2, max:102, ticks:{color:'#444',font:{size:8},stepSize:25,callback:v=>v<0||v>100?'':v}, grid:{color:'rgba(255,255,255,0.04)'} }
+                x:{ ticks:{color:'#555',font:{size:8},maxTicksLimit:8,maxRotation:0,callback:(v,i)=>dates[i]?.slice(5)??''}, grid:{display:false} },
+                y:{ min:-2, max:102, ticks:{color:'#444',font:{size:8},stepSize:20,callback:v=>v<0||v>100?'':v}, grid:{color:'rgba(255,255,255,0.04)'} }
             },
             plugins: {
-                legend:{ display:true, position:'top', labels:{color:'#777',font:{size:9},boxWidth:18,padding:8,usePointStyle:true} },
+                legend:{ display:false },
                 tooltip:{ enabled:true, backgroundColor:'#1a1a1a', borderColor:'#333', borderWidth:1,
-                    titleColor:'#777', bodyColor:'#fff', titleFont:{size:9}, bodyFont:{size:10},
-                    callbacks:{ title:items=>dates[items[0].dataIndex]?.slice(5)??'', label:item=>' '+item.dataset.label+': '+(item.raw??'—') }
+                    titleColor:'#777', bodyColor:'#fff',
+                    callbacks:{
+                        title:items=>dates[items[0].dataIndex]?.slice(5)??'',
+                        label:item=>' 종합 오실레이터: '+(item.raw != null ? item.raw.toFixed(1) : '—')
+                    }
                 }
             }
         }

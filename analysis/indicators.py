@@ -3,6 +3,7 @@ import ta
 
 
 def calc_indicators(df):
+    df = df.copy()
     close = df['close']
     high = df['high']
     low = df['low']
@@ -39,6 +40,12 @@ def calc_indicators(df):
 
     # MFI
     df['mfi'] = ta.volume.MFIIndicator(high, low, close, volume, window=14).money_flow_index()
+
+    # Williams %R (-100 ~ 0)
+    df['williams_r'] = ta.momentum.WilliamsRIndicator(high, low, close, lbp=14).williams_r()
+
+    # CCI (보통 -200 ~ +200)
+    df['cci'] = ta.trend.CCIIndicator(high, low, close, window=20, constant=0.015).cci()
 
     return df
 

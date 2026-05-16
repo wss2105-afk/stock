@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>수급 주도 종목</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { background: #000; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
@@ -92,6 +94,15 @@
         .score-row-val.zero { color:#333; }
         .modal-btn { display:block; width:100%; padding:12px; background:#FFC000; color:#000; border:none; font-size:0.72rem; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; cursor:pointer; margin-top:20px; text-align:center; text-decoration:none; }
         .modal-btn:hover { background:#e6ac00; color:#000; }
+
+        /* 차트/오실레이터 모달 */
+        .chart-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:300; align-items:center; justify-content:center; padding:16px; }
+        .chart-modal.open { display:flex; }
+        .chart-box { background:#111; border:1px solid #2a2a2a; width:100%; max-width:700px; padding:20px; position:relative; }
+        .chart-hdr { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+        .chart-hdr-title { font-size:0.85rem; font-weight:700; color:#fff; letter-spacing:0.05em; }
+        .chart-close { background:none; border:none; color:#555; font-size:1.2rem; cursor:pointer; }
+        .chart-close:hover { color:#fff; }
 
         @media (max-width: 576px) {
             .topbar { padding: 10px 12px; }
@@ -246,7 +257,44 @@
         <div style="font-size:0.6rem;color:#555;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">점수 산출 내역</div>
         <div id="modalBreakdown"></div>
 
-        <a class="modal-btn" id="modalDetailBtn" href="#">상세 분석 보기 →</a>
+        <div style="display:flex;gap:8px;margin-top:20px;">
+            <button onclick="openSupplyChart()" style="flex:1;padding:11px 4px;background:#2a2a2a;color:#fff;border:1px solid #333;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">→ 차트</button>
+            <button onclick="openSupplyOsc()" style="flex:1;padding:11px 4px;background:transparent;color:#29ABE2;border:1px solid rgba(41,171,226,0.4);font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">〜 오실레이터</button>
+            <a class="modal-btn" id="modalDetailBtn" style="flex:1;margin-top:0;padding:11px 4px;" href="#">상세 분석</a>
+        </div>
+    </div>
+</div>
+
+<!-- 캔들 차트 모달 -->
+<div id="supplyChartModal" class="chart-modal" onclick="if(event.target===this)closeSupplyChartModal()">
+    <div class="chart-box">
+        <div class="chart-hdr">
+            <span class="chart-hdr-title" id="supplyChartTitle">차트</span>
+            <button class="chart-close" onclick="closeSupplyChartModal()">✕</button>
+        </div>
+        <div id="supplyChartContainer" style="height:380px;"></div>
+    </div>
+</div>
+
+<!-- 오실레이터 모달 -->
+<div id="supplyOscModal" class="chart-modal" onclick="if(event.target===this)closeSupplyOscModal()">
+    <div class="chart-box" style="max-width:660px;">
+        <div class="chart-hdr">
+            <span class="chart-hdr-title" id="supplyOscTitle">종합 오실레이터</span>
+            <button class="chart-close" onclick="closeSupplyOscModal()">✕</button>
+        </div>
+        <div style="height:280px;background:#0a0a0a;border:1px solid #1e1e1e;padding:8px;">
+            <canvas id="supplyOscCanvas"></canvas>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px;text-align:center;">
+            <div style="font-size:0.58rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">종합<div id="supplyOscComp" style="font-size:1.1rem;font-weight:700;color:#FFC000;margin-top:4px;">—</div></div>
+            <div style="font-size:0.58rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">RSI<div id="supplyOscRsi" style="font-size:1rem;font-weight:700;color:#94a3b8;margin-top:4px;">—</div></div>
+            <div style="font-size:0.58rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">Stoch<div id="supplyOscStoch" style="font-size:1rem;font-weight:700;color:#94a3b8;margin-top:4px;">—</div></div>
+            <div style="font-size:0.58rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">Williams%R<div id="supplyOscWr" style="font-size:1rem;font-weight:700;color:#94a3b8;margin-top:4px;">—</div></div>
+            <div style="font-size:0.58rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">CCI<div id="supplyOscCci" style="font-size:1rem;font-weight:700;color:#94a3b8;margin-top:4px;">—</div></div>
+        </div>
+        <div id="supplyOscInterpret" style="margin-top:12px;padding:10px 14px;background:#111;border:1px solid #222;font-size:0.72rem;color:#ccc;line-height:1.7;display:none;"></div>
+        <button onclick="toggleSupplyInterpret()" style="width:100%;margin-top:10px;padding:8px;background:transparent;border:1px solid #333;color:#888;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;" id="supplyInterpretBtn">해석 보기 ▼</button>
     </div>
 </div>
 
@@ -270,6 +318,9 @@ const SCORE_LABELS = {
     '최근집중도': '최근 10일 집중도 (비중%÷10)',
 };
 
+let _supplyTicker = '', _supplyName = '';
+let _supplyLwChart = null, _supplyOscChart = null;
+
 function showScore(ticker) {
     const card = document.querySelector(`[data-meets-a][onclick*="${ticker}"]`);
     if (!card) return;
@@ -277,6 +328,8 @@ function showScore(ticker) {
     const price = card.dataset.price;
     const score = card.dataset.score;
     const breakdown = JSON.parse(card.dataset.breakdown || '{}');
+    _supplyTicker = ticker;
+    _supplyName = name;
 
     document.getElementById('modalTicker').textContent = ticker;
     document.getElementById('modalName').textContent = name;
@@ -300,7 +353,161 @@ function showScore(ticker) {
 
 function closeModal(e) { if (e.target.id === 'scoreModal') closeModalDirect(); }
 function closeModalDirect() { document.getElementById('scoreModal').classList.remove('open'); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeModalDirect(); closeSupplyChartModal(); closeSupplyOscModal(); }
+});
+
+/* ── 캔들 차트 ── */
+function openSupplyChart() {
+    closeModalDirect();
+    document.getElementById('supplyChartTitle').textContent = _supplyName + ' (' + _supplyTicker + ')';
+    document.getElementById('supplyChartContainer').innerHTML = '';
+    document.getElementById('supplyChartModal').classList.add('open');
+    requestAnimationFrame(() => _renderSupplyCandle(_supplyTicker));
+}
+function closeSupplyChartModal() {
+    document.getElementById('supplyChartModal').classList.remove('open');
+    if (_supplyLwChart) { try { _supplyLwChart.remove(); } catch(e){} _supplyLwChart = null; }
+}
+function _renderSupplyCandle(ticker) {
+    fetch('/api/chart-data/' + ticker)
+        .then(r => r.json())
+        .then(d => {
+            if (d.error) return;
+            const container = document.getElementById('supplyChartContainer');
+            if (_supplyLwChart) { try { _supplyLwChart.remove(); } catch(e){} _supplyLwChart = null; }
+            _supplyLwChart = LightweightCharts.createChart(container, {
+                width: container.clientWidth, height: 380,
+                layout: { background: { color: '#0a0a0a' }, textColor: '#888' },
+                grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
+                timeScale: { timeVisible: true, borderColor: '#333' },
+                rightPriceScale: { borderColor: '#333' },
+            });
+            const candle = _supplyLwChart.addCandlestickSeries({
+                upColor: '#26a69a', downColor: '#ef5350',
+                borderUpColor: '#26a69a', borderDownColor: '#ef5350',
+                wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+            });
+            candle.setData(d.ohlcv);
+            if (d.ma20 && d.ma20.length) _supplyLwChart.addLineSeries({ color: '#FFC000', lineWidth: 1, title: 'MA20' }).setData(d.ma20);
+            if (d.ma60 && d.ma60.length) _supplyLwChart.addLineSeries({ color: '#29ABE2', lineWidth: 1, title: 'MA60' }).setData(d.ma60);
+            if (d.ma120 && d.ma120.length) _supplyLwChart.addLineSeries({ color: '#2ecc71', lineWidth: 1, title: 'MA120' }).setData(d.ma120);
+            _supplyLwChart.timeScale().fitContent();
+        });
+}
+
+/* ── 종합 오실레이터 ── */
+function openSupplyOsc() {
+    closeModalDirect();
+    document.getElementById('supplyOscTitle').textContent = _supplyName + ' 종합 오실레이터';
+    document.getElementById('supplyOscModal').classList.add('open');
+    document.getElementById('supplyOscInterpret').style.display = 'none';
+    document.getElementById('supplyInterpretBtn').textContent = '해석 보기 ▼';
+    requestAnimationFrame(() => {
+        fetch('/api/osc-history/' + _supplyTicker)
+            .then(r => r.json())
+            .then(d => { if (!d.error) _buildSupplyOsc(d.data, d.dates); });
+    });
+}
+function closeSupplyOscModal() {
+    document.getElementById('supplyOscModal').classList.remove('open');
+    if (_supplyOscChart) { _supplyOscChart.destroy(); _supplyOscChart = null; }
+}
+function _buildSupplyOsc(data, dates) {
+    if (_supplyOscChart) { _supplyOscChart.destroy(); _supplyOscChart = null; }
+    const last = data[data.length - 1] || {};
+    const comp = last.composite != null ? last.composite.toFixed(1) : '—';
+    document.getElementById('supplyOscComp').textContent  = comp !== '—' ? comp : '—';
+    document.getElementById('supplyOscRsi').textContent   = last.rsi   != null ? last.rsi.toFixed(1)   : '—';
+    document.getElementById('supplyOscStoch').textContent = last.stoch != null ? last.stoch.toFixed(1) : '—';
+    document.getElementById('supplyOscWr').textContent    = last.wr    != null ? (last.wr + 100).toFixed(1) : '—';
+    document.getElementById('supplyOscCci').textContent   = last.cci   != null ? last.cci.toFixed(0)   : '—';
+
+    const compColor = v => v >= 80 ? '#ef5350' : v >= 60 ? '#FFC000' : v >= 40 ? '#888' : v >= 20 ? '#22c55e' : '#29ABE2';
+    if (last.composite != null) {
+        document.getElementById('supplyOscComp').style.color = compColor(last.composite);
+    }
+
+    const refLinePlugin = {
+        id:'refLine',
+        afterDraw(chart) {
+            const {ctx, chartArea:{left,right}, scales:{y}} = chart;
+            [[80,'rgba(239,83,80,0.25)'],[60,'rgba(255,192,0,0.2)'],[40,'rgba(136,136,136,0.15)'],[20,'rgba(34,197,94,0.2)']].forEach(([v,color]) => {
+                const yp = y.getPixelForValue(v);
+                ctx.save(); ctx.strokeStyle = color; ctx.setLineDash([4,4]);
+                ctx.beginPath(); ctx.moveTo(left, yp); ctx.lineTo(right, yp); ctx.stroke(); ctx.restore();
+            });
+        }
+    };
+    const compVals = data.map(d => d.composite);
+    const bgColors = compVals.map(v =>
+        v == null ? 'transparent' : v >= 80 ? 'rgba(239,83,80,0.15)' : v >= 60 ? 'rgba(255,192,0,0.12)' : v >= 40 ? 'rgba(136,136,136,0.08)' : v >= 20 ? 'rgba(34,197,94,0.12)' : 'rgba(41,171,226,0.15)'
+    );
+    const borderColors = compVals.map(v =>
+        v == null ? '#FFC000' : v >= 80 ? '#ef5350' : v >= 60 ? '#FFC000' : v >= 40 ? '#888' : v >= 20 ? '#22c55e' : '#29ABE2'
+    );
+    const ctx = document.getElementById('supplyOscCanvas').getContext('2d');
+    _supplyOscChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: '종합 오실레이터',
+                data: compVals,
+                borderColor: borderColors,
+                segment: { borderColor: ctx2 => borderColors[ctx2.p1DataIndex] || '#FFC000' },
+                backgroundColor: bgColors,
+                fill: true, borderWidth: 2, pointRadius: 0, tension: 0.3,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color:'#555', font:{size:9}, maxTicksLimit:8, callback:(v,i) => dates[i]?.slice(5)??'' }, grid:{ color:'#1a1a1a' } },
+                y: { min:-2, max:102, ticks:{ color:'#555', font:{size:9} }, grid:{ color:'#1a1a1a' } }
+            }
+        },
+        plugins: [refLinePlugin]
+    });
+}
+
+const _INTERPRET_ZONES = [
+    [80, 100, '강한 과열 (80↑)', '신규 매수 자제. 단기 차익 실현 검토 구간. 과열 해소 후 재진입 고려.', '#ef5350'],
+    [60, 80,  '과열권 진입 (60~80)', '모멘텀 강하나 추가 상승 여력 제한. 부분 익절 또는 트레일링 스탑 고려.', '#FFC000'],
+    [40, 60,  '중립 구간 (40~60)', '방향성 불분명. 다른 기술적 신호와 병행 판단 필요.', '#888888'],
+    [20, 40,  '침체권 (20~40)', '약세 우위. 반등 조짐 시 분할 매수 검토 가능.', '#22c55e'],
+    [0,  20,  '강한 침체 (20↓)', '극단적 과매도. 저점 매수 기회일 수 있으나 추세 반전 확인 필수.', '#29ABE2'],
+];
+
+function toggleSupplyInterpret() {
+    const panel = document.getElementById('supplyOscInterpret');
+    const btn = document.getElementById('supplyInterpretBtn');
+    if (panel.style.display === 'none' || !panel.style.display) {
+        const last = {};
+        last.comp  = parseFloat(document.getElementById('supplyOscComp').textContent) || null;
+        last.rsi   = parseFloat(document.getElementById('supplyOscRsi').textContent) || null;
+        last.stoch = parseFloat(document.getElementById('supplyOscStoch').textContent) || null;
+        last.wr    = parseFloat(document.getElementById('supplyOscWr').textContent) || null;
+        last.cci   = parseFloat(document.getElementById('supplyOscCci').textContent) || null;
+        const zone = _INTERPRET_ZONES.find(([lo, hi]) => last.comp != null && last.comp >= lo && last.comp <= hi) || null;
+        const zoneHtml = zone
+            ? `<div style="color:${zone[4]};font-weight:700;margin-bottom:6px;">▶ ${zone[2]}</div><div style="color:#aaa;margin-bottom:10px;">${zone[3]}</div>`
+            : '';
+        panel.innerHTML = zoneHtml +
+            `<div style="font-size:0.65rem;color:#555;margin-bottom:6px;letter-spacing:0.1em;text-transform:uppercase;">구성 지표</div>` +
+            `<div>RSI <b>${last.rsi??'—'}</b> — 0~30 과매도 · 70~100 과매수</div>` +
+            `<div>Stoch %K <b>${last.stoch??'—'}</b> — 0~20 과매도 · 80~100 과매수</div>` +
+            `<div>Williams %R+100 <b>${last.wr??'—'}</b> — 0~20 과매도 · 80~100 과매수</div>` +
+            `<div>CCI(정규화) <b>${last.cci??'—'}</b> — 원값 기준 ±100 이상은 추세 신호</div>` +
+            `<div style="font-size:0.6rem;color:#444;margin-top:8px;">종합 = (RSI + Stoch%K + (WR+100) + MinMax(CCI)) ÷ 4</div>`;
+        panel.style.display = 'block';
+        btn.textContent = '해석 닫기 ▲';
+    } else {
+        panel.style.display = 'none';
+        btn.textContent = '해석 보기 ▼';
+    }
+}
 
 function analyzeStock(ticker) {
     document.getElementById('formQuery').value = ticker;

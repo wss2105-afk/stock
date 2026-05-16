@@ -943,30 +943,31 @@ function _loadOscChart() {
         .then(d => {
             if (d.error) { if (lbl) lbl.textContent = '데이터 없음'; return; }
             const dates = d.dates || [];
-            if (lbl) lbl.textContent = '최근 ' + dates.length + '일';
-            _buildOscChart(d, dates);
+            if (lbl) lbl.textContent = '최근 ' + dates.length + '일 종합 오실레이터';
+            _buildOscChart(d.data, dates);
             _oscLoaded = true;
         })
         .catch(() => { if (lbl) lbl.textContent = '로드 실패'; });
 }
 
-function _buildOscChart(d, dates) {
+function _buildOscChart(data, dates) {
     const canvas = document.getElementById('oscChartResult');
     if (!canvas) return;
     if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
+
+    const compVals = data.map(d => d.composite);
+    const borderColors = compVals.map(v =>
+        v == null ? '#888' : v >= 80 ? '#ef5350' : v >= 60 ? '#FFC000' : v >= 40 ? '#888' : v >= 20 ? '#22c55e' : '#29ABE2'
+    );
 
     const refLinePlugin = {
         id: 'oscRef',
         afterDraw(chart) {
             const { ctx, chartArea: { left, right }, scales: { y } } = chart;
-            [[30, 'rgba(245,158,11,0.35)'], [70, 'rgba(239,68,68,0.35)']].forEach(([v, c]) => {
+            [[80,'rgba(239,83,80,0.25)'],[60,'rgba(255,192,0,0.2)'],[40,'rgba(136,136,136,0.15)'],[20,'rgba(34,197,94,0.2)']].forEach(([v, c]) => {
                 const yy = y.getPixelForValue(v);
-                ctx.save();
-                ctx.strokeStyle = c;
-                ctx.lineWidth = 1;
-                ctx.setLineDash([3, 3]);
-                ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(right, yy); ctx.stroke();
-                ctx.restore();
+                ctx.save(); ctx.strokeStyle = c; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+                ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(right, yy); ctx.stroke(); ctx.restore();
             });
         }
     };
@@ -976,12 +977,14 @@ function _buildOscChart(d, dates) {
         plugins: [refLinePlugin],
         data: {
             labels: dates,
-            datasets: [
-                { label: 'RSI',   data: d.rsi,   borderColor: '#FFC000', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
-                { label: 'Stoch', data: d.stoch, borderColor: '#22c55e', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
-                { label: 'MFI',   data: d.mfi,   borderColor: '#29ABE2', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
-                { label: 'BB%',   data: d.bb,    borderColor: '#a78bfa', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, tension: 0.35, spanGaps: true },
-            ]
+            datasets: [{
+                label: '종합 오실레이터',
+                data: compVals,
+                borderColor: borderColors,
+                segment: { borderColor: ctx2 => borderColors[ctx2.p1DataIndex] || '#888' },
+                backgroundColor: 'rgba(255,192,0,0.05)',
+                fill: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.3, spanGaps: true,
+            }]
         },
         options: {
             responsive: true,
@@ -999,15 +1002,12 @@ function _buildOscChart(d, dates) {
                 },
                 y: {
                     min: -2, max: 102,
-                    ticks: { color: '#444', font: { size: 8 }, stepSize: 25, callback: v => v < 0 || v > 100 ? '' : v },
+                    ticks: { color: '#444', font: { size: 8 }, stepSize: 20, callback: v => v < 0 || v > 100 ? '' : v },
                     grid: { color: 'rgba(255,255,255,0.04)' },
                 }
             },
             plugins: {
-                legend: {
-                    display: true, position: 'top',
-                    labels: { color: '#777', font: { size: 9 }, boxWidth: 18, padding: 8, usePointStyle: true }
-                },
+                legend: { display: false },
                 tooltip: {
                     enabled: true,
                     backgroundColor: '#1a1a1a', borderColor: '#333', borderWidth: 1,
@@ -1015,7 +1015,7 @@ function _buildOscChart(d, dates) {
                     titleFont: { size: 9 }, bodyFont: { size: 10 },
                     callbacks: {
                         title: items => dates[items[0].dataIndex]?.slice(5) ?? '',
-                        label: item => ' ' + item.dataset.label + ': ' + (item.raw ?? '—'),
+                        label: item => ' 종합 오실레이터: ' + (item.raw != null ? item.raw.toFixed(1) : '—'),
                     }
                 }
             }
