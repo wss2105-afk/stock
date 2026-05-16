@@ -168,6 +168,7 @@
              data-stoch="{{ s.stoch }}"
              data-mfi="{{ s.mfi }}"
              data-score="{{ s.score100 }}"
+             data-score-raw="{{ s.score }}"
              data-kind="oversold"
              data-tags='{{ (s.tags or []) | tojson }}'
              onclick="showStockInfo(this)">
@@ -208,6 +209,7 @@
              data-stoch="{{ s.stoch }}"
              data-mfi="{{ s.mfi }}"
              data-score="{{ s.score100 }}"
+             data-score-raw="{{ s.score }}"
              data-kind="overbought"
              data-tags='{{ (s.tags or []) | tojson }}'
              onclick="showStockInfo(this)">
@@ -239,16 +241,22 @@
         <button class="info-close-btn" onclick="closeInfo()">✕</button>
         <div style="font-size:0.62rem;color:#555;letter-spacing:0.15em;margin-bottom:2px;" id="infoTicker"></div>
         <div style="font-size:1.1rem;font-weight:700;color:#fff;letter-spacing:0.04em;margin-bottom:14px;" id="infoName"></div>
-        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;">
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;">
             <div>
                 <div style="font-size:0.58rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">강도 점수</div>
                 <div id="infoScore" style="font-size:2rem;font-weight:900;line-height:1;">—</div>
-                <div id="infoScoreDesc" style="font-size:0.6rem;color:#555;margin-top:4px;line-height:1.5;max-width:160px;">RSI·Stoch·BB·MFI<br>4개 지표 복합 강도<br>(100점 = 전부 신호)</div>
+                <div id="infoScoreRaw" style="font-size:0.62rem;color:#555;margin-top:3px;">원점수 —/11점</div>
             </div>
             <div style="margin-left:auto;text-align:right;">
                 <div style="font-size:0.58rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">현재가</div>
                 <div id="infoPrice" style="font-size:1rem;font-weight:700;color:#fff;">—</div>
             </div>
+        </div>
+        <!-- 점수 기준 설명 -->
+        <div id="infoScoreDetail" style="background:#0d0d0d;border:1px solid #1e1e1e;padding:10px 12px;margin-bottom:14px;font-size:0.62rem;line-height:1.9;">
+            <div style="color:#444;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;font-size:0.55rem;">지표별 배점 (만점 11점)</div>
+            <div id="infoScoreTable"></div>
+            <div style="color:#444;margin-top:6px;border-top:1px solid #1a1a1a;padding-top:5px;">강도 점수 = 원점수 ÷ 11 × 100</div>
         </div>
         <!-- 오실레이터 수치 -->
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:16px;" id="infoOscGrid"></div>
@@ -331,21 +339,60 @@ function showStockInfo(card) {
     _curTicker = card.dataset.ticker;
     _curName   = card.dataset.name;
     _curKind   = card.dataset.kind;
-    const rsi   = card.dataset.rsi;
-    const stoch = card.dataset.stoch;
-    const mfi   = card.dataset.mfi;
-    const score = card.dataset.score;
-    const price = card.dataset.price;
-    const tags  = JSON.parse(card.dataset.tags || '[]');
+    const rsi      = parseFloat(card.dataset.rsi);
+    const stoch    = parseFloat(card.dataset.stoch);
+    const mfi      = parseFloat(card.dataset.mfi);
+    const score    = card.dataset.score;
+    const scoreRaw = parseInt(card.dataset.scoreRaw || '0', 10);
+    const price    = card.dataset.price;
+    const tags     = JSON.parse(card.dataset.tags || '[]');
 
     const isOs = _curKind === 'oversold';
     const accentColor = isOs ? '#f59e0b' : '#60a5fa';
-    const tagCls   = isOs ? 'tag-os' : 'tag-ob';
+    const tagCls = isOs ? 'tag-os' : 'tag-ob';
 
     document.getElementById('infoTicker').textContent = _curTicker;
     document.getElementById('infoName').textContent   = _curName;
     document.getElementById('infoScore').textContent  = score + '점';
     document.getElementById('infoScore').style.color  = accentColor;
+    document.getElementById('infoScoreRaw').textContent = `원점수 ${scoreRaw}/11점`;
+
+    /* 지표별 배점 테이블 */
+    const _row = (lbl, pts, crit) =>
+        `<div style="display:flex;gap:6px;align-items:baseline;">
+            <span style="color:#555;min-width:80px;">${lbl}</span>
+            <span style="color:${accentColor};font-weight:700;min-width:28px;">${pts > 0 ? '+'+pts : pts}점</span>
+            <span style="color:#444;">${crit}</span>
+        </div>`;
+
+    let rsiPts, stochPts, bbPts, mfiPts;
+    let rsiCrit, stochCrit, bbCrit, mfiCrit;
+    if (isOs) {
+        rsiPts   = rsi < 25 ? 3 : rsi < 30 ? 2 : rsi < 40 ? 1 : 0;
+        stochPts = stoch < 15 ? 3 : stoch < 20 ? 2 : 0;
+        mfiPts   = mfi < 20 ? 2 : 0;
+        rsiCrit  = '25↓=3점 · 30↓=2점 · 40↓=1점 (최대 3점)';
+        stochCrit= '15↓=3점 · 20↓=2점 (최대 3점)';
+        bbCrit   = '극하단(5%↓)=3점 · 하단(10%↓)=2점 (최대 3점)';
+        mfiCrit  = '20↓=2점 (최대 2점)';
+    } else {
+        rsiPts   = rsi > 75 ? 3 : rsi > 70 ? 2 : rsi > 60 ? 1 : 0;
+        stochPts = stoch > 85 ? 3 : stoch > 80 ? 2 : 0;
+        mfiPts   = mfi > 80 ? 2 : 0;
+        rsiCrit  = '75↑=3점 · 70↑=2점 · 60↑=1점 (최대 3점)';
+        stochCrit= '85↑=3점 · 80↑=2점 (최대 3점)';
+        bbCrit   = '극상단(95%↑)=3점 · 상단(90%↑)=2점 (최대 3점)';
+        mfiCrit  = '80↑=2점 (최대 2점)';
+    }
+    const bbPtsCalc = scoreRaw - rsiPts - stochPts - mfiPts;
+    bbPts = Math.max(0, Math.min(3, bbPtsCalc));
+
+    document.getElementById('infoScoreTable').innerHTML =
+        _row('RSI (14)',       rsiPts,  rsiCrit) +
+        _row('Stoch (14/3)',   stochPts, stochCrit) +
+        _row('BB 위치',        bbPts,   bbCrit) +
+        _row('MFI (14)',       mfiPts,  mfiCrit);
+
     const _priceNum = Number(price.replace(/,/g, ''));
     document.getElementById('infoPrice').textContent =
         isNaN(_priceNum) ? (price || 'N/A') : _priceNum.toLocaleString() + '원';
