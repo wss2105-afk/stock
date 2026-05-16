@@ -801,13 +801,20 @@ def _check_buy_candidate(name, ticker):
         if vol5 <= vol20 * 0.9:
             return None
 
-        # ── 8. 외국인 또는 기관 5~20일 순매수 ────────────────────
-        foreign_streak = _count_consecutive_buying(investor_df, '외국인')
-        if foreign_streak == 0:
-            foreign_streak = _count_consecutive_buying(investor_df, '외인')
-        inst_streak = _count_consecutive_buying(investor_df, '기관')
-        if foreign_streak < 5 and inst_streak < 5:
+        # ── 8. 외국인 AND 기관 최근 10일 중 각각 6일↑ 순매수 ──────
+        fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
+        ic = next((c for c in investor_df.columns if '기관' in c
+                   and '금융' not in c and '연기금' not in c), None)
+        if investor_df.empty or not fc or not ic:
             return None
+        last10 = investor_df.tail(10)
+        foreign_days = int((last10[fc] > 0).sum())
+        inst_days    = int((last10[ic] > 0).sum())
+        if foreign_days < 6 or inst_days < 6:   # 외인·기관 각각 10일 중 6일 이상
+            return None
+        foreign_streak = (_count_consecutive_buying(investor_df, '외국인') or
+                          _count_consecutive_buying(investor_df, '외인'))
+        inst_streak = _count_consecutive_buying(investor_df, '기관')
 
         # ── 9. 펀더멘털 — 캐시된 FnGuide 분기 데이터 ───────────
         op_list = fundamental.get('operating_profit', [])
@@ -834,18 +841,18 @@ def _check_buy_candidate(name, ticker):
 
         # ── 여기까지 통과 → 태그 및 점수 계산 ───────────────────
         tags = []
-        if foreign_streak >= 5:
-            tags.append(f'외인 {foreign_streak}일 매수')
-        if inst_streak >= 5:
-            tags.append(f'기관 {inst_streak}일 매수')
+        tags.append(f'외인 {foreign_days}/10일')
+        tags.append(f'기관 {inst_days}/10일')
         tags.append(f'RSI {round(rsi):.0f}')
         tags.append(f'Stoch {round(stoch_cur):.0f}↑')
         if hist_cur > 0:
             tags.append('MACD+')
 
         score = 0
-        if foreign_streak >= 10 or inst_streak >= 10: score += 3
-        elif foreign_streak >= 5  or inst_streak >= 5:  score += 2
+        total_days = foreign_days + inst_days
+        if total_days >= 18: score += 3    # 둘 다 평균 9/10 이상
+        elif total_days >= 16: score += 2  # 둘 다 평균 8/10 이상
+        else: score += 1
         if 45 <= rsi <= 55:   score += 2
         if stoch_cur <= 45:   score += 2
         if hist_cur > 0:      score += 2
@@ -869,11 +876,13 @@ def _check_buy_candidate(name, ticker):
             'macd_hist': round(hist_cur, 4),
             'foreign_streak': foreign_streak,
             'inst_streak': inst_streak,
+            'foreign_days': foreign_days,
+            'inst_days': inst_days,
             'debt_ratio': debt_ratio_raw,
             'avg_tv_b': round(avg_tv / 1e8, 0),
             'tags': tags,
             'score': score,
-            'sort_key': score + (foreign_streak + inst_streak) * 0.1,
+            'sort_key': score + (foreign_days + inst_days) * 0.1,
         }
     except Exception:
         return None
