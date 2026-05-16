@@ -58,25 +58,38 @@ _LAST_UPDATE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ticker_last
 
 
 def _auto_update_tickers():
-    """매월 1일 종목 DB 자동 갱신 (스캔용 800 + 전종목 4000+)"""
-    today = datetime.today()
-    if today.day != 1:
-        return
-    last = ''
-    if os.path.exists(_LAST_UPDATE_PATH):
-        with open(_LAST_UPDATE_PATH) as f:
-            last = f.read().strip()
-    this_month = today.strftime('%Y-%m')
-    if last == this_month:
-        return
-    try:
-        from update_tickers import update
-        update()
-        with open(_LAST_UPDATE_PATH, 'w') as f:
-            f.write(this_month)
-        print(f'[{this_month}] 종목 DB 자동 갱신 완료')
-    except Exception as e:
-        print(f'종목 DB 갱신 오류: {e}')
+    """매주 토요일 새벽 2시(KST) 종목 DB 자동 갱신 (스캔용 800 + 전종목 4000+)"""
+    import time as _time
+    while True:
+        # KST = UTC+9
+        now_kst = datetime.utcnow() + timedelta(hours=9)
+        # 토요일(weekday==5), 02:00~02:59 사이
+        if now_kst.weekday() == 5 and now_kst.hour == 2:
+            this_week = now_kst.strftime('%Y-W%W')
+            last = ''
+            if os.path.exists(_LAST_UPDATE_PATH):
+                with open(_LAST_UPDATE_PATH) as f:
+                    last = f.read().strip()
+            if last != this_week:
+                try:
+                    from update_tickers import update
+                    update()
+                    with open(_LAST_UPDATE_PATH, 'w') as f:
+                        f.write(this_week)
+                    print(f'[{this_week}] 종목 DB 자동 갱신 완료')
+                except Exception as e:
+                    print(f'종목 DB 갱신 오류: {e}')
+            # 이번 시간대 처리 완료 — 70분 대기 후 다음 루프
+            _time.sleep(4200)
+        else:
+            # 다음 토요일 02시까지 남은 초 계산
+            days_until_sat = (5 - now_kst.weekday()) % 7
+            if days_until_sat == 0 and now_kst.hour >= 3:
+                days_until_sat = 7
+            next_sat = (now_kst + timedelta(days=days_until_sat)).replace(
+                hour=2, minute=0, second=0, microsecond=0)
+            sleep_sec = max(60, (next_sat - now_kst).total_seconds())
+            _time.sleep(min(sleep_sec, 3600))  # 최대 1시간 단위로 재확인
 
 
 threading.Thread(target=_auto_update_tickers, daemon=True).start()
