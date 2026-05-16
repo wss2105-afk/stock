@@ -130,17 +130,25 @@
 
         /* STATS */
 
-        /* FEATURES */
-        .features { padding: 80px 24px; max-width: 1000px; margin: 0 auto; }
-        .features-mono { font-family: 'Courier New', monospace; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08px; color: rgba(45,58,140,0.4); margin-bottom: 32px; }
+        /* FEATURES 모달 */
+        .features-modal { display: none; position: fixed; inset: 0; background: rgba(15,20,60,0.7); backdrop-filter: blur(4px); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
+        .features-modal.open { display: flex; }
+        .features-modal-box { background: #fff; border-radius: 14px; width: 100%; max-width: 900px; max-height: 88vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(45,58,140,0.2); padding: 36px 32px 32px; }
+        .features-modal-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+        .features-modal-title { font-family: 'Courier New', monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(45,58,140,0.45); }
+        .features-modal-close { background: none; border: none; font-size: 1.2rem; color: #aaa; cursor: pointer; padding: 4px; line-height: 1; }
+        .features-modal-close:hover { color: #333; }
         .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-        .feature-card { background: #fff; border: 1.5px solid rgba(45,58,140,0.1); border-radius: 10px; padding: 28px 24px; box-shadow: 0 2px 12px rgba(45,58,140,0.07); transition: box-shadow 0.15s, transform 0.15s; cursor: pointer; }
+        .feature-card { background: #f8f9ff; border: 1.5px solid rgba(45,58,140,0.1); border-radius: 10px; padding: 24px 20px; transition: box-shadow 0.15s, transform 0.15s; cursor: pointer; }
         .feature-card:hover { box-shadow: 0 6px 24px rgba(45,58,140,0.14); transform: translateY(-2px); }
-        .feature-num { font-family: 'Courier New', monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08px; color: rgba(45,58,140,0.35); margin-bottom: 14px; }
-        .feature-title { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.2px; color: #1a1f3c; margin-bottom: 8px; }
-        .feature-desc { font-size: 0.85rem; color: rgba(26,31,60,0.55); line-height: 1.55; letter-spacing: -0.1px; }
-        .feature-btn { display: inline-block; margin-top: 14px; font-size: 0.72rem; font-weight: 600; letter-spacing: -0.05px; color: #2d3a8c; text-decoration: none; border: 1px solid rgba(45,58,140,0.22); border-radius: 4px; padding: 5px 12px; transition: background 0.15s, border-color 0.15s; cursor: pointer; background: transparent; }
-        .feature-btn:hover { background: rgba(45,58,140,0.07); border-color: rgba(45,58,140,0.4); color: #2d3a8c; }
+        .feature-num { font-family: 'Courier New', monospace; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08px; color: rgba(45,58,140,0.35); margin-bottom: 10px; }
+        .feature-title { font-size: 0.98rem; font-weight: 700; letter-spacing: -0.2px; color: #1a1f3c; margin-bottom: 7px; }
+        .feature-desc { font-size: 0.8rem; color: rgba(26,31,60,0.55); line-height: 1.55; letter-spacing: -0.1px; }
+        .feature-btn { display: inline-block; margin-top: 12px; font-size: 0.68rem; font-weight: 600; color: #2d3a8c; text-decoration: none; border: 1px solid rgba(45,58,140,0.22); border-radius: 4px; padding: 4px 10px; transition: background 0.15s; }
+        .feature-btn:hover { background: rgba(45,58,140,0.07); color: #2d3a8c; }
+        /* 핵심기능 보기 버튼 */
+        .features-toggle-btn { display: block; width: 100%; max-width: 560px; margin: 12px auto 0; padding: 9px 20px; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.05em; color: rgba(45,58,140,0.5); border: 1px dashed rgba(45,58,140,0.2); border-radius: 8px; background: transparent; text-align: center; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+        .features-toggle-btn:hover { color: #2d3a8c; border-color: rgba(45,58,140,0.4); }
 
         .error-msg { max-width: 560px; margin: 0 auto 16px; background: rgba(252,76,2,0.06); border: 1px solid rgba(252,76,2,0.2); border-radius: 4px; padding: 12px 16px; font-size: 0.85rem; color: #c0360a; }
 
@@ -247,47 +255,54 @@
             </a>
         </div>
     </div>
+
+    <button class="features-toggle-btn" onclick="openFeaturesModal()">핵심 기능 안내 보기 ↓</button>
 </div>
 
-
-<div class="features">
-    <div class="features-mono">핵심 기능</div>
-    <div class="features-grid">
-        <div class="feature-card" onclick="window.open('/','_blank')">
-            <div class="feature-num">01</div>
-            <div class="feature-title">기술적 분석</div>
-            <div class="feature-desc">RSI · MACD · Stochastic · Bollinger Band · MFI 5가지 오실레이터와 이동평균선 배열을 종합해 100점 만점으로 매수·매도 타이밍을 제시합니다.</div>
-            <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
+<!-- 핵심기능 모달 -->
+<div id="featuresModal" class="features-modal" onclick="if(event.target===this)closeFeaturesModal()">
+    <div class="features-modal-box">
+        <div class="features-modal-hd">
+            <span class="features-modal-title">핵심 기능 안내</span>
+            <button class="features-modal-close" onclick="closeFeaturesModal()">✕</button>
         </div>
-        <div class="feature-card" onclick="window.open('/supply-leaders','_blank')">
-            <div class="feature-num">02</div>
-            <div class="feature-title">수급 분석</div>
-            <div class="feature-desc">외인·기관 연속 순매수 추적, 최근 10거래일 매수세 급증 감지(2배 이상), 20일 동시매수 비율 분석으로 스마트머니 흐름을 파악합니다.</div>
-            <a href="/supply-leaders" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 수급 주도 종목 보기 ↗</a>
-        </div>
-        <div class="feature-card" onclick="window.open('/','_blank')">
-            <div class="feature-num">03</div>
-            <div class="feature-title">기업 분석</div>
-            <div class="feature-desc">PER · PBR · ROE · 영업이익률 · 부채비율 · 52주 고저 · 시가총액, DART 최근 공시까지 한 화면에서 확인합니다.</div>
-            <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
-        </div>
-        <div class="feature-card" onclick="window.open('/','_blank')">
-            <div class="feature-num">04</div>
-            <div class="feature-title">뉴스 감성 분석</div>
-            <div class="feature-desc">최근 30일 네이버 뉴스를 긍정·부정·중립으로 분류하고 핵심 키워드와 단독 보도를 추출해 시장 분위기를 수치로 보여줍니다.</div>
-            <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
-        </div>
-        <div class="feature-card" onclick="window.open('/','_blank')">
-            <div class="feature-num">05</div>
-            <div class="feature-title">AI 종합 분석</div>
-            <div class="feature-desc">Claude AI가 지표·수급·펀더멘털·뉴스를 종합 분석해 현재 상황과 매수·매도 판단을 초보자도 이해할 수 있는 언어로 설명해드립니다.</div>
-            <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
-        </div>
-        <div class="feature-card" onclick="window.open('/recommend','_blank')">
-            <div class="feature-num">06</div>
-            <div class="feature-title">추천 종목 스캔</div>
-            <div class="feature-desc">800개 종목을 자동 스캔해 외인·기관 수급이 강한 TOP 20을 추출합니다. 매수세 2배 급증(🟠) · 동시매수 우위(🟡) 종목을 별도 표시합니다.</div>
-            <a href="/recommend" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 추천 TOP 20 보기 ↗</a>
+        <div class="features-grid">
+            <div class="feature-card" onclick="window.open('/','_blank')">
+                <div class="feature-num">01</div>
+                <div class="feature-title">기술적 분석</div>
+                <div class="feature-desc">RSI · MACD · Stochastic · Bollinger Band · MFI 5가지 오실레이터와 이동평균선 배열을 종합해 100점 만점으로 매수·매도 타이밍을 제시합니다.</div>
+                <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
+            </div>
+            <div class="feature-card" onclick="window.open('/supply-leaders','_blank')">
+                <div class="feature-num">02</div>
+                <div class="feature-title">수급 분석</div>
+                <div class="feature-desc">외인·기관 연속 순매수 추적, 최근 10거래일 매수세 급증 감지(2배 이상), 20일 동시매수 비율 분석으로 스마트머니 흐름을 파악합니다.</div>
+                <a href="/supply-leaders" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 수급 주도 종목 보기 ↗</a>
+            </div>
+            <div class="feature-card" onclick="window.open('/','_blank')">
+                <div class="feature-num">03</div>
+                <div class="feature-title">기업 분석</div>
+                <div class="feature-desc">PER · PBR · ROE · 영업이익률 · 부채비율 · 52주 고저 · 시가총액, DART 최근 공시까지 한 화면에서 확인합니다.</div>
+                <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
+            </div>
+            <div class="feature-card" onclick="window.open('/','_blank')">
+                <div class="feature-num">04</div>
+                <div class="feature-title">뉴스 감성 분석</div>
+                <div class="feature-desc">최근 30일 네이버 뉴스를 긍정·부정·중립으로 분류하고 핵심 키워드와 단독 보도를 추출해 시장 분위기를 수치로 보여줍니다.</div>
+                <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
+            </div>
+            <div class="feature-card" onclick="window.open('/','_blank')">
+                <div class="feature-num">05</div>
+                <div class="feature-title">AI 종합 분석</div>
+                <div class="feature-desc">Claude AI가 지표·수급·펀더멘털·뉴스를 종합 분석해 현재 상황과 매수·매도 판단을 초보자도 이해할 수 있는 언어로 설명해드립니다.</div>
+                <a href="/" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 종목 검색하기 ↗</a>
+            </div>
+            <div class="feature-card" onclick="window.open('/recommend','_blank')">
+                <div class="feature-num">06</div>
+                <div class="feature-title">추천 종목 스캔</div>
+                <div class="feature-desc">800개 종목을 자동 스캔해 외인·기관 수급이 강한 TOP 20을 추출합니다. 매수세 2배 급증(🟠) · 동시매수 우위(🟡) 종목을 별도 표시합니다.</div>
+                <a href="/recommend" class="feature-btn" target="_blank" onclick="event.stopPropagation()">→ 추천 TOP 20 보기 ↗</a>
+            </div>
         </div>
     </div>
 </div>
@@ -548,8 +563,10 @@ fetch('/api/surge-buy-picks')
     }).catch(() => {});
 
 // ── 모달 열기/닫기 ──────────────────────────────────────
-function openOscModal()    { document.getElementById('oscModal').classList.add('open');    }
-function openBounceModal() { document.getElementById('bounceModal').classList.add('open'); }
+function openOscModal()      { document.getElementById('oscModal').classList.add('open');      }
+function openBounceModal()   { document.getElementById('bounceModal').classList.add('open');   }
+function openFeaturesModal() { document.getElementById('featuresModal').classList.add('open'); }
+function closeFeaturesModal(){ document.getElementById('featuresModal').classList.remove('open'); }
 function closeModal(e, id) {
     if (e.target === document.getElementById(id)) document.getElementById(id).classList.remove('open');
 }
@@ -557,6 +574,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
         document.getElementById('oscModal').classList.remove('open');
         document.getElementById('bounceModal').classList.remove('open');
+        document.getElementById('featuresModal').classList.remove('open');
     }
 });
 </script>
