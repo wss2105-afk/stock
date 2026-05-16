@@ -239,10 +239,11 @@
         <button class="info-close-btn" onclick="closeInfo()">✕</button>
         <div style="font-size:0.62rem;color:#555;letter-spacing:0.15em;margin-bottom:2px;" id="infoTicker"></div>
         <div style="font-size:1.1rem;font-weight:700;color:#fff;letter-spacing:0.04em;margin-bottom:14px;" id="infoName"></div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;">
             <div>
-                <div style="font-size:0.58rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">강도</div>
+                <div style="font-size:0.58rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">강도 점수</div>
                 <div id="infoScore" style="font-size:2rem;font-weight:900;line-height:1;">—</div>
+                <div id="infoScoreDesc" style="font-size:0.6rem;color:#555;margin-top:4px;line-height:1.5;max-width:160px;">RSI·Stoch·BB·MFI<br>4개 지표 복합 강도<br>(100점 = 전부 신호)</div>
             </div>
             <div style="margin-left:auto;text-align:right;">
                 <div style="font-size:0.58rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;">현재가</div>
@@ -345,7 +346,9 @@ function showStockInfo(card) {
     document.getElementById('infoName').textContent   = _curName;
     document.getElementById('infoScore').textContent  = score + '점';
     document.getElementById('infoScore').style.color  = accentColor;
-    document.getElementById('infoPrice').textContent  = Number(price).toLocaleString() + '원';
+    const _priceNum = Number(price.replace(/,/g, ''));
+    document.getElementById('infoPrice').textContent =
+        isNaN(_priceNum) ? (price || 'N/A') : _priceNum.toLocaleString() + '원';
     document.getElementById('infoDetailBtn').href =
         '/analyze?query=' + encodeURIComponent(_curTicker) + '&months=3';
 
