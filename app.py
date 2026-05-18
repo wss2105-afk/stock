@@ -771,6 +771,41 @@ def _send_telegram(text: str):
         print(f'[TG] 발송 오류: {e}')
 
 
+def _calc_buy_info(ticker, bounce_info, osc_score):
+    """매수 추천 구간·목표가·손절가 계산 (MA20 기반)"""
+    try:
+        cached = load_stock_cache(ticker)
+        if not cached or cached['ohlcv'].empty:
+            return None
+        close = cached['ohlcv']['close']
+        cur  = float(close.iloc[-1])
+        ma20 = float(close.rolling(20).mean().iloc[-1])
+        if cur <= 0 or ma20 <= 0:
+            return None
+
+        if bounce_info:
+            # MA 반등 직후: MA20 근방이 매수 구간
+            buy_low  = ma20
+            buy_high = ma20 * 1.02
+        elif osc_score and osc_score >= 60:
+            # 강한 과매도: 현재가 자체가 매수 구간
+            buy_low  = cur * 0.99
+            buy_high = cur * 1.01
+        else:
+            # 일반: 현재가 ±1% 구간
+            buy_low  = cur * 0.99
+            buy_high = cur * 1.01
+
+        return {
+            'buy_low':   int(buy_low),
+            'buy_high':  int(buy_high),
+            'target1':   int(cur * 1.05),   # 1차 목표: +5%
+            'stop_loss': int(ma20 * 0.97),  # 손절: MA20 -3%
+        }
+    except Exception:
+        return None
+
+
 def _send_cross_alert(picks: list):
     """공통 종목 텔레그램 알림 — 상위 5종목, 수급·오실레이터·차트 신호 포함"""
     import re as _re
@@ -816,6 +851,15 @@ def _send_cross_alert(picks: list):
         else:
             bounce_str = ''
 
+        # 매수 추천 구간
+        buy_info = _calc_buy_info(p['ticker'], bounce, osc_score)
+        if buy_info:
+            buy_str = (f"  💵 매수구간  {buy_info['buy_low']:,} ~ {buy_info['buy_high']:,}원\n"
+                       f"  🎯 1차목표  {buy_info['target1']:,}원"
+                       f"  |  손절  {buy_info['stop_loss']:,}원\n")
+        else:
+            buy_str = ''
+
         # 선정 이유 — 점수 표기 제거, 빈 항목 정리
         cleaned = []
         for r in p.get('reasons', []):
@@ -830,6 +874,7 @@ def _send_cross_alert(picks: list):
             f"{investor_str}"
             f"{osc_str}"
             f"{bounce_str}"
+            f"{buy_str}"
             f"{reasons_str}"
         )
     lines.append('\n⚠️ 투자 판단은 본인 책임입니다.')
