@@ -907,7 +907,7 @@ def _send_cross_alert(picks: list):
         # 선정 이유 — 점수 표기 제거, 빈 항목 정리
         cleaned = []
         for r in p.get('reasons', []):
-            r2 = _re.sub(r'\s*\(\+?\d+점?\)', '', r).strip()
+            r2 = _re.sub(r'\s*\([+-]?\d+점?\)', '', r).strip()
             if r2 and r2 not in cleaned:
                 cleaned.append(r2)
         reasons_str = '\n'.join(f'  · {r}' for r in cleaned[:4]) if cleaned else ''
