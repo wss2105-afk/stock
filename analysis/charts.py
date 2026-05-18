@@ -87,6 +87,8 @@ def _add_pattern_annotations(fig, patterns):
 
 def make_main_chart(df, name, patterns=None):
     """캔들차트 + 볼린저밴드 + 이동평균선 (+ 패턴 어노테이션)"""
+    import pandas as _pd
+
     fig = go.Figure()
 
     fig.add_trace(go.Candlestick(
@@ -110,6 +112,13 @@ def make_main_chart(df, name, patterns=None):
         fig.add_trace(go.Scatter(x=df.index, y=df[col_name], name=label,
                                  line=dict(color=color, width=1.2)))
 
+    # Y축 범위 — 실제 데이터(캔들+BB) 기준으로 3% 여백만 추가
+    all_highs = _pd.concat([df['high'], df['bb_upper']]).dropna()
+    all_lows  = _pd.concat([df['low'],  df['bb_lower']]).dropna()
+    pad = (float(all_highs.max()) - float(all_lows.min())) * 0.03
+    y_min = float(all_lows.min())  - pad
+    y_max = float(all_highs.max()) + pad
+
     fig.update_layout(
         height=520,
         xaxis_rangeslider_visible=False,
@@ -119,7 +128,7 @@ def make_main_chart(df, name, patterns=None):
     if patterns:
         _add_pattern_annotations(fig, patterns)
 
-    fig.update_yaxes(tickformat=',', ticksuffix='원')
+    fig.update_yaxes(tickformat=',', ticksuffix='원', range=[y_min, y_max])
     _dark(fig)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
