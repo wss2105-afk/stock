@@ -178,7 +178,8 @@ def _run_surge_scan():
 def _evening_scheduler():
     """매일 19:00 UTC(=04:00 KST) 반등/급등 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
     import time as _time
-    if _load_surge_cache() is None and not is_build_needed():
+    _sc = _load_surge_cache()
+    if (not _sc or (not _sc.get('bounce') and not _sc.get('results'))) and not is_build_needed():
         threading.Thread(target=_run_surge_scan, daemon=True).start()
 
     while True:
@@ -510,7 +511,8 @@ def _run_buy_candidate_scan():
 def _buy_candidate_scheduler():
     """매일 16:00 UTC(=01:00 KST) 매수후보(단기) 자동 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
     import time as _time
-    if _load_buy_candidate_cache() is None and not is_build_needed():
+    _bc = _load_buy_candidate_cache()
+    if (not _bc or not _bc.get('results')) and not is_build_needed():
         threading.Thread(target=_run_buy_candidate_scan, daemon=True).start()
 
     while True:
@@ -557,7 +559,8 @@ def _run_surge_buy_scan():
 def _surge_buy_scheduler():
     """매일 18:00 UTC(=03:00 KST) 급등주 매수후보 자동 스캔 — 캐시 없으면 시작 시 1회 즉시 스캔"""
     import time as _time
-    if _load_surge_buy_cache() is None and not is_build_needed():
+    _sb = _load_surge_buy_cache()
+    if (not _sb or not _sb.get('results')) and not is_build_needed():
         threading.Thread(target=_run_surge_buy_scan, daemon=True).start()
     while True:
         now = datetime.today()
