@@ -933,10 +933,11 @@ def analyze():
     # 차트
     main_chart = make_main_chart(df, name, patterns=detected_patterns)
     ma_chart   = make_ma_chart(df, name)
-    # 캔들차트와 동일한 y축 범위를 매물대에 전달 (make_main_chart와 동일 로직)
-    _c_low  = float(df['low'].min())
-    _c_high = float(df['high'].max())
-    _pad    = (_c_high - _c_low) * 0.05
+    # 캔들차트와 동일한 y축 범위를 매물대에 전달 (최근 40거래일 기준, make_main_chart와 동일)
+    _recent     = df.tail(40)
+    _c_low      = float(_recent['low'].min())
+    _c_high     = float(_recent['high'].max())
+    _pad        = (_c_high - _c_low) * 0.05
     chart_y_min = _c_low  - _pad
     chart_y_max = _c_high + _pad
     try:
@@ -1637,8 +1638,15 @@ def api_chart_data(ticker):
     resist_lines = _find_trendlines(pivot_highs, dates, n, is_resistance=True)
     support_lines = _find_trendlines(pivot_lows,  dates, n, is_resistance=False)
 
-    resistance_pts = resist_lines[0]['pts'] if resist_lines else []
-    support_pts    = support_lines[0]['pts'] if support_lines else []
+    # 추세선 Y값을 캔들 가격 범위 내로 클리핑 (LightweightCharts Y축 팽창 방지)
+    _price_lo = float(display['low'].min())
+    _price_hi = float(display['high'].max())
+    _margin   = (_price_hi - _price_lo) * 0.15
+    def _clip(pts):
+        return [p for p in pts if _price_lo - _margin <= p['value'] <= _price_hi + _margin]
+
+    resistance_pts = _clip(resist_lines[0]['pts']) if resist_lines else []
+    support_pts    = _clip(support_lines[0]['pts']) if support_lines else []
     r_dir = resist_lines[0]['direction'] if resist_lines else 'none'
     s_dir = support_lines[0]['direction'] if support_lines else 'none'
 
@@ -1677,8 +1685,8 @@ def api_chart_data(ticker):
         'candles': candles, 'volumes': volumes,
         'ma20': ma20, 'ma60': ma60,
         'support': support_pts, 'resistance': resistance_pts,
-        'support_lines':    [l['pts'] for l in support_lines],
-        'resistance_lines': [l['pts'] for l in resist_lines],
+        'support_lines':    [_clip(l['pts']) for l in support_lines],
+        'resistance_lines': [_clip(l['pts']) for l in resist_lines],
         'interpretation': interp,
     })
 
