@@ -754,21 +754,25 @@ def _find_cross_picks():
     return picks
 
 
-def _send_telegram(text: str):
-    """텔레그램 메시지 발송"""
+def _send_telegram(text: str) -> dict:
+    """텔레그램 메시지 발송. 결과 dict 반환 {'ok': bool, 'error': str|None}"""
     if not _TG_TOKEN or not _TG_CHAT_ID:
         print('[TG] TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID 미설정 — 스킵')
-        return
+        return {'ok': False, 'error': 'env 미설정'}
     try:
         url  = f'https://api.telegram.org/bot{_TG_TOKEN}/sendMessage'
         resp = _req_tg.post(url, json={'chat_id': _TG_CHAT_ID, 'text': text,
                                        'parse_mode': 'HTML'}, timeout=10)
         if resp.ok:
             print(f'[TG] 발송 완료')
+            return {'ok': True, 'error': None}
         else:
-            print(f'[TG] 발송 실패: {resp.text}')
+            err = resp.text
+            print(f'[TG] 발송 실패: {err}')
+            return {'ok': False, 'error': err}
     except Exception as e:
         print(f'[TG] 발송 오류: {e}')
+        return {'ok': False, 'error': str(e)}
 
 
 def _calc_osc_based_prices(ticker):
@@ -922,7 +926,7 @@ def _send_cross_alert(picks: list):
             f"{reasons_str}"
         )
     lines.append('\n⚠️ 투자 판단은 본인 책임입니다.')
-    _send_telegram('\n\n'.join(lines))
+    return _send_telegram('\n\n'.join(lines))
 
 
 def _cross_alert_scheduler():
@@ -1398,11 +1402,15 @@ def cross_alert_test():
         picks = _find_cross_picks()
         if not picks:
             return jsonify({'ok': True, 'message': '공통 종목이 없습니다 (캐시 확인 필요)', 'count': 0})
-        _send_cross_alert(picks)
+        tg_result = _send_cross_alert(picks)
         names = [f"{p['name']}({p['ticker']})" for p in picks[:5]]
+        if tg_result and not tg_result.get('ok'):
+            return jsonify({'ok': False, 'message': '종목 선정 완료, 텔레그램 발송 실패',
+                            'picks': names, 'tg_error': tg_result.get('error')})
         return jsonify({'ok': True, 'message': f'{len(picks)}건 발견, 상위 5종목 발송 완료', 'picks': names})
     except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)})
+        import traceback
+        return jsonify({'ok': False, 'error': str(e), 'traceback': traceback.format_exc()})
 
 
 @app.route('/api/ai-comment')
