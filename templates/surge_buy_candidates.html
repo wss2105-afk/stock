@@ -173,6 +173,16 @@
             {% if scanning %}<span class="scanning-dot"></span>스캔 중...{% else %}지금 스캔{% endif %}
         </button>
     </div>
+    <div id="progressBox" style="display:none; margin:10px 0; padding:12px 16px; background:#1a2332; border-radius:8px; border:1px solid #2a3a52;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px; color:#8899bb;">
+            <span id="progressLabel">분석 준비 중...</span>
+            <span id="progressPct">0%</span>
+        </div>
+        <div style="background:#0d1829; border-radius:4px; height:6px; overflow:hidden;">
+            <div id="progressBar" style="height:100%; background:#4a9eff; width:0%; transition:width 0.4s;"></div>
+        </div>
+        <div id="progressName" style="margin-top:6px; font-size:12px; color:#556677; min-height:14px;"></div>
+    </div>
 
     {% if scanning %}
     <div class="scanning-banner">
@@ -570,25 +580,45 @@ function triggerScan() {
     const btn = document.getElementById('scanBtn');
     btn.disabled = true;
     btn.innerHTML = '<span class="scanning-dot"></span>스캔 중...';
+    document.getElementById('progressBox').style.display = 'block';
     fetch('/api/surge-buy-refresh', { method: 'POST' })
-        .then(() => { setTimeout(pollResult, 60000); })
-        .catch(() => { btn.disabled = false; btn.textContent = '지금 스캔'; });
+        .then(() => { setTimeout(() => pollProgress('surge_buy'), 2000); })
+        .catch(() => {
+            btn.disabled = false;
+            btn.textContent = '지금 스캔';
+            document.getElementById('progressBox').style.display = 'none';
+        });
 }
 
-function pollResult() {
-    fetch('/api/surge-buy-picks')
+function pollProgress(key) {
+    fetch('/api/scan-progress')
         .then(r => r.json())
         .then(data => {
-            if (!data.scanning) {
-                location.reload();
-            } else {
-                setTimeout(pollResult, 30000);
+            const item = data.items.find(i => i.key === key);
+            if (item && item.total > 0) {
+                document.getElementById('progressLabel').textContent =
+                    item.current + ' / ' + item.total + ' 종목 분석 중';
+                document.getElementById('progressPct').textContent = item.pct + '%';
+                document.getElementById('progressBar').style.width = item.pct + '%';
             }
-        }).catch(() => { setTimeout(pollResult, 30000); });
+            if (item && item.name) {
+                document.getElementById('progressName').textContent = '현재: ' + item.name;
+            }
+            if (item && item.status === 'done') {
+                document.getElementById('progressLabel').textContent = '스캔 완료!';
+                document.getElementById('progressPct').textContent = '100%';
+                document.getElementById('progressBar').style.width = '100%';
+                document.getElementById('progressName').textContent = '결과를 업데이트 중...';
+                setTimeout(() => location.reload(), 1500);
+                return;
+            }
+            setTimeout(() => pollProgress(key), 3000);
+        }).catch(() => { setTimeout(() => pollProgress(key), 5000); });
 }
 
 {% if scanning %}
-setTimeout(pollResult, 60000);
+document.getElementById('progressBox').style.display = 'block';
+setTimeout(() => pollProgress('surge_buy'), 2000);
 {% endif %}
 </script>
 </body>
