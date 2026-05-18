@@ -122,7 +122,7 @@
 
 <div class="main">
     <div class="page-title">과매도 · 과매수 레이더</div>
-    <div class="page-sub">RSI · Stochastic · Bollinger Band · MFI 4개 오실레이터 기반 — 평일 11:00 / 13:00 자동 업데이트</div>
+    <div class="page-sub">RSI · Stochastic · Bollinger Band · MFI · Williams %R · CCI 6개 오실레이터 기반 — 평일 11:00 / 13:00 자동 업데이트</div>
 
     <div class="meta-bar">
         {% if updated_at %}
@@ -156,7 +156,7 @@
     <div id="panelOs" class="tab-panel active">
         <div class="section-hd">
             <span class="section-badge badge-os">과매도</span>
-            <span class="section-desc">RSI·Stoch·BB·MFI 복합 기준 — 반등 가능성 주목</span>
+            <span class="section-desc">RSI·Stoch·BB·MFI·W%R·CCI 복합 기준 — 반등 가능성 주목</span>
             <span class="section-cnt">{{ oversold|length }}개 종목</span>
         </div>
         {% for s in oversold %}
@@ -167,6 +167,8 @@
              data-rsi="{{ s.rsi }}"
              data-stoch="{{ s.stoch }}"
              data-mfi="{{ s.mfi }}"
+             data-wr="{{ s.wr }}"
+             data-cci="{{ s.cci }}"
              data-score="{{ s.score100 }}"
              data-score-raw="{{ s.score }}"
              data-kind="oversold"
@@ -175,7 +177,7 @@
             <div class="rank {% if loop.index == 1 %}top1{% elif loop.index == 2 %}top2{% elif loop.index == 3 %}top3{% endif %}">{{ loop.index }}</div>
             <div class="stock-info">
                 <div class="stock-name">{{ s.name }}</div>
-                <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }} · Stoch {{ s.stoch }} · MFI {{ s.mfi }}</div>
+                <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }} · Stoch {{ s.stoch }} · MFI {{ s.mfi }} · W%R {{ s.wr }} · CCI {{ s.cci }}</div>
                 <div class="tag-row">
                     {% for t in (s.tags or []) %}
                     <span class="tag-os">{{ t }}</span>
@@ -197,7 +199,7 @@
     <div id="panelOb" class="tab-panel">
         <div class="section-hd">
             <span class="section-badge badge-ob">과매수</span>
-            <span class="section-desc">RSI·Stoch·BB·MFI 복합 기준 — 단기 조정 주의</span>
+            <span class="section-desc">RSI·Stoch·BB·MFI·W%R·CCI 복합 기준 — 단기 조정 주의</span>
             <span class="section-cnt">{{ overbought|length }}개 종목</span>
         </div>
         {% for s in overbought %}
@@ -208,6 +210,8 @@
              data-rsi="{{ s.rsi }}"
              data-stoch="{{ s.stoch }}"
              data-mfi="{{ s.mfi }}"
+             data-wr="{{ s.wr }}"
+             data-cci="{{ s.cci }}"
              data-score="{{ s.score100 }}"
              data-score-raw="{{ s.score }}"
              data-kind="overbought"
@@ -216,7 +220,7 @@
             <div class="rank {% if loop.index == 1 %}ob1{% elif loop.index == 2 %}top2{% elif loop.index == 3 %}top3{% endif %}">{{ loop.index }}</div>
             <div class="stock-info">
                 <div class="stock-name">{{ s.name }}</div>
-                <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }} · Stoch {{ s.stoch }} · MFI {{ s.mfi }}</div>
+                <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }} · Stoch {{ s.stoch }} · MFI {{ s.mfi }} · W%R {{ s.wr }} · CCI {{ s.cci }}</div>
                 <div class="tag-row">
                     {% for t in (s.tags or []) %}
                     <span class="tag-ob">{{ t }}</span>
@@ -342,6 +346,8 @@ function showStockInfo(card) {
     const rsi      = parseFloat(card.dataset.rsi);
     const stoch    = parseFloat(card.dataset.stoch);
     const mfi      = parseFloat(card.dataset.mfi);
+    const wr       = parseFloat(card.dataset.wr);
+    const cci      = parseFloat(card.dataset.cci);
     const score    = card.dataset.score;
     const scoreRaw = parseInt(card.dataset.scoreRaw || '0', 10);
     const price    = card.dataset.price;
@@ -355,7 +361,7 @@ function showStockInfo(card) {
     document.getElementById('infoName').textContent   = _curName;
     document.getElementById('infoScore').textContent  = score + '점';
     document.getElementById('infoScore').style.color  = accentColor;
-    document.getElementById('infoScoreRaw').textContent = `원점수 ${scoreRaw}/11점`;
+    document.getElementById('infoScoreRaw').textContent = `원점수 ${scoreRaw}/17점`;
 
     /* 지표별 배점 테이블 */
     const _row = (lbl, pts, crit) =>
@@ -365,33 +371,43 @@ function showStockInfo(card) {
             <span style="color:#444;">${crit}</span>
         </div>`;
 
-    let rsiPts, stochPts, bbPts, mfiPts;
-    let rsiCrit, stochCrit, bbCrit, mfiCrit;
+    let rsiPts, stochPts, bbPts, mfiPts, wrPts, cciPts;
+    let rsiCrit, stochCrit, bbCrit, mfiCrit, wrCrit, cciCrit;
     if (isOs) {
         rsiPts   = rsi < 25 ? 3 : rsi < 30 ? 2 : rsi < 40 ? 1 : 0;
         stochPts = stoch < 15 ? 3 : stoch < 20 ? 2 : 0;
         mfiPts   = mfi < 20 ? 2 : 0;
+        wrPts    = wr < -85 ? 3 : wr < -80 ? 2 : 0;
+        cciPts   = cci < -150 ? 3 : cci < -100 ? 2 : 0;
         rsiCrit  = '25↓=3점 · 30↓=2점 · 40↓=1점 (최대 3점)';
         stochCrit= '15↓=3점 · 20↓=2점 (최대 3점)';
         bbCrit   = '극하단(5%↓)=3점 · 하단(10%↓)=2점 (최대 3점)';
         mfiCrit  = '20↓=2점 (최대 2점)';
+        wrCrit   = '-85↓=3점 · -80↓=2점 (최대 3점)';
+        cciCrit  = '-150↓=3점 · -100↓=2점 (최대 3점)';
     } else {
         rsiPts   = rsi > 75 ? 3 : rsi > 70 ? 2 : rsi > 60 ? 1 : 0;
         stochPts = stoch > 85 ? 3 : stoch > 80 ? 2 : 0;
         mfiPts   = mfi > 80 ? 2 : 0;
+        wrPts    = wr > -10 ? 3 : wr > -20 ? 2 : 0;
+        cciPts   = cci > 150 ? 3 : cci > 100 ? 2 : 0;
         rsiCrit  = '75↑=3점 · 70↑=2점 · 60↑=1점 (최대 3점)';
         stochCrit= '85↑=3점 · 80↑=2점 (최대 3점)';
         bbCrit   = '극상단(95%↑)=3점 · 상단(90%↑)=2점 (최대 3점)';
         mfiCrit  = '80↑=2점 (최대 2점)';
+        wrCrit   = '-10↑=3점 · -20↑=2점 (최대 3점)';
+        cciCrit  = '150↑=3점 · 100↑=2점 (최대 3점)';
     }
-    const bbPtsCalc = scoreRaw - rsiPts - stochPts - mfiPts;
+    const bbPtsCalc = scoreRaw - rsiPts - stochPts - mfiPts - wrPts - cciPts;
     bbPts = Math.max(0, Math.min(3, bbPtsCalc));
 
     document.getElementById('infoScoreTable').innerHTML =
-        _row('RSI (14)',       rsiPts,  rsiCrit) +
+        _row('RSI (14)',       rsiPts,   rsiCrit) +
         _row('Stoch (14/3)',   stochPts, stochCrit) +
-        _row('BB 위치',        bbPts,   bbCrit) +
-        _row('MFI (14)',       mfiPts,  mfiCrit);
+        _row('BB 위치',        bbPts,    bbCrit) +
+        _row('MFI (14)',       mfiPts,   mfiCrit) +
+        _row('Williams %R',    wrPts,    wrCrit) +
+        _row('CCI (20)',       cciPts,   cciCrit);
 
     const _priceNum = Number(price.replace(/,/g, ''));
     document.getElementById('infoPrice').textContent =
@@ -404,6 +420,8 @@ function showStockInfo(card) {
         { lbl: 'RSI (14)',       val: rsi,   over: isOs ? rsi < 30 : rsi > 70  },
         { lbl: 'Stoch (14/3)',   val: stoch, over: isOs ? stoch < 20 : stoch > 80 },
         { lbl: 'MFI (14)',       val: mfi,   over: isOs ? mfi < 20 : mfi > 80  },
+        { lbl: 'W%R (14)',       val: wr,    over: isOs ? wr < -80 : wr > -20  },
+        { lbl: 'CCI (20)',       val: cci,   over: isOs ? cci < -100 : cci > 100 },
     ];
     document.getElementById('infoOscGrid').innerHTML = oscItems.map(item => `
         <div style="background:#141414;padding:10px 8px;text-align:center;">

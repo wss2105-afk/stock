@@ -60,6 +60,22 @@ def calc_score(ma_status, signals, investor_df, news_result, df=None):
     elif mfi > 80:
         score -= 1; reasons.append(f"MFI {mfi} → 과매수 (-1점)")
 
+    # 6a. Williams %R
+    wr_val = signals.get('williams_r', {}).get('value')
+    if wr_val is not None:
+        if wr_val < -80:
+            score += 1; reasons.append(f"Williams %R {wr_val} → 과매도 (+1점)")
+        elif wr_val > -20:
+            score -= 1; reasons.append(f"Williams %R {wr_val} → 과매수 (-1점)")
+
+    # 6b. CCI
+    cci_val = signals.get('cci', {}).get('value')
+    if cci_val is not None:
+        if cci_val < -100:
+            score += 1; reasons.append(f"CCI {cci_val} → 과매도 (+1점)")
+        elif cci_val > 100:
+            score -= 1; reasons.append(f"CCI {cci_val} → 과매수 (-1점)")
+
     # 7. 수급 (외인/기관)
     if not investor_df.empty:
         try:
@@ -184,7 +200,7 @@ def get_ai_analysis(ticker_name, score, reasons, signals, fundamental, news_resu
 종합 점수: {score}점 / 추천: {get_recommendation(score)[0]}
 
 [기술적 지표]
-RSI {signals['rsi']['value']} · MACD {signals['macd']['signal']} · Stochastic K {signals['stoch']['k']} · BB위치 {signals['bb']['pct']} · MFI {signals['mfi']['value']}
+RSI {signals['rsi']['value']} · MACD {signals['macd']['signal']} · Stochastic K {signals['stoch']['k']} · BB위치 {signals['bb']['pct']} · MFI {signals['mfi']['value']} · Williams %R {signals.get('williams_r', {}).get('value', 'N/A')} · CCI {signals.get('cci', {}).get('value', 'N/A')}
 
 [펀더멘털]
 PER {fundamental.get('per','N/A')} · Fwd PER {fundamental.get('forward_per','N/A')} · PBR {fundamental.get('pbr','N/A')} · 영업이익 추이: {', '.join(fundamental.get('operating_profit',[]))}억원

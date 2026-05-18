@@ -681,7 +681,7 @@ def scan_ma_bounce_stocks(top_n=20, max_workers=8):
 
 
 def _check_osc_one(name, ticker):
-    """RSI·Stochastic·BB·MFI 기반 과매도/과매수 종목 감지"""
+    """RSI·Stochastic·BB·MFI·Williams%R·CCI 기반 과매도/과매수 종목 감지"""
     try:
         ohlcv = get_ohlcv(ticker, months=2)
         if ohlcv.empty or len(ohlcv) < 20:
@@ -693,6 +693,8 @@ def _check_osc_one(name, ticker):
         stoch  = float(last['stoch_k'])
         bb_pct = float(last['bb_pct'])
         mfi    = float(last['mfi'])
+        wr     = float(last['williams_r'])   # -100 ~ 0
+        cci    = float(last['cci'])          # -200 ~ +200
         cur    = int(last['close'])
 
         # 과매도 점수 (높을수록 강한 과매도)
@@ -706,6 +708,10 @@ def _check_osc_one(name, ticker):
         if bb_pct < 0.05: os_score += 3; os_tags.append('BB 하단')
         elif bb_pct < 0.1: os_score += 2; os_tags.append('BB 하단')
         if mfi < 20: os_score += 2; os_tags.append(f'MFI {mfi:.0f}')
+        if wr < -85:  os_score += 3; os_tags.append(f'W%R {wr:.0f}')
+        elif wr < -80: os_score += 2; os_tags.append(f'W%R {wr:.0f}')
+        if cci < -150: os_score += 3; os_tags.append(f'CCI {cci:.0f}')
+        elif cci < -100: os_score += 2; os_tags.append(f'CCI {cci:.0f}')
 
         # 과매수 점수
         ob_score = 0
@@ -718,9 +724,13 @@ def _check_osc_one(name, ticker):
         if bb_pct > 0.95: ob_score += 3; ob_tags.append('BB 상단')
         elif bb_pct > 0.9: ob_score += 2; ob_tags.append('BB 상단')
         if mfi > 80: ob_score += 2; ob_tags.append(f'MFI {mfi:.0f}')
+        if wr > -10:  ob_score += 3; ob_tags.append(f'W%R {wr:.0f}')
+        elif wr > -20: ob_score += 2; ob_tags.append(f'W%R {wr:.0f}')
+        if cci > 150: ob_score += 3; ob_tags.append(f'CCI {cci:.0f}')
+        elif cci > 100: ob_score += 2; ob_tags.append(f'CCI {cci:.0f}')
 
-        _MAX = 11  # RSI(3) + Stoch(3) + BB(3) + MFI(2)
-        threshold = 4
+        _MAX = 17  # RSI(3)+Stoch(3)+BB(3)+MFI(2)+WR(3)+CCI(3)
+        threshold = 5
         if os_score >= threshold and os_score > ob_score:
             return {'name': name, 'ticker': ticker, 'price': f"{cur:,}",
                     'kind': 'oversold',
@@ -728,7 +738,8 @@ def _check_osc_one(name, ticker):
                     'score100': round(os_score / _MAX * 100),
                     'tags': os_tags,
                     'rsi': round(rsi, 1), 'stoch': round(stoch, 1),
-                    'bb': round(bb_pct, 2), 'mfi': round(mfi, 1)}
+                    'bb': round(bb_pct, 2), 'mfi': round(mfi, 1),
+                    'wr': round(wr, 1), 'cci': round(cci, 1)}
         if ob_score >= threshold and ob_score > os_score:
             return {'name': name, 'ticker': ticker, 'price': f"{cur:,}",
                     'kind': 'overbought',
@@ -736,7 +747,8 @@ def _check_osc_one(name, ticker):
                     'score100': round(ob_score / _MAX * 100),
                     'tags': ob_tags,
                     'rsi': round(rsi, 1), 'stoch': round(stoch, 1),
-                    'bb': round(bb_pct, 2), 'mfi': round(mfi, 1)}
+                    'bb': round(bb_pct, 2), 'mfi': round(mfi, 1),
+                    'wr': round(wr, 1), 'cci': round(cci, 1)}
         return None
     except Exception:
         return None

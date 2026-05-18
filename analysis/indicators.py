@@ -112,4 +112,12 @@ def get_latest_signals(df):
     signals['mfi'] = {'value': round(mfi, 1),
                       'signal': 'oversold' if mfi < 20 else 'overbought' if mfi > 80 else 'neutral'}
 
+    wr = last['williams_r']
+    signals['williams_r'] = {'value': round(float(wr), 1),
+                              'signal': 'oversold' if wr < -80 else 'overbought' if wr > -20 else 'neutral'}
+
+    cci = last['cci']
+    signals['cci'] = {'value': round(float(cci), 1),
+                      'signal': 'oversold' if cci < -100 else 'overbought' if cci > 100 else 'neutral'}
+
     return signals

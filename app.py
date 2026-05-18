@@ -1723,6 +1723,8 @@ def api_osc_history(ticker):
 
         dates = [str(idx)[:10] for idx in df.index]
 
+        vol_vals = [None if pd.isna(v) else int(v) for v in df['volume']]
+
         data = []
         for i in range(len(df)):
             data.append({
@@ -1731,6 +1733,7 @@ def api_osc_history(ticker):
                 'stoch':     stoch_vals[i],
                 'wr':        wr_vals[i],
                 'cci':       cci_vals[i],
+                'volume':    vol_vals[i],
             })
 
         return jsonify({'dates': dates, 'data': data})

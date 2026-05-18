@@ -343,12 +343,16 @@
             {% set sk = signals.stoch.k %}
             {% set bb = signals.bb.pct %}
             {% set mfi_v = signals.mfi.value %}
+            {% set wr_v = signals.williams_r.value %}
+            {% set cci_v = signals.cci.value %}
             {% set buy_count = 0 %}{% set sell_count = 0 %}
             {% if rsi_v < 30 %}{% set buy_count = buy_count + 2 %}{% elif rsi_v < 40 %}{% set buy_count = buy_count + 1 %}{% elif rsi_v > 70 %}{% set sell_count = sell_count + 2 %}{% elif rsi_v > 60 %}{% set sell_count = sell_count + 1 %}{% endif %}
             {% if macd_s == 'golden' %}{% set buy_count = buy_count + 2 %}{% elif macd_s == 'dead' %}{% set sell_count = sell_count + 2 %}{% elif macd_h > 0 %}{% set buy_count = buy_count + 1 %}{% elif macd_h < 0 %}{% set sell_count = sell_count + 1 %}{% endif %}
             {% if sk < 20 %}{% set buy_count = buy_count + 1 %}{% elif sk > 80 %}{% set sell_count = sell_count + 1 %}{% endif %}
             {% if bb < 0.1 %}{% set buy_count = buy_count + 1 %}{% elif bb > 0.9 %}{% set sell_count = sell_count + 1 %}{% endif %}
             {% if mfi_v < 20 %}{% set buy_count = buy_count + 1 %}{% elif mfi_v > 80 %}{% set sell_count = sell_count + 1 %}{% endif %}
+            {% if wr_v < -80 %}{% set buy_count = buy_count + 1 %}{% elif wr_v > -20 %}{% set sell_count = sell_count + 1 %}{% endif %}
+            {% if cci_v < -100 %}{% set buy_count = buy_count + 1 %}{% elif cci_v > 100 %}{% set sell_count = sell_count + 1 %}{% endif %}
             {% set timing_score = buy_count - sell_count %}
             {% if timing_score > 0 %}{% set t_label = "강한 매수 타이밍" %}{% set t_color = "#FFC000" %}
             {% elif timing_score < 0 %}{% set t_label = "강한 매도 타이밍" %}{% set t_color = "#29ABE2" %}
@@ -362,7 +366,7 @@
                 </div>
                 <!-- 통합 오실레이터 추세 차트 (버튼 클릭 시 표시) -->
                 <div id="oscChartWrap" style="display:none;margin-bottom:10px;">
-                    <div style="background:#111;border:1px solid #1e1e1e;border-radius:3px;height:320px;padding:10px 10px 6px;">
+                    <div style="background:#111;border:1px solid #1e1e1e;border-radius:3px;height:360px;padding:10px 10px 6px;">
                         <canvas id="oscChartResult"></canvas>
                     </div>
                     <div style="display:flex;justify-content:flex-end;margin-top:4px;">
@@ -499,6 +503,62 @@
                             <span style="font-size:0.55rem;color:#444;">20</span>
                             <span style="font-size:0.55rem;color:#444;">80</span>
                             <span style="font-size:0.55rem;color:#444;">과매수 100</span>
+                        </div>
+                    </div>
+
+                    <!-- Williams %R -->
+                    {% set wr_norm = wr_v + 100 %}
+                    {% set wr_pct = [0, [100, wr_norm] | min] | max %}
+                    {% set wr_cls = 'sig-buy' if wr_v < -80 else 'sig-sell' if wr_v > -20 else 'sig-neu' %}
+                    {% set wr_color = '#FFC000' if wr_v < -80 else '#29ABE2' if wr_v > -20 else '#555' %}
+                    <div class="osc-item {{ wr_cls }}">
+                        <div class="osc-top">
+                            <span class="osc-name" onclick="showDesc('williams_r')">Williams %R (14) ⓘ</span>
+                            <div class="osc-right">
+                                <span class="osc-val" style="color:{{ wr_color }};">{{ wr_v }}</span>
+                                {% if wr_v < -80 %}<span class="osc-badge b-buy">과매도</span>
+                                {% elif wr_v > -20 %}<span class="osc-badge b-sell">과매수</span>
+                                {% else %}<span class="osc-badge b-neu">중립</span>{% endif %}
+                            </div>
+                        </div>
+                        <div class="osc-bar-track">
+                            <div class="osc-bar-fill" style="width:20%;background:rgba(255,192,0,0.25);"></div>
+                            <div class="osc-bar-fill" style="left:80%;width:20%;background:rgba(41,171,226,0.25);"></div>
+                            <div class="osc-bar-marker" style="left:{{ wr_pct }}%;background:{{ wr_color }};"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-top:5px;">
+                            <span style="font-size:0.55rem;color:#444;">-100 과매도</span>
+                            <span style="font-size:0.55rem;color:#444;">-80</span>
+                            <span style="font-size:0.55rem;color:#444;">-20</span>
+                            <span style="font-size:0.55rem;color:#444;">과매수 0</span>
+                        </div>
+                    </div>
+
+                    <!-- CCI -->
+                    {% set cci_pct = [0, [100, (cci_v + 200) / 4] | min] | max %}
+                    {% set cci_cls = 'sig-buy' if cci_v < -100 else 'sig-sell' if cci_v > 100 else 'sig-neu' %}
+                    {% set cci_color = '#FFC000' if cci_v < -100 else '#29ABE2' if cci_v > 100 else '#555' %}
+                    <div class="osc-item {{ cci_cls }}">
+                        <div class="osc-top">
+                            <span class="osc-name" onclick="showDesc('cci')">CCI (20) ⓘ</span>
+                            <div class="osc-right">
+                                <span class="osc-val" style="color:{{ cci_color }};">{{ cci_v }}</span>
+                                {% if cci_v < -100 %}<span class="osc-badge b-buy">과매도</span>
+                                {% elif cci_v > 100 %}<span class="osc-badge b-sell">과매수</span>
+                                {% else %}<span class="osc-badge b-neu">중립</span>{% endif %}
+                            </div>
+                        </div>
+                        <div class="osc-bar-track">
+                            <div class="osc-bar-fill" style="width:25%;background:rgba(255,192,0,0.25);"></div>
+                            <div class="osc-bar-fill" style="left:75%;width:25%;background:rgba(41,171,226,0.25);"></div>
+                            <div class="osc-bar-marker" style="left:{{ cci_pct }}%;background:{{ cci_color }};"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-top:5px;">
+                            <span style="font-size:0.55rem;color:#444;">-200 과매도</span>
+                            <span style="font-size:0.55rem;color:#444;">-100</span>
+                            <span style="font-size:0.55rem;color:#444;">0</span>
+                            <span style="font-size:0.55rem;color:#444;">+100</span>
+                            <span style="font-size:0.55rem;color:#444;">과매수 +200</span>
                         </div>
                     </div>
 
@@ -955,8 +1015,14 @@ function _buildOscChart(data, dates) {
     if (!canvas) return;
     if (_oscChart) { _oscChart.destroy(); _oscChart = null; }
 
-    const compVals = data.map(d => d.composite);
-    const borderColors = compVals.map(v =>
+    const compVals  = data.map(d => d.composite);
+    const rsiVals   = data.map(d => d.rsi);
+    const stochVals = data.map(d => d.stoch);
+    const wrVals    = data.map(d => d.wr  != null ? +((d.wr + 100)).toFixed(1) : null);
+    const cciVals   = data.map(d => d.cci != null ? +Math.max(0, Math.min(100, (d.cci + 200) / 4)).toFixed(1) : null);
+    const volVals   = data.map(d => d.volume);
+
+    const compColors = compVals.map(v =>
         v == null ? '#888' : v >= 80 ? '#ef5350' : v >= 60 ? '#FFC000' : v >= 40 ? '#888' : v >= 20 ? '#22c55e' : '#29ABE2'
     );
 
@@ -977,14 +1043,48 @@ function _buildOscChart(data, dates) {
         plugins: [refLinePlugin],
         data: {
             labels: dates,
-            datasets: [{
-                label: '종합 오실레이터',
-                data: compVals,
-                borderColor: borderColors,
-                segment: { borderColor: ctx2 => borderColors[ctx2.p1DataIndex] || '#888' },
-                backgroundColor: 'rgba(255,192,0,0.05)',
-                fill: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.3, spanGaps: true,
-            }]
+            datasets: [
+                {
+                    label: '종합',
+                    data: compVals, yAxisID: 'y',
+                    borderColor: compColors,
+                    segment: { borderColor: ctx2 => compColors[ctx2.p1DataIndex] || '#888' },
+                    backgroundColor: 'rgba(255,192,0,0.05)',
+                    fill: true, borderWidth: 2.5, pointRadius: 0, tension: 0.3, spanGaps: true, order: 1,
+                },
+                {
+                    label: 'RSI',
+                    data: rsiVals, yAxisID: 'y',
+                    borderColor: 'rgba(33,150,243,0.55)', borderDash: [4,3],
+                    borderWidth: 1.2, pointRadius: 0, tension: 0.3, spanGaps: true, fill: false, order: 2,
+                },
+                {
+                    label: 'Stoch',
+                    data: stochVals, yAxisID: 'y',
+                    borderColor: 'rgba(76,175,80,0.55)', borderDash: [4,3],
+                    borderWidth: 1.2, pointRadius: 0, tension: 0.3, spanGaps: true, fill: false, order: 3,
+                },
+                {
+                    label: 'W%R+100',
+                    data: wrVals, yAxisID: 'y',
+                    borderColor: 'rgba(255,152,0,0.55)', borderDash: [4,3],
+                    borderWidth: 1.2, pointRadius: 0, tension: 0.3, spanGaps: true, fill: false, order: 4,
+                },
+                {
+                    label: 'CCI정규화',
+                    data: cciVals, yAxisID: 'y',
+                    borderColor: 'rgba(224,64,251,0.55)', borderDash: [4,3],
+                    borderWidth: 1.2, pointRadius: 0, tension: 0.3, spanGaps: true, fill: false, order: 5,
+                },
+                {
+                    label: '거래량',
+                    data: volVals, yAxisID: 'y1',
+                    type: 'bar',
+                    backgroundColor: 'rgba(100,100,100,0.22)',
+                    borderColor: 'transparent',
+                    order: 6,
+                },
+            ]
         },
         options: {
             responsive: true,
@@ -994,20 +1094,30 @@ function _buildOscChart(data, dates) {
             scales: {
                 x: {
                     display: true,
-                    ticks: {
-                        color: '#555', font: { size: 8 }, maxTicksLimit: 8, maxRotation: 0,
-                        callback: (val, idx) => dates[idx]?.slice(5) ?? '',
-                    },
+                    ticks: { color: '#555', font: { size: 8 }, maxTicksLimit: 8, maxRotation: 0,
+                             callback: (val, idx) => dates[idx]?.slice(5) ?? '' },
                     grid: { display: false },
                 },
                 y: {
-                    min: -2, max: 102,
+                    min: -2, max: 102, position: 'left',
                     ticks: { color: '#444', font: { size: 8 }, stepSize: 20, callback: v => v < 0 || v > 100 ? '' : v },
                     grid: { color: 'rgba(255,255,255,0.04)' },
+                },
+                y1: {
+                    display: true, position: 'right',
+                    grid: { display: false },
+                    ticks: {
+                        color: '#444', font: { size: 8 }, maxTicksLimit: 3,
+                        callback: v => v >= 1e8 ? (v/1e8).toFixed(0)+'억' : v >= 1e4 ? (v/1e4).toFixed(0)+'만' : v,
+                    }
                 }
             },
             plugins: {
-                legend: { display: false },
+                legend: {
+                    display: true,
+                    labels: { color: '#555', font: { size: 9 }, boxWidth: 20, padding: 8,
+                              filter: item => item.text !== '거래량' }
+                },
                 tooltip: {
                     enabled: true,
                     backgroundColor: '#1a1a1a', borderColor: '#333', borderWidth: 1,
@@ -1015,7 +1125,21 @@ function _buildOscChart(data, dates) {
                     titleFont: { size: 9 }, bodyFont: { size: 10 },
                     callbacks: {
                         title: items => dates[items[0].dataIndex]?.slice(5) ?? '',
-                        label: item => ' 종합 오실레이터: ' + (item.raw != null ? item.raw.toFixed(1) : '—'),
+                        label: item => {
+                            const i = item.dataIndex, d = data[i];
+                            const fmt = v => v != null ? v.toFixed(1) : '—';
+                            if (item.datasetIndex === 0) return ' 종합: ' + fmt(d.composite);
+                            if (item.datasetIndex === 1) return ' RSI: ' + fmt(d.rsi);
+                            if (item.datasetIndex === 2) return ' Stoch: ' + fmt(d.stoch);
+                            if (item.datasetIndex === 3) return ' W%R: ' + (d.wr != null ? d.wr.toFixed(1) : '—');
+                            if (item.datasetIndex === 4) return ' CCI: ' + (d.cci != null ? d.cci.toFixed(1) : '—');
+                            if (item.datasetIndex === 5) {
+                                const v = d.volume;
+                                if (v == null) return null;
+                                return ' 거래량: ' + (v >= 1e8 ? (v/1e8).toFixed(0)+'억주' : v >= 1e4 ? (v/1e4).toFixed(0)+'만주' : v.toLocaleString()+'주');
+                            }
+                            return null;
+                        }
                     }
                 }
             }
