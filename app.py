@@ -585,53 +585,53 @@ _alerted_date: str  = ''      # 날짜 바뀌면 초기화용
 
 def _find_cross_picks():
     """스캔별 가중 점수 합산으로 복수 스캔 종목 선정.
-    과매도 → 양수 기여 / 과매수 → 음수 패널티. 점수 내림차순 반환."""
+    과매도 → 양수 기여 / 과매수 → 완전 제외. 점수 내림차순 반환."""
 
-    # (ticker, name, reasons, score)
     sources: dict[str, list] = {}
+    streak_map: dict = {}  # ticker → {'fs': max, 'is_': max}
 
     def _add(key, ticker, name, reasons, score: int = 0):
         sources.setdefault(key, []).append((ticker, name, reasons, score))
 
     def _investor_bonus(r) -> tuple:
-        """외인·기관 수급 및 거래량 급증 보너스 점수 계산.
-        추천종목·수급주도·매수후보·급등주 캐시에 공통 적용."""
+        """점수 계산 + 신호 이유 반환. streak는 streak_map에서 별도 관리."""
         bonus = 0
-        bonus_reasons = []
+        signal_reasons = []
         fs  = r.get('foreign_streak', 0) or 0
         is_ = r.get('inst_streak',   0) or 0
 
-        if fs >= 5:
-            bonus += 15; bonus_reasons.append(f"외인 {fs}일 연속 매수 🔥 (+15)")
-        elif fs >= 3:
-            bonus += 10; bonus_reasons.append(f"외인 {fs}일 연속 매수 (+10)")
-        elif fs >= 1:
-            bonus += 5
-
-        if is_ >= 3:
-            bonus += 8; bonus_reasons.append(f"기관 {is_}일 연속 매수 (+8)")
-        elif is_ >= 1:
-            bonus += 4
+        if fs >= 5:   bonus += 15
+        elif fs >= 3: bonus += 10
+        elif fs >= 1: bonus += 5
+        if is_ >= 3:  bonus += 8
+        elif is_ >= 1: bonus += 4
 
         if r.get('joint_star'):
             jd = r.get('joint_days', '')
-            bonus += 15; bonus_reasons.append(f"외인+기관 동시매수 {jd}일 (+15)")
-
+            bonus += 15; signal_reasons.append(f"외인+기관 동시매수 {jd}일")
         if r.get('buying_surge_star'):
-            bonus += 12; bonus_reasons.append("매수세 2배↑ 급증 (+12)")
-
+            bonus += 12; signal_reasons.append("매수세 2배↑ 급증")
         if r.get('volume_surge'):
-            bonus += 15; bonus_reasons.append("거래량 급증 (+15)")
+            bonus += 15; signal_reasons.append("거래량 급증")
 
-        return bonus, bonus_reasons
+        return bonus, signal_reasons, fs, is_
+
+    def _track(ticker, fs, is_):
+        prev = streak_map.get(ticker, {'fs': 0, 'is_': 0})
+        streak_map[ticker] = {'fs': max(prev['fs'], fs), 'is_': max(prev['is_'], is_)}
+
+    def _base_reasons(r):
+        """스캔 원본 이유에서 외인·기관·연속매수 중복 항목 제거 (streak_map으로 통합)"""
+        skip_kw = ('외인', '기관', '연속 매수', '동시매수', '수급량')
+        return [x for x in r.get('reasons', []) if not any(k in x for k in skip_kw)]
 
     # 추천종목 +30 + 수급·거래량 보너스
     try:
         c = _load_recommend_cache()
         for r in (c.get('results', []) if c else []):
-            bonus, bonus_reasons = _investor_bonus(r)
-            _add('추천종목', r['ticker'], r['name'],
-                 r.get('reasons', []) + bonus_reasons, 30 + bonus)
+            bonus, sig, fs, is_ = _investor_bonus(r)
+            _track(r['ticker'], fs, is_)
+            _add('추천종목', r['ticker'], r['name'], _base_reasons(r) + sig, 30 + bonus)
     except Exception:
         pass
 
@@ -639,13 +639,9 @@ def _find_cross_picks():
     try:
         c = _load_supply_cache()
         for r in (c.get('results', []) if c else []):
-            rs = []
-            if r.get('foreign_streak', 0) >= 3:
-                rs.append(f"외인 {r['foreign_streak']}일 연속 매수")
-            if r.get('inst_streak', 0) >= 3:
-                rs.append(f"기관 {r['inst_streak']}일 연속 매수")
-            bonus, bonus_reasons = _investor_bonus(r)
-            _add('수급주도', r['ticker'], r['name'], rs + bonus_reasons, 25 + bonus)
+            bonus, sig, fs, is_ = _investor_bonus(r)
+            _track(r['ticker'], fs, is_)
+            _add('수급주도', r['ticker'], r['name'], sig, 25 + bonus)
     except Exception:
         pass
 
@@ -654,20 +650,16 @@ def _find_cross_picks():
         c = _load_osc_cache()
         for r in (c.get('oversold', []) if c else []):
             s100 = r.get('score100', 50)
-            sc = max(8, round(s100 * 0.25))
-            _add('과매도', r['ticker'], r['name'],
-                 [f"과매도 강도 {s100}점 (RSI·Stoch·BB·MFI)"], sc)
+            _add('과매도', r['ticker'], r['name'], [], max(8, round(s100 * 0.25)))
     except Exception:
         pass
 
-    # 과매수 → 강도 비례 음수 패널티 (-8 ~ -25)
+    # 과매수 → 강도 비례 음수 패널티
     try:
         c = _load_osc_cache()
         for r in (c.get('overbought', []) if c else []):
             s100 = r.get('score100', 50)
-            sc = -max(8, round(s100 * 0.25))
-            _add('과매수⚠', r['ticker'], r['name'],
-                 [f"과매수 강도 {s100}점 — 단기 조정 주의"], sc)
+            _add('과매수⚠', r['ticker'], r['name'], [], -max(8, round(s100 * 0.25)))
     except Exception:
         pass
 
@@ -684,19 +676,19 @@ def _find_cross_picks():
     try:
         c = _load_buy_candidate_cache()
         for r in (c.get('results', []) if c else []):
-            bonus, bonus_reasons = _investor_bonus(r)
-            _add('매수후보단기', r['ticker'], r['name'],
-                 r.get('reasons', []) + bonus_reasons, 25 + bonus)
+            bonus, sig, fs, is_ = _investor_bonus(r)
+            _track(r['ticker'], fs, is_)
+            _add('매수후보단기', r['ticker'], r['name'], _base_reasons(r) + sig, 25 + bonus)
     except Exception:
         pass
 
-    # 급등주매수후보 +35 + 수급·거래량 보너스 (기존 +20 → +35)
+    # 급등주매수후보 +35 + 수급·거래량 보너스
     try:
         c = _load_surge_buy_cache()
         for r in (c.get('results', []) if c else []):
-            bonus, bonus_reasons = _investor_bonus(r)
-            _add('급등주매수후보', r['ticker'], r['name'],
-                 r.get('reasons', []) + bonus_reasons, 35 + bonus)
+            bonus, sig, fs, is_ = _investor_bonus(r)
+            _track(r['ticker'], fs, is_)
+            _add('급등주매수후보', r['ticker'], r['name'], _base_reasons(r) + sig, 35 + bonus)
     except Exception:
         pass
 
@@ -714,25 +706,45 @@ def _find_cross_picks():
                 if r and r not in ticker_map[ticker]['reasons']:
                     ticker_map[ticker]['reasons'].append(r)
 
-    # 과매수 종목 완전 제외용 세트
+    # streak 병합
+    for ticker, st in streak_map.items():
+        if ticker in ticker_map:
+            ticker_map[ticker]['foreign_streak'] = st['fs']
+            ticker_map[ticker]['inst_streak']    = st['is_']
+
+    # 과매수 제외 세트 + 과매도 상세 점수 수집
     overbought_tickers = set()
-    oversold_tickers   = set()
+    osc_score_map      = {}
     try:
         osc = _load_osc_cache()
         for r in (osc.get('overbought', []) if osc else []):
             overbought_tickers.add(r['ticker'])
         for r in (osc.get('oversold', []) if osc else []):
-            oversold_tickers.add(r['ticker'])
+            osc_score_map[r['ticker']] = r.get('score100', 0)
     except Exception:
         pass
 
-    # 2개 이상 스캔 등장 + 합산 점수 양수 + 과매수 종목 제외
+    # 반등/상승 신호 수집
+    bounce_map = {}
+    try:
+        sc = _load_surge_cache()
+        for r in (sc.get('bounce', []) if sc else []):
+            bounce_map[r['ticker']] = {
+                'label': r.get('ma_label', ''),
+                'pct':   r.get('pullback_pct', ''),
+                'type':  r.get('type', 'bounce'),
+            }
+    except Exception:
+        pass
+
+    # 2개 이상 스캔 등장 + 합산 점수 양수 + 과매수 완전 제외
     picks = [v for v in ticker_map.values()
              if len(v['scans']) >= 2 and v['total_score'] > 0
              and v['ticker'] not in overbought_tickers]
 
     for p in picks:
-        p['osc_oversold'] = p['ticker'] in oversold_tickers
+        p['osc_score']   = osc_score_map.get(p['ticker'])
+        p['bounce_info'] = bounce_map.get(p['ticker'])
 
     picks.sort(key=lambda x: x['total_score'], reverse=True)
     return picks
@@ -756,21 +768,64 @@ def _send_telegram(text: str):
 
 
 def _send_cross_alert(picks: list):
-    """공통 종목 텔레그램 알림 — 상위 5종목, 선정 이유 포함"""
+    """공통 종목 텔레그램 알림 — 상위 5종목, 수급·오실레이터·차트 신호 포함"""
+    import re as _re
     if not picks:
         return
     top5 = picks[:5]
     now_kst = (datetime.utcnow() + timedelta(hours=9)).strftime('%m/%d %H:%M')
     lines = [f'📊 <b>복수 스캔 공통 종목</b> ({now_kst} KST)\n']
     for p in top5:
-        scans_str   = ' · '.join(p['scans'])
-        score_str   = f" [합산 +{p.get('total_score', 0)}점]"
-        osc_str     = '  📉 오실레이터 하단 (과매도)\n' if p.get('osc_oversold') else ''
-        reasons_str = '\n'.join(f'  · {r}' for r in p['reasons'][:5]) if p['reasons'] else '  · —'
-        lines.append(f"<b>{p['name']}</b> ({p['ticker']}){score_str}\n"
-                     f"  📌 {scans_str}\n"
-                     f"{osc_str}"
-                     f"{reasons_str}")
+        scans_str = ' · '.join(p['scans'])
+        score_str = f" [{p.get('total_score', 0)}점]"
+
+        # 외인·기관 연속 순매수일
+        fs  = p.get('foreign_streak', 0) or 0
+        is_ = p.get('inst_streak',   0) or 0
+        investor_parts = []
+        if fs  >= 1: investor_parts.append(f"외인 {fs}일 연속")
+        if is_ >= 1: investor_parts.append(f"기관 {is_}일 연속")
+        investor_str = ('  💰 ' + ' | '.join(investor_parts) + ' 순매수\n') if investor_parts else ''
+
+        # 오실레이터 상태 (score100: 높을수록 강한 과매도, max≈100)
+        osc_score = p.get('osc_score')
+        if osc_score is not None:
+            if osc_score >= 80:
+                osc_label = f"과매도 강도 {osc_score}점 — 극단적 과매도, 반등 가능성 高"
+            elif osc_score >= 60:
+                osc_label = f"과매도 강도 {osc_score}점 — 강한 과매도 하단"
+            else:
+                osc_label = f"과매도 강도 {osc_score}점 — 과매도 진입"
+            osc_str = f'  📉 {osc_label}\n'
+        else:
+            osc_str = ''
+
+        # 차트 반등·상승 신호
+        bounce = p.get('bounce_info')
+        if bounce:
+            if bounce.get('type') == 'riding':
+                bounce_str = f"  📈 {bounce['label']} 타고 상승 중\n"
+            else:
+                bounce_str = f"  📈 {bounce['label']} 반등 신호 (눌림 {bounce.get('pct','')}%)\n"
+        else:
+            bounce_str = ''
+
+        # 선정 이유 — 점수 표기 제거, 빈 항목 정리
+        cleaned = []
+        for r in p.get('reasons', []):
+            r2 = _re.sub(r'\s*\(\+?\d+점?\)', '', r).strip()
+            if r2 and r2 not in cleaned:
+                cleaned.append(r2)
+        reasons_str = '\n'.join(f'  · {r}' for r in cleaned[:4]) if cleaned else ''
+
+        lines.append(
+            f"<b>{p['name']}</b> ({p['ticker']}){score_str}\n"
+            f"  📌 {scans_str}\n"
+            f"{investor_str}"
+            f"{osc_str}"
+            f"{bounce_str}"
+            f"{reasons_str}"
+        )
     lines.append('\n⚠️ 투자 판단은 본인 책임입니다.')
     _send_telegram('\n\n'.join(lines))
 
