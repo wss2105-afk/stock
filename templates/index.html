@@ -768,7 +768,7 @@ let _crossPicksExpanded = false;
 
 function _buildPickRow(p) {
     const scans   = p.scans.join(' · ');
-    const reasons = p.reasons.slice(0, 3).map(r => `<span style="color:#94a3b8;font-size:0.62rem;">· ${r}</span>`).join(' ');
+    const reasons = p.reasons.slice(0, 3).map(r => `<span style="color:#cbd5e1;font-size:0.62rem;">· ${r}</span>`).join(' ');
     const score   = p.total_score != null ? p.total_score : '';
     const scoreColor = score >= 70 ? '#4ade80' : score >= 40 ? '#a3e635' : '#6ee7b7';
     const scoreHtml = score !== ''
@@ -783,7 +783,7 @@ function _buildPickRow(p) {
             <span style="color:#f1f5f9;font-size:0.78rem;font-weight:700;">${p.name}</span>
             <span style="color:#4ade80;font-size:0.65rem;background:rgba(74,222,128,0.15);padding:1px 7px;border-radius:10px;">${p.ticker}</span>
             ${scoreHtml}
-            <span style="color:#555;font-size:0.62rem;margin-left:auto;">${scans}</span>
+            <span style="color:#a3e635;font-size:0.62rem;font-weight:600;margin-left:auto;">${scans}</span>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:4px;">${reasons}</div>
     </div>`;
