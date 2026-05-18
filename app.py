@@ -933,9 +933,12 @@ def analyze():
     # 차트
     main_chart = make_main_chart(df, name, patterns=detected_patterns)
     ma_chart   = make_ma_chart(df, name)
-    # 캔들차트와 동일한 y축 범위를 매물대에 전달 → 가격대 완전 일치
-    chart_y_min = float(df['low'].min())  * 0.97
-    chart_y_max = float(df['high'].max()) * 1.03
+    # 캔들차트와 동일한 y축 범위를 매물대에 전달 (make_main_chart와 동일 로직)
+    _c_low  = float(df['low'].min())
+    _c_high = float(df['high'].max())
+    _pad    = (_c_high - _c_low) * 0.05
+    chart_y_min = _c_low  - _pad
+    chart_y_max = _c_high + _pad
     try:
         supply_chart = (make_supply_zone_chart(supply_df, current_price, chart_y_min, chart_y_max)
                         if not supply_df.empty else None)
