@@ -342,12 +342,15 @@ def _auto_build_cache():
     try:
         count, errors = build_all_cache(max_workers=6)
         print(f'[{today}] 캐시 완료: {count}건 성공, {errors}건 실패')
-        # 캐시 빌드 완료 후 결과 캐시 없으면 즉시 스캔 트리거
-        if _load_surge_cache() is None:
+        # 캐시 빌드 완료 후 결과 없거나 0건이면 즉시 스캔 트리거
+        surge = _load_surge_cache()
+        if not surge or (not surge.get('bounce') and not surge.get('results')):
             threading.Thread(target=_run_surge_scan, daemon=True).start()
-        if _load_buy_candidate_cache() is None:
+        buy = _load_buy_candidate_cache()
+        if not buy or not buy.get('results'):
             threading.Thread(target=_run_buy_candidate_scan, daemon=True).start()
-        if _load_surge_buy_cache() is None:
+        surge_buy = _load_surge_buy_cache()
+        if not surge_buy or not surge_buy.get('results'):
             threading.Thread(target=_run_surge_buy_scan, daemon=True).start()
     except Exception as e:
         print(f'캐시 빌드 오류: {e}')
