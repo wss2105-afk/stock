@@ -772,10 +772,13 @@ def _send_telegram(text: str):
 
 
 def _calc_osc_based_prices(ticker):
-    """현재 오실레이터 + 볼린저밴드 기반 매수가·익절가·손절가 계산.
-    BB 하단 = 오실레이터 저점 가격 (매수 구간)
-    BB 상단 = 오실레이터 고점 가격 (익절 구간)
-    현재가가 BB 하단 이하이면 이미 매수 구간 진입.
+    """RSI·Stochastic·MACD·MFI·거래량 복합 오실레이터 + 볼린저밴드 기반 매수가·익절가·손절가 계산.
+    복합 오실레이터 (0~100, 낮을수록 과매도):
+      - RSI, Stochastic, MFI: 직접 0~100
+      - MACD 히스토그램: 60일 롤링 범위로 0~100 정규화
+      - 거래량: 상승일 고거래량→과매수, 하락일 고거래량→과매도 (방향성 반영)
+    매수가 = BB 하단 (현재가가 이미 이하면 현재가)
+    익절가 = BB 상단
     """
     try:
         from analysis.indicators import calc_indicators
@@ -783,33 +786,44 @@ def _calc_osc_based_prices(ticker):
         if not cached or cached['ohlcv'].empty:
             return None
 
-        df = calc_indicators(cached['ohlcv'].tail(60))
-        req = ['close', 'rsi', 'stoch_k', 'williams_r', 'cci',
+        df = calc_indicators(cached['ohlcv'].tail(90))
+        req = ['close', 'rsi', 'stoch_k', 'macd_hist', 'mfi',
                'bb_upper', 'bb_lower', 'bb_mid']
         if any(c not in df.columns for c in req):
             return None
 
-        last = df.iloc[-1]
-        cur       = float(last['close'])
-        bb_upper  = float(last['bb_upper'])
-        bb_lower  = float(last['bb_lower'])
-        bb_mid    = float(last['bb_mid'])
+        # MACD 히스토그램 → 60일 rolling 범위로 0~100 정규화
+        h      = df['macd_hist']
+        h_min  = h.rolling(60, min_periods=1).min()
+        h_max  = h.rolling(60, min_periods=1).max()
+        h_rng  = (h_max - h_min).clip(lower=1e-9)
+        macd_norm = ((h - h_min) / h_rng * 100).clip(0, 100)
+
+        # 거래량 방향성 점수: 상승+고거래량=과매수(높은값), 하락+고거래량=과매도(낮은값)
+        vol_ratio = (df['volume'] / df['volume'].rolling(20).mean()).clip(0, 3)
+        price_up  = (df['close'] > df['close'].shift(1)).astype(float).fillna(0.5)
+        vol_score = price_up * (vol_ratio / 3 * 100) + (1 - price_up) * ((1 - vol_ratio / 3) * 100)
+
+        # 복합 오실레이터 (5개 지표 평균)
+        composite = (df['rsi'].fillna(50) + df['stoch_k'].fillna(50) +
+                     macd_norm.fillna(50) + df['mfi'].fillna(50) +
+                     vol_score.fillna(50)) / 5
+
+        last     = df.iloc[-1]
+        cur      = float(last['close'])
+        bb_upper = float(last['bb_upper'])
+        bb_lower = float(last['bb_lower'])
+        bb_mid   = float(last['bb_mid'])
+        cur_osc  = float(composite.iloc[-1]) if not pd.isna(composite.iloc[-1]) else 50
+
         if cur <= 0 or bb_upper <= bb_lower:
             return None
 
-        # 현재 복합 오실레이터 (0~100, 낮을수록 과매도)
-        wr_norm  = float(last['williams_r']) + 100
-        cci_norm = (max(-200.0, min(200.0, float(last['cci']))) + 200) / 4
-        cur_osc  = (float(last['rsi']) + float(last['stoch_k'])
-                    + wr_norm + cci_norm) / 4
-
-        # 매수가: 현재가가 이미 BB 하단 이하면 현재가, 아니면 BB 하단
+        # 매수가: 현재가 ≤ BB 하단이면 이미 과매도 구간 → 현재가, 아니면 BB 하단
         buy_price  = cur if cur <= bb_lower else bb_lower
-
-        # 익절가: BB 상단 (오실레이터 고점 구간)
+        # 익절가: BB 상단
         sell_price = bb_upper
-
-        # 손절가: BB 하단 -3% (BB 하단 이탈 시 손절)
+        # 손절가: BB 하단 -3%
         stop_loss  = bb_lower * 0.97
 
         profit_pct = round((sell_price - buy_price) / buy_price * 100, 1)
@@ -820,7 +834,6 @@ def _calc_osc_based_prices(ticker):
             'stop_loss':  int(stop_loss),
             'profit_pct': profit_pct,
             'cur_osc':    round(cur_osc, 1),
-            'bb_mid':     int(bb_mid),
         }
     except Exception:
         return None
