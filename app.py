@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from analysis.screener import scan_top_stocks, scan_supply_leaders, scan_surge_stocks, scan_ma_bounce_stocks, scan_osc_stocks, scan_buy_candidates, scan_surge_buy_candidates, get_scan_progress
+from analysis.screener import scan_top_stocks, scan_supply_leaders, scan_surge_stocks, scan_ma_bounce_stocks, scan_osc_stocks, scan_buy_candidates, scan_surge_buy_candidates, scan_pre_surge, get_scan_progress
 from analysis.export_growth import load_cache as load_export_cache, scan_export_growth, is_new_update
 from analysis.data_fetcher import get_ticker, get_ohlcv, get_investor_detail, get_supply_zone, is_main_stock, get_today_price, append_today
 from analysis.cache_manager import load_stock_cache, build_all_cache, is_build_needed, get_build_status
@@ -104,6 +104,7 @@ _RECOMMEND_CACHE_PATH      = os.path.join(_DATA_DIR, 'recommend_cache.json')
 _SUPPLY_CACHE_PATH         = os.path.join(_DATA_DIR, 'supply_cache.json')
 _BUY_CANDIDATE_CACHE_PATH  = os.path.join(_DATA_DIR, 'buy_candidate_cache.json')
 _SURGE_BUY_CACHE_PATH      = os.path.join(_DATA_DIR, 'surge_buy_cache.json')
+_PRE_SURGE_CACHE_PATH      = os.path.join(_DATA_DIR, 'pre_surge_cache.json')
 
 # 종목 DB — 볼륨 경로로 재정의 (line 56의 로컬 경로 override)
 _TICKER_PATH      = os.path.join(_DATA_DIR, 'krx_tickers.json')
@@ -124,6 +125,15 @@ def _load_surge_cache():
         return None
     try:
         with open(_SURGE_CACHE_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def _load_pre_surge_cache():
+    if not os.path.exists(_PRE_SURGE_CACHE_PATH):
+        return None
+    try:
+        with open(_PRE_SURGE_CACHE_PATH, encoding='utf-8') as f:
             return json.load(f)
     except Exception:
         return None
@@ -961,6 +971,119 @@ def _cross_alert_scheduler():
 threading.Thread(target=_cross_alert_scheduler, daemon=True).start()
 
 
+_pre_surge_scanning = False
+_pre_surge_alerted_today: set = set()
+_pre_surge_alerted_date: str = ''
+
+
+def _run_pre_surge_scan():
+    """선취 후보 스캔 → pre_surge_cache.json 저장"""
+    global _pre_surge_scanning
+    _pre_surge_scanning = True
+    try:
+        results = scan_pre_surge(top_n=10)
+        now_kst = (datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')
+        payload = {'updated_at': now_kst, 'results': results}
+        with open(_PRE_SURGE_CACHE_PATH, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False)
+        print(f'[선취스캔] 완료 {len(results)}개 → 캐시 저장')
+    except Exception as e:
+        print(f'[선취스캔] 오류: {e}')
+    finally:
+        _pre_surge_scanning = False
+
+
+def _send_pre_surge_alert(results: list):
+    """선취 후보 텔레그램 발송 — 상위 5종목"""
+    import re as _re
+    if not results:
+        return {'ok': False, 'error': '결과 없음'}
+    top5 = results[:5]
+    now_kst = (datetime.utcnow() + timedelta(hours=9)).strftime('%m/%d %H:%M')
+    lines = [f'🎯 <b>급등 선취 후보</b> ({now_kst} KST)\n오실레이터 바닥 반전 + 외인/기관 초기 진입\n']
+
+    for p in top5:
+        # 신호 목록
+        sigs = p.get('signals', [])
+        sig_str = '\n'.join(f'  · {s}' for s in sigs[:5]) if sigs else ''
+
+        # 외인/기관
+        fs  = p.get('foreign_streak', 0) or 0
+        is_ = p.get('inst_streak', 0) or 0
+        inv_parts = []
+        if fs  >= 1: inv_parts.append(f'외인 {fs}일 연속')
+        if is_ >= 1: inv_parts.append(f'기관 {is_}일 연속')
+        inv_str = ('  💰 ' + ' | '.join(inv_parts) + ' 순매수\n') if inv_parts else ''
+
+        # 오실레이터 현재 위치
+        osc = p.get('cur_osc', 50)
+        if osc <= 30:
+            osc_label = f'🟢 오실레이터 {osc:.0f} — 과매도 바닥권 (매수 적기)'
+        elif osc <= 45:
+            osc_label = f'🟡 오실레이터 {osc:.0f} — 바닥 탈출 중'
+        else:
+            osc_label = f'🟡 오실레이터 {osc:.0f}'
+
+        # 매수가/익절가
+        price_info = _calc_osc_based_prices(p['ticker'])
+        if price_info:
+            buy_str = (
+                f'  💵 매수  {price_info["buy_price"]:,}원'
+                f'  →  익절  {price_info["sell_price"]:,}원'
+                f'  (+{price_info["profit_pct"]}%)\n'
+                f'  🔴 손절  {price_info["stop_loss"]:,}원\n'
+            )
+        else:
+            buy_str = ''
+
+        lines.append(
+            f"<b>{p['name']}</b> ({p['ticker']})\n"
+            f"  현재가 {p['price']}원\n"
+            f"{sig_str}\n"
+            f"{inv_str}"
+            f"  {osc_label}\n"
+            f"{buy_str}"
+        )
+
+    lines.append('\n⚠️ 투자 판단은 본인 책임입니다.')
+    return _send_telegram('\n\n'.join(lines))
+
+
+def _pre_surge_scheduler():
+    """오전 9:30, 오후 1:00 KST에 선취 스캔 후 텔레그램 발송"""
+    import time as _time
+    global _pre_surge_alerted_today, _pre_surge_alerted_date
+    _time.sleep(180)  # 앱 시작 직후 방지
+
+    while True:
+        now_kst   = datetime.utcnow() + timedelta(hours=9)
+        today_str = now_kst.strftime('%Y-%m-%d')
+
+        if today_str != _pre_surge_alerted_date:
+            _pre_surge_alerted_today = set()
+            _pre_surge_alerted_date  = today_str
+
+        # 평일 9:30~10:00 또는 13:00~13:30 에 한 번씩 발송
+        is_morning = (now_kst.hour == 9 and 30 <= now_kst.minute < 60)
+        is_lunch   = (now_kst.hour == 13 and 0 <= now_kst.minute < 30)
+        slot = 'morning' if is_morning else ('lunch' if is_lunch else None)
+
+        if slot and slot not in _pre_surge_alerted_today and now_kst.weekday() < 5:
+            try:
+                _run_pre_surge_scan()
+                cache = _load_pre_surge_cache()
+                if cache and cache.get('results'):
+                    _send_pre_surge_alert(cache['results'])
+                    _pre_surge_alerted_today.add(slot)
+            except Exception as e:
+                print(f'[선취스케줄러] 오류: {e}')
+
+        _time.sleep(900)  # 15분마다 체크
+
+
+threading.Thread(target=_pre_surge_scheduler, daemon=True).start()
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -1408,6 +1531,53 @@ def cross_alert_test():
             return jsonify({'ok': False, 'message': '종목 선정 완료, 텔레그램 발송 실패',
                             'picks': names, 'tg_error': tg_result.get('error')})
         return jsonify({'ok': True, 'message': f'{len(picks)}건 발견, 상위 5종목 발송 완료', 'picks': names})
+    except Exception as e:
+        import traceback
+        return jsonify({'ok': False, 'error': str(e), 'traceback': traceback.format_exc()})
+
+
+@app.route('/api/pre-surge-picks')
+def pre_surge_picks_api():
+    """선취 후보 캐시 조회"""
+    cache = _load_pre_surge_cache()
+    if not cache:
+        return jsonify({'results': [], 'updated_at': None, 'scanning': _pre_surge_scanning})
+    return jsonify({
+        'results':    cache.get('results', []),
+        'updated_at': cache.get('updated_at'),
+        'scanning':   _pre_surge_scanning,
+    })
+
+
+@app.route('/api/pre-surge-refresh', methods=['POST'])
+def pre_surge_refresh_api():
+    """선취 후보 스캔 즉시 실행 (비동기)"""
+    global _pre_surge_scanning
+    if _pre_surge_scanning:
+        return jsonify({'ok': True, 'message': '스캔 진행 중'})
+    threading.Thread(target=_run_pre_surge_scan, daemon=True).start()
+    return jsonify({'ok': True, 'message': '선취 후보 스캔 시작'})
+
+
+@app.route('/api/pre-surge-alert')
+def pre_surge_alert_api():
+    """선취 후보 즉시 텔레그램 발송 (테스트용)"""
+    if not _TG_TOKEN or not _TG_CHAT_ID:
+        return jsonify({'ok': False, 'error': '텔레그램 환경변수 미설정'})
+    try:
+        cache = _load_pre_surge_cache()
+        if not cache or not cache.get('results'):
+            # 캐시 없으면 즉시 스캔
+            _run_pre_surge_scan()
+            cache = _load_pre_surge_cache()
+        if not cache or not cache.get('results'):
+            return jsonify({'ok': False, 'error': '선취 후보 없음 — 캐시 빌드 후 재시도'})
+        results = cache['results']
+        tg_result = _send_pre_surge_alert(results)
+        names = [f"{r['name']}({r['ticker']})" for r in results[:5]]
+        if tg_result and not tg_result.get('ok'):
+            return jsonify({'ok': False, 'error': tg_result.get('error'), 'picks': names})
+        return jsonify({'ok': True, 'message': f'{len(results)}건 발견, 상위 5종목 발송', 'picks': names})
     except Exception as e:
         import traceback
         return jsonify({'ok': False, 'error': str(e), 'traceback': traceback.format_exc()})

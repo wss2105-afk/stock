@@ -1916,3 +1916,190 @@ def scan_top_stocks(top_n=20, months=6, max_workers=8):
 
     phase4.sort(key=lambda x: x['score'], reverse=True)
     return phase4[:top_n]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 선취 후보 스캔 — 오실레이터 바닥 전환 + 외인/기관 초기 진입
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _check_pre_surge(name, ticker):
+    """선취 후보 단일 종목 채점 — 오실레이터 바닥 반전 + 외인/기관 초기 매수 + BB수축"""
+    try:
+        cached = load_stock_cache(ticker)
+        if not cached:
+            return None
+        ohlcv       = cached['ohlcv']
+        investor_df = cached['investor_df']
+
+        if ohlcv is None or ohlcv.empty or len(ohlcv) < 60:
+            return None
+
+        # 거래대금 100억 미만 제외
+        avg_tv = (ohlcv['close'] * ohlcv['volume']).tail(20).mean()
+        if avg_tv < 10_000_000_000:
+            return None
+
+        df   = calc_indicators(ohlcv)
+        last = df.iloc[-1]
+        cur  = float(last['close'])
+
+        score  = 0
+        signals = []
+
+        # ── 이미 너무 많이 올라온 종목 제외 ──────────────────────
+        if len(ohlcv) >= 20:
+            l20 = float(ohlcv['low'].tail(20).min())
+            if l20 > 0 and (cur - l20) / l20 * 100 > 30:
+                return None  # 저점 대비 30% 이상 상승 — 이미 늦음
+
+        # ── 1. 오실레이터 바닥 + 상향 전환 ──────────────────────
+        osc_score = 0
+
+        # RSI 바닥 반전
+        if 'rsi' in df.columns:
+            rsi_s = df['rsi'].tail(15).dropna()
+            if len(rsi_s) >= 5:
+                rsi_now = float(rsi_s.iloc[-1])
+                rsi_3d  = float(rsi_s.iloc[-4])
+                rsi_min = float(rsi_s.min())
+                if rsi_min < 30 and rsi_now > rsi_3d:
+                    pts = 20 if rsi_min < 20 else 15
+                    osc_score += pts
+                    signals.append(f'RSI바닥반전({rsi_now:.0f})')
+                elif rsi_now < 35 and rsi_now > rsi_3d:
+                    osc_score += 10
+                    signals.append(f'RSI과매도상향({rsi_now:.0f})')
+
+        # Stochastic 바닥 반전
+        if 'stoch_k' in df.columns:
+            stk_s = df['stoch_k'].tail(12).dropna()
+            if len(stk_s) >= 5:
+                stk_now = float(stk_s.iloc[-1])
+                stk_3d  = float(stk_s.iloc[-4])
+                stk_min = float(stk_s.min())
+                if stk_min < 20 and stk_now > stk_3d:
+                    pts = 15 if stk_min < 10 else 12
+                    osc_score += pts
+                    signals.append(f'Stoch바닥반전({stk_now:.0f})')
+                elif stk_now < 25 and stk_now > stk_3d:
+                    osc_score += 8
+                    signals.append(f'Stoch과매도상향({stk_now:.0f})')
+
+        # MACD 히스토그램 음→상향 전환
+        if 'macd_hist' in df.columns:
+            hist = df['macd_hist'].tail(10).dropna()
+            if len(hist) >= 5:
+                h_now = float(hist.iloc[-1])
+                h_5d  = float(hist.iloc[-5])
+                h_3d  = float(hist.iloc[-3])
+                if h_5d < 0 and h_now > h_3d and h_now > h_5d:
+                    osc_score += 12
+                    signals.append('MACD히스토그램반전')
+                elif h_now < 0 and h_now > h_3d and h_now > h_5d:
+                    osc_score += 7
+                    signals.append('MACD마이너스상향')
+
+        score += osc_score
+
+        # ── 2. BB 밴드 수축 (폭발 직전 신호) ────────────────────
+        bb_score = 0
+        if all(c in df.columns for c in ('bb_upper', 'bb_lower', 'bb_mid')):
+            bbw = ((df['bb_upper'] - df['bb_lower']) / df['bb_mid'].clip(lower=1)).tail(30)
+            bbw = bbw.dropna()
+            if len(bbw) >= 20:
+                w_now = float(bbw.iloc[-1])
+                w_min = float(bbw.min())
+                w_max = float(bbw.max())
+                w_range = w_max - w_min
+                if w_range > 0:
+                    if w_now <= w_min * 1.15:
+                        bb_score = 15
+                        signals.append('BB밴드수축(폭발직전)')
+                    elif (w_now - w_min) / w_range < 0.25:
+                        bb_score = 8
+                        signals.append('BB밴드수축중')
+        score += bb_score
+
+        # ── 3. 외인/기관 초기 진입 + 전환 신호 ──────────────────
+        inv_score = 0
+
+        fs = _count_consecutive_buying(investor_df, '외국인') or _count_consecutive_buying(investor_df, '외인')
+        is_ = _count_consecutive_buying(investor_df, '기관')
+
+        if 3 <= fs <= 8:
+            inv_score += 18; signals.append(f'외인 {fs}일 초기진입')
+        elif fs >= 1:
+            inv_score += 8;  signals.append(f'외인 {fs}일 매수')
+
+        if 3 <= is_ <= 8:
+            inv_score += 14; signals.append(f'기관 {is_}일 초기진입')
+        elif is_ >= 1:
+            inv_score += 6;  signals.append(f'기관 {is_}일 매수')
+
+        # 매도→매수 전환 (가장 선행적인 신호)
+        if not investor_df.empty and len(investor_df) >= 20:
+            fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
+            ic = next((c for c in investor_df.columns if '기관' in c
+                       and '금융' not in c and '연기금' not in c), None)
+            if fc:
+                prev_f = float(investor_df[fc].iloc[-20:-5].sum())
+                rec_f  = float(investor_df[fc].tail(5).sum())
+                if prev_f < 0 and rec_f > 0:
+                    inv_score += 12; signals.append('외인 순매도→매수전환')
+            if ic:
+                prev_i = float(investor_df[ic].iloc[-20:-5].sum())
+                rec_i  = float(investor_df[ic].tail(5).sum())
+                if prev_i < 0 and rec_i > 0:
+                    inv_score += 10; signals.append('기관 순매도→매수전환')
+
+        score += inv_score
+
+        # ── 최소 조건: 오실레이터+수급 모두 신호 있어야 통과 ──────
+        if osc_score == 0 or inv_score == 0:
+            return None
+        if score < 25:
+            return None
+
+        # ── 복합 오실레이터 현재값 ────────────────────────────────
+        osc_parts = []
+        for col in ('rsi', 'stoch_k', 'mfi'):
+            if col in df.columns and not pd.isna(last.get(col, float('nan'))):
+                osc_parts.append(float(last[col]))
+        cur_osc = round(sum(osc_parts) / len(osc_parts), 1) if osc_parts else 50.0
+
+        return {
+            'name':           name,
+            'ticker':         ticker,
+            'price':          f"{int(cur):,}",
+            'score':          score,
+            'signals':        signals,
+            'foreign_streak': fs,
+            'inst_streak':    is_,
+            'cur_osc':        cur_osc,
+            'sort_key':       score,
+        }
+    except Exception:
+        return None
+
+
+def scan_pre_surge(top_n=10, max_workers=8):
+    """선취 후보 스캔 — 오실레이터 바닥 전환 + 외인/기관 초기 진입 + BB 수축"""
+    with open(_TICKER_DB_PATH, encoding='utf-8') as f:
+        tickers = json.load(f)
+
+    ticker_list = [(n, t) for n, t in tickers.items() if not _is_etf(n)]
+
+    _prog_init('pre_surge', len(ticker_list))
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_check_pre_surge, n, t): (n, t) for n, t in ticker_list}
+        for f in as_completed(futures):
+            n, t = futures[f]
+            _prog_tick('pre_surge', n)
+            r = f.result()
+            if r:
+                results.append(r)
+
+    print(f'[선취스캔] 통과: {len(results)}개')
+    results.sort(key=lambda x: x['sort_key'], reverse=True)
+    return results[:top_n]

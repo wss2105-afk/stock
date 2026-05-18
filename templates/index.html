@@ -271,6 +271,32 @@
         </div>
     </div>
 
+    <!-- 버튼 그룹 4: 선취 후보 -->
+    <div class="btn-group-wrap">
+        <div class="btn-group-label">선취 포착</div>
+        <button onclick="openPreSurgePanel()" style="display:block;width:100%;padding:14px 20px;font-size:0.88rem;font-weight:700;letter-spacing:-0.13px;color:#fff;border:none;border-radius:8px;background:linear-gradient(135deg,#7c3aed 0%,#5b21b6 100%);text-align:center;cursor:pointer;box-shadow:0 4px 18px rgba(124,58,237,0.45);transition:box-shadow 0.15s,transform 0.1s;" id="preSurgeBtn" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+            <span style="font-size:1.1rem;display:block;margin-bottom:3px;">🎯</span>
+            급등 선취 후보
+            <span style="display:block;font-size:0.68rem;font-weight:400;opacity:0.8;margin-top:2px;">오실레이터 바닥 반전 + 외인/기관 초기 진입</span>
+            <span id="preSurgeBadge" style="display:none;font-size:0.65rem;color:#c4b5fd;margin-top:3px;display:block;"></span>
+        </button>
+    </div>
+
+    <!-- 선취 후보 패널 -->
+    <div id="preSurgePanel" style="display:none;width:100%;max-width:720px;margin:14px auto 0;background:#1a0a2e;border:2px solid rgba(124,58,237,0.5);border-radius:10px;overflow:hidden;box-shadow:0 4px 24px rgba(124,58,237,0.2);">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 18px;background:linear-gradient(90deg,rgba(124,58,237,0.25),rgba(26,10,46,0.8));border-bottom:1px solid rgba(124,58,237,0.2);">
+            <span style="color:#c4b5fd;font-size:0.73rem;font-weight:800;letter-spacing:0.15em;">🎯 SURGE PREEMPTION</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span id="preSurgeUpdated" style="color:rgba(196,181,253,0.5);font-size:0.6rem;"></span>
+                <button onclick="triggerPreSurgeScan()" id="preSurgeScanBtn" style="background:rgba(124,58,237,0.3);color:#c4b5fd;border:1px solid rgba(124,58,237,0.4);border-radius:4px;padding:4px 10px;font-size:0.65rem;font-weight:600;cursor:pointer;letter-spacing:0.04em;">지금 스캔</button>
+                <button onclick="sendPreSurgeAlert()" id="preSurgeAlertBtn" style="background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.35);border-radius:4px;padding:4px 10px;font-size:0.65rem;font-weight:600;cursor:pointer;letter-spacing:0.04em;">📲 텔레그램</button>
+            </div>
+        </div>
+        <div id="preSurgeBody" style="padding:16px 18px;">
+            <div style="color:rgba(196,181,253,0.5);font-size:0.78rem;text-align:center;padding:12px 0;">로딩 중...</div>
+        </div>
+    </div>
+
     <button class="features-toggle-btn" onclick="openFeaturesModal()">핵심 기능 안내 보기 ↓</button>
     <button id="scanAllBtn" onclick="triggerScanAll()" style="display:block;width:100%;margin-top:10px;padding:10px 0;background:linear-gradient(90deg,#1a1f3c,#2d3a8c);color:#fff;border:1px solid rgba(99,132,255,0.4);border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;letter-spacing:0.08em;">⚡ 전체 스캔 실행</button>
 </div>
@@ -576,6 +602,86 @@ function toggleCpOscInterp() {
             `<div>CCI <b>${document.getElementById('cpOscCci').textContent}</b> — ±100 이상 추세 신호</div>`;
         panel.style.display = 'block'; btn.textContent = '해석 닫기 ▲';
     } else { panel.style.display = 'none'; btn.textContent = '해석 보기 ▼'; }
+}
+
+// ── 선취 후보 패널 ──────────────────────────────────────────────
+let _preSurgePanelOpen = false;
+
+function openPreSurgePanel() {
+    _preSurgePanelOpen = !_preSurgePanelOpen;
+    const panel = document.getElementById('preSurgePanel');
+    panel.style.display = _preSurgePanelOpen ? 'block' : 'none';
+    if (_preSurgePanelOpen) loadPreSurge();
+}
+
+function loadPreSurge() {
+    fetch('/api/pre-surge-picks')
+        .then(r => r.json())
+        .then(data => {
+            if (data.updated_at) document.getElementById('preSurgeUpdated').textContent = data.updated_at + ' 기준';
+            if (data.scanning) {
+                document.getElementById('preSurgeBody').innerHTML =
+                    '<div style="color:rgba(196,181,253,0.5);font-size:0.78rem;text-align:center;padding:16px 0;">🔍 스캔 중... (수 분 소요)</div>';
+                setTimeout(loadPreSurge, 20000);
+                return;
+            }
+            const results = data.results || [];
+            if (!results.length) {
+                document.getElementById('preSurgeBody').innerHTML =
+                    '<div style="color:rgba(196,181,253,0.4);font-size:0.78rem;text-align:center;padding:16px 0;">데이터 없음 — \'지금 스캔\' 버튼을 눌러주세요</div>';
+                return;
+            }
+            document.getElementById('preSurgeBadge').textContent = results.length + '개 후보';
+            document.getElementById('preSurgeBadge').style.display = 'block';
+            let html = '';
+            results.forEach(r => {
+                const sigs = (r.signals || []).slice(0, 4).map(s =>
+                    `<span style="font-size:0.60rem;padding:2px 7px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.4);color:#c4b5fd;border-radius:3px;font-weight:600;">${s}</span>`
+                ).join(' ');
+                const osc = r.cur_osc || 50;
+                const oscColor = osc <= 30 ? '#4ade80' : osc <= 45 ? '#fbbf24' : '#94a3b8';
+                const fs = r.foreign_streak || 0;
+                const is_ = r.inst_streak || 0;
+                const invText = [fs>=1?`외인${fs}일`:'', is_>=1?`기관${is_}일`:''].filter(Boolean).join(' | ');
+                html += `<div style="display:grid;grid-template-columns:1fr auto;align-items:start;gap:10px;padding:12px 0;border-bottom:1px solid rgba(124,58,237,0.1);" onclick="window.location='/analyze?query=${r.ticker}'" style="cursor:pointer;">
+                    <div>
+                        <span style="font-size:0.90rem;color:#e9d5ff;font-weight:700;">${r.name}</span>
+                        <span style="font-size:0.62rem;color:rgba(196,181,253,0.4);font-family:'Courier New',monospace;margin-left:5px;">${r.ticker}</span>
+                        ${invText ? `<span style="font-size:0.63rem;color:#86efac;margin-left:6px;">💰 ${invText} 매수</span>` : ''}
+                        <div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:4px;">${sigs}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:0.80rem;color:#e9d5ff;font-weight:600;">${r.price}원</div>
+                        <div style="font-size:0.68rem;color:${oscColor};margin-top:2px;">OSC ${osc}</div>
+                    </div>
+                </div>`;
+            });
+            document.getElementById('preSurgeBody').innerHTML = html;
+        })
+        .catch(() => {
+            document.getElementById('preSurgeBody').innerHTML =
+                '<div style="color:#f87171;font-size:0.78rem;text-align:center;padding:12px 0;">로드 실패</div>';
+        });
+}
+
+function triggerPreSurgeScan() {
+    const btn = document.getElementById('preSurgeScanBtn');
+    btn.disabled = true; btn.textContent = '스캔 중...';
+    fetch('/api/pre-surge-refresh', {method: 'POST'})
+        .then(() => { setTimeout(() => { loadPreSurge(); btn.disabled=false; btn.textContent='지금 스캔'; }, 5000); })
+        .catch(() => { btn.disabled=false; btn.textContent='지금 스캔'; });
+}
+
+function sendPreSurgeAlert() {
+    const btn = document.getElementById('preSurgeAlertBtn');
+    btn.disabled = true; btn.textContent = '발송 중...';
+    fetch('/api/pre-surge-alert')
+        .then(r => r.json())
+        .then(d => {
+            btn.textContent = d.ok ? '✓ 발송완료' : '✗ 실패';
+            setTimeout(() => { btn.disabled=false; btn.textContent='📲 텔레그램'; }, 3000);
+        })
+        .catch(() => { btn.disabled=false; btn.textContent='📲 텔레그램'; });
 }
 
 // ── 전체 스캔 진행률 ──────────────────────────────────────────
