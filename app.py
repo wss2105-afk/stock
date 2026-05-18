@@ -1239,6 +1239,22 @@ def telegram_test():
     return jsonify({'ok': True, 'message': '텔레그램으로 테스트 메시지를 발송했습니다.'})
 
 
+@app.route('/api/cross-alert-test')
+def cross_alert_test():
+    """현재 캐시 기준 공통 종목을 즉시 텔레그램으로 발송 (테스트용)"""
+    if not _TG_TOKEN or not _TG_CHAT_ID:
+        return jsonify({'ok': False, 'error': 'TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID 환경변수가 설정되지 않았습니다.'})
+    try:
+        picks = _find_cross_picks()
+        if not picks:
+            return jsonify({'ok': True, 'message': '공통 종목이 없습니다 (캐시 확인 필요)', 'count': 0})
+        _send_cross_alert(picks)
+        names = [f"{p['name']}({p['ticker']})" for p in picks[:5]]
+        return jsonify({'ok': True, 'message': f'{len(picks)}건 발견, 상위 5종목 발송 완료', 'picks': names})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+
 @app.route('/api/ai-comment')
 def ai_comment_api():
     """AI 분석을 별도로 요청 (result 페이지에서 비동기 호출)"""
