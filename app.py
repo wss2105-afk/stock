@@ -724,14 +724,18 @@ def _find_cross_picks():
     except Exception:
         pass
 
-    # 반등/상승 신호 수집
+    # 반등/상승 신호 수집 — rebound_pct 50% 이하만 유효 진입 신호로 인정
     bounce_map = {}
     try:
         sc = _load_surge_cache()
         for r in (sc.get('bounce', []) if sc else []):
+            rb = r.get('rebound_pct', 0) or 0
+            if rb > 50:
+                continue  # 이미 너무 많이 올라온 종목 제외
+            mas = r.get('touched_mas', [])
             bounce_map[r['ticker']] = {
-                'label': r.get('ma_label', ''),
-                'pct':   r.get('pullback_pct', ''),
+                'label': '/'.join(mas) if mas else '',
+                'pct':   round(rb, 1),
                 'type':  r.get('type', 'bounce'),
             }
     except Exception:
@@ -803,10 +807,12 @@ def _send_cross_alert(picks: list):
         # 차트 반등·상승 신호
         bounce = p.get('bounce_info')
         if bounce:
+            label = bounce.get('label', '')
+            pct   = bounce.get('pct', '')
             if bounce.get('type') == 'riding':
-                bounce_str = f"  📈 {bounce['label']} 타고 상승 중\n"
+                bounce_str = f"  📈 {label} 타고 상승 중\n"
             else:
-                bounce_str = f"  📈 {bounce['label']} 반등 신호 (눌림 {bounce.get('pct','')}%)\n"
+                bounce_str = f"  📈 {label} 반등 신호 (저점 대비 +{pct}%)\n"
         else:
             bounce_str = ''
 
