@@ -702,6 +702,18 @@ def _find_cross_picks():
     except Exception:
         pass
 
+    # 선취후보 +30 (오실레이터 바닥 반전 + 외인/기관 초기 진입)
+    try:
+        c = _load_pre_surge_cache()
+        for r in (c.get('results', []) if c else []):
+            fs  = r.get('foreign_streak', 0) or 0
+            is_ = r.get('inst_streak',   0) or 0
+            _track(r['ticker'], fs, is_)
+            sig_reasons = r.get('signals', [])[:4]
+            _add('선취후보', r['ticker'], r['name'], sig_reasons, 30)
+    except Exception:
+        pass
+
     ticker_map: dict = {}
     for scan_key, entries in sources.items():
         for ticker, name, reasons, score in entries:
