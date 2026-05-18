@@ -763,10 +763,9 @@ def _find_cross_picks():
     except Exception:
         pass
 
-    # 2개 이상 스캔 등장 + 합산 점수 양수 + 과매수 완전 제외
+    # 2개 이상 스캔 등장 + 합산 점수 양수 (과매수는 패널티만, 완전 제외 없음)
     picks = [v for v in ticker_map.values()
-             if len(v['scans']) >= 2 and v['total_score'] > 0
-             and v['ticker'] not in overbought_tickers]
+             if len(v['scans']) >= 2 and v['total_score'] > 0]
 
     for p in picks:
         p['osc_score']   = osc_score_map.get(p['ticker'])
