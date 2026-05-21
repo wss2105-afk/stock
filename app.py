@@ -844,12 +844,12 @@ def _calc_osc_based_prices(ticker):
         if cur <= 0 or bb_upper <= bb_lower:
             return None
 
-        # 매수가: 현재가 ≤ BB 하단이면 이미 과매도 구간 → 현재가, 아니면 BB 하단
-        buy_price  = cur if cur <= bb_lower else bb_lower
-        # 익절가: BB 상단
-        sell_price = bb_upper
-        # 손절가: BB 하단 -3%
-        stop_loss  = bb_lower * 0.97
+        # 매수가: 현재가 (지금 매수 가능한 가격)
+        buy_price  = cur
+        # 익절가: BB 상단 (단, 현재가보다 최소 3% 이상 높아야 유효)
+        sell_price = bb_upper if bb_upper > cur * 1.03 else cur * 1.08
+        # 손절가: BB 하단 또는 현재가 -5% 중 더 높은 값 (손실 제한)
+        stop_loss  = max(bb_lower * 0.97, cur * 0.95)
 
         profit_pct = round((sell_price - buy_price) / buy_price * 100, 1)
 
