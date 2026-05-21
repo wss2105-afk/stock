@@ -797,13 +797,9 @@ def _send_telegram(text: str) -> dict:
 
 
 def _calc_osc_based_prices(ticker):
-    """RSI·Stochastic·MACD·MFI·거래량 복합 오실레이터 + 볼린저밴드 기반 매수가·익절가·손절가 계산.
-    복합 오실레이터 (0~100, 낮을수록 과매도):
-      - RSI, Stochastic, MFI: 직접 0~100
-      - MACD 히스토그램: 60일 롤링 범위로 0~100 정규화
-      - 거래량: 상승일 고거래량→과매수, 하락일 고거래량→과매도 (방향성 반영)
-    매수가 = BB 하단 (현재가가 이미 이하면 현재가)
-    익절가 = BB 상단
+    """복합 오실레이터 + 볼린저밴드 기반 매수가·익절가·손절가 계산.
+    실시간 가격을 우선 사용하고, BB밴드는 캐시 기반으로 계산한다.
+    현재가가 이미 BB 상단을 넘어선 경우 익절가를 현재가 기준으로 재설정.
     """
     try:
         from analysis.indicators import calc_indicators
@@ -824,7 +820,7 @@ def _calc_osc_based_prices(ticker):
         h_rng  = (h_max - h_min).clip(lower=1e-9)
         macd_norm = ((h - h_min) / h_rng * 100).clip(0, 100)
 
-        # 거래량 방향성 점수: 상승+고거래량=과매수(높은값), 하락+고거래량=과매도(낮은값)
+        # 거래량 방향성 점수
         vol_ratio = (df['volume'] / df['volume'].rolling(20).mean()).clip(0, 3)
         price_up  = (df['close'] > df['close'].shift(1)).astype(float).fillna(0.5)
         vol_score = price_up * (vol_ratio / 3 * 100) + (1 - price_up) * ((1 - vol_ratio / 3) * 100)
@@ -835,30 +831,50 @@ def _calc_osc_based_prices(ticker):
                      vol_score.fillna(50)) / 5
 
         last     = df.iloc[-1]
-        cur      = float(last['close'])
         bb_upper = float(last['bb_upper'])
         bb_lower = float(last['bb_lower'])
         bb_mid   = float(last['bb_mid'])
         cur_osc  = float(composite.iloc[-1]) if not pd.isna(composite.iloc[-1]) else 50
 
+        # ── 실시간 현재가 우선 사용 ─────────────────────────────
+        cur = float(last['close'])  # 기본값: 캐시 종가
+        try:
+            today = get_today_price(ticker)
+            if today and today.get('close') and float(today['close']) > 0:
+                cur = float(today['close'])
+        except Exception:
+            pass
+
         if cur <= 0 or bb_upper <= bb_lower:
             return None
 
-        # 매수가: 현재가 (지금 매수 가능한 가격)
-        buy_price  = cur
-        # 익절가: BB 상단 (단, 현재가보다 최소 3% 이상 높아야 유효)
-        sell_price = bb_upper if bb_upper > cur * 1.03 else cur * 1.08
-        # 손절가: BB 하단 또는 현재가 -5% 중 더 높은 값 (손실 제한)
-        stop_loss  = max(bb_lower * 0.97, cur * 0.95)
+        # ── 현재가 위치에 따라 매수가·익절가·손절가 결정 ─────────
+        already_above_bb = cur >= bb_upper  # 이미 BB 상단 돌파
+
+        buy_price = cur  # 매수가 = 현재가
+
+        if already_above_bb:
+            # 이미 BB 상단 위 — BB 상단이 지지선, 익절가는 BB 상단 위 +7%
+            sell_price = cur * 1.07
+            stop_loss  = max(bb_upper * 0.97, cur * 0.95)
+        elif bb_upper > cur * 1.03:
+            # 일반적인 경우 — BB 상단까지 여유 있음
+            sell_price = bb_upper
+            stop_loss  = max(bb_lower * 0.97, cur * 0.95)
+        else:
+            # BB 상단이 현재가와 너무 가까움 — +8% 목표
+            sell_price = cur * 1.08
+            stop_loss  = max(bb_lower * 0.97, cur * 0.95)
 
         profit_pct = round((sell_price - buy_price) / buy_price * 100, 1)
 
         return {
-            'buy_price':  int(buy_price),
-            'sell_price': int(sell_price),
-            'stop_loss':  int(stop_loss),
-            'profit_pct': profit_pct,
-            'cur_osc':    round(cur_osc, 1),
+            'buy_price':       int(buy_price),
+            'sell_price':      int(sell_price),
+            'stop_loss':       int(stop_loss),
+            'profit_pct':      profit_pct,
+            'cur_osc':         round(cur_osc, 1),
+            'above_bb':        already_above_bb,   # BB 상단 돌파 여부
         }
     except Exception:
         return None
@@ -909,16 +925,18 @@ def _send_cross_alert(picks: list):
         else:
             bounce_str = ''
 
-        # 매수가·익절가·손절가 (오실레이터 + BB 기반)
+        # 매수가·익절가·손절가 (실시간가 + BB 기반)
         price_info = _calc_osc_based_prices(p['ticker'])
         if price_info:
             osc_pos = price_info['cur_osc']
-            if osc_pos < 30:
-                osc_tag = '🟢 현재 과매도 — 지금이 매수 구간'
+            if price_info.get('above_bb'):
+                osc_tag = '🔴 BB 상단 돌파 — 단기 과열, 추격 주의'
+            elif osc_pos < 30:
+                osc_tag = '🟢 현재 과매도 — 매수 적기'
             elif osc_pos > 70:
-                osc_tag = '🔴 현재 과매수 — 진입 주의'
+                osc_tag = '🟡 오실레이터 과매수 — 진입 신중'
             else:
-                osc_tag = f'🟡 오실레이터 {osc_pos:.0f} — 중립 구간'
+                osc_tag = f'🟡 오실레이터 {osc_pos:.0f} — 중립'
             buy_str = (
                 f"  {osc_tag}\n"
                 f"  💵 매수  {price_info['buy_price']:,}원"
