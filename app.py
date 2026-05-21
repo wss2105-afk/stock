@@ -951,7 +951,7 @@ def _send_cross_alert(picks: list):
 
 
 def _cross_alert_scheduler():
-    """매 1시간 체크 — 07:00~20:00 KST 구간에 공통 종목 발견 시 텔레그램 알림"""
+    """평일 09:00, 13:30 KST — 100점 이상 복수 스캔 공통 종목 텔레그램 발송"""
     import time as _time
     global _alerted_today, _alerted_date
 
@@ -965,18 +965,26 @@ def _cross_alert_scheduler():
             _alerted_today = set()
             _alerted_date  = today_str
 
-        if 7 <= now_kst.hour < 20:
-            try:
-                picks     = _find_cross_picks()
-                new_picks = [p for p in picks if p['ticker'] not in _alerted_today]
-                if new_picks:
-                    _send_cross_alert(new_picks)
-                    for p in new_picks:
-                        _alerted_today.add(p['ticker'])
-            except Exception as e:
-                print(f'[CrossAlert] 교차 탐지 오류: {e}')
+        is_morning = (now_kst.hour == 9  and 0 <= now_kst.minute < 30)
+        is_lunch   = (now_kst.hour == 13 and 30 <= now_kst.minute < 59)
+        slot = 'morning' if is_morning else ('lunch' if is_lunch else None)
 
-        _time.sleep(3600)
+        if slot and slot not in _alerted_today and now_kst.weekday() < 5:
+            try:
+                picks = _find_cross_picks()
+                # 100점 이상만 발송
+                strong = [p for p in picks if p.get('total_score', 0) >= 100]
+                if strong:
+                    _send_cross_alert(strong)
+                    _alerted_today.add(slot)
+                    print(f'[CrossAlert] {slot} 발송 완료 — {len(strong)}종목 (100점↑)')
+                else:
+                    _alerted_today.add(slot)
+                    print(f'[CrossAlert] {slot} — 100점 이상 종목 없음 ({len(picks)}종목 중)')
+            except Exception as e:
+                print(f'[CrossAlert] 오류: {e}')
+
+        _time.sleep(600)   # 10분마다 체크 (시간대 놓치지 않도록)
 
 
 threading.Thread(target=_cross_alert_scheduler, daemon=True).start()
