@@ -110,16 +110,19 @@ def make_main_chart(df, name, patterns=None):
         fig.add_trace(go.Scatter(x=df.index, y=df[col_name], name=label,
                                  line=dict(color=color, width=1.2)))
 
-    # Y축 범위 — 실제 캔들 High/Low 기준, 5% 패딩 (BB가 캔들 범위 밖으로 밀어내지 않도록)
-    c_low  = float(df['low'].min())
-    c_high = float(df['high'].max())
+    # Y·X축 범위 — 최근 40거래일 기준으로 초기 뷰 설정 (전체 데이터는 유지, 스크롤 가능)
+    recent = df.tail(40)
+    c_low  = float(recent['low'].min())
+    c_high = float(recent['high'].max())
     pad    = (c_high - c_low) * 0.05
     y_min  = c_low  - pad
     y_max  = c_high + pad
+    x_start = str(recent.index[0].date())
+    x_end   = str(recent.index[-1].date())
 
     fig.update_layout(
         height=520,
-        xaxis_rangeslider_visible=False,
+        xaxis=dict(range=[x_start, x_end], rangeslider_visible=False),
         legend=dict(orientation='h', y=1.02, bgcolor='rgba(0,0,0,0)', font=dict(size=10)),
         margin=dict(l=72, r=20, t=52, b=18),
     )

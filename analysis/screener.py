@@ -2020,42 +2020,140 @@ def _check_pre_surge(name, ticker):
                         signals.append('BB밴드수축중')
         score += bb_score
 
-        # ── 3. 외인/기관 초기 진입 + 전환 신호 ──────────────────
+        # ── 3. 수급 포착 강화 ────────────────────────────────────
         inv_score = 0
+        fs = 0
+        is_ = 0
 
-        fs = _count_consecutive_buying(investor_df, '외국인') or _count_consecutive_buying(investor_df, '외인')
-        is_ = _count_consecutive_buying(investor_df, '기관')
-
-        if 3 <= fs <= 8:
-            inv_score += 18; signals.append(f'외인 {fs}일 초기진입')
-        elif fs >= 1:
-            inv_score += 8;  signals.append(f'외인 {fs}일 매수')
-
-        if 3 <= is_ <= 8:
-            inv_score += 14; signals.append(f'기관 {is_}일 초기진입')
-        elif is_ >= 1:
-            inv_score += 6;  signals.append(f'기관 {is_}일 매수')
-
-        # 매도→매수 전환 (가장 선행적인 신호)
-        if not investor_df.empty and len(investor_df) >= 20:
+        if not investor_df.empty and len(investor_df) >= 5:
             fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
             ic = next((c for c in investor_df.columns if '기관' in c
                        and '금융' not in c and '연기금' not in c), None)
-            if fc:
-                prev_f = float(investor_df[fc].iloc[-20:-5].sum())
-                rec_f  = float(investor_df[fc].tail(5).sum())
-                if prev_f < 0 and rec_f > 0:
-                    inv_score += 12; signals.append('외인 순매도→매수전환')
-            if ic:
-                prev_i = float(investor_df[ic].iloc[-20:-5].sum())
-                rec_i  = float(investor_df[ic].tail(5).sum())
-                if prev_i < 0 and rec_i > 0:
-                    inv_score += 10; signals.append('기관 순매도→매수전환')
+
+            f_vals = list(investor_df[fc].tail(20)) if fc else []
+            i_vals = list(investor_df[ic].tail(20)) if ic else []
+
+            # ① 순매도→순매수 전환 첫날 (★★★★★ 가장 선행적)
+            f_day1 = False
+            i_day1 = False
+            if len(f_vals) >= 6:
+                f_today  = f_vals[-1]
+                f_yest   = f_vals[-2]
+                f_prior5 = sum(f_vals[-6:-1])
+                if f_today > 0 and f_yest <= 0 and f_prior5 < 0:
+                    f_day1 = True
+                    inv_score += 22
+                    signals.append('외인 순매도→매수전환(1일차★)')
+            if len(i_vals) >= 6:
+                i_today  = i_vals[-1]
+                i_yest   = i_vals[-2]
+                i_prior5 = sum(i_vals[-6:-1])
+                if i_today > 0 and i_yest <= 0 and i_prior5 < 0:
+                    i_day1 = True
+                    inv_score += 18
+                    signals.append('기관 순매도→매수전환(1일차★)')
+
+            # ③ 외인+기관 동시 전환 보너스 (★★★★★)
+            if f_day1 and i_day1:
+                inv_score += 20
+                signals.append('외인+기관 동시전환(★★)')
+            elif f_day1 or i_day1:
+                f_ongoing = (len(f_vals) >= 2 and f_vals[-1] > 0 and f_vals[-2] > 0)
+                i_ongoing = (len(i_vals) >= 2 and i_vals[-1] > 0 and i_vals[-2] > 0)
+                if (f_day1 and i_ongoing) or (i_day1 and f_ongoing):
+                    inv_score += 10
+                    signals.append('외인+기관 수급동조')
+
+            # 연속 매수 집계 (전환 첫날이 아닌 경우에만)
+            if not f_day1:
+                fs = (_count_consecutive_buying(investor_df, '외국인')
+                      or _count_consecutive_buying(investor_df, '외인'))
+                if 2 <= fs <= 8:
+                    inv_score += 14
+                    signals.append(f'외인 {fs}일 초기진입')
+                elif fs == 1:
+                    inv_score += 7
+                    signals.append('외인 매수시작')
+            else:
+                fs = 1
+
+            if not i_day1:
+                is_ = _count_consecutive_buying(investor_df, '기관')
+                if 2 <= is_ <= 8:
+                    inv_score += 11
+                    signals.append(f'기관 {is_}일 초기진입')
+                elif is_ == 1:
+                    inv_score += 5
+                    signals.append('기관 매수시작')
+            else:
+                is_ = 1
+
+            # ② 매수 규모 가속도 (★★★★★)
+            if fc and len(f_vals) >= 3:
+                fd1, fd2, fd3 = f_vals[-1], f_vals[-2], f_vals[-3]
+                if fd1 > 0 and fd2 > 0 and fd1 > fd2 * 1.5:
+                    inv_score += 13
+                    signals.append(f'외인 매수가속(+{int((fd1/max(fd2,1)-1)*100)}%)')
+                elif fd1 > 0 and fd2 > 0 and fd3 > 0 and fd1 > fd2 and fd2 > fd3:
+                    inv_score += 8
+                    signals.append('외인 매수3일연속증가')
+            if ic and len(i_vals) >= 3:
+                id1, id2, id3 = i_vals[-1], i_vals[-2], i_vals[-3]
+                if id1 > 0 and id2 > 0 and id1 > id2 * 1.5:
+                    inv_score += 10
+                    signals.append(f'기관 매수가속(+{int((id1/max(id2,1)-1)*100)}%)')
+                elif id1 > 0 and id2 > 0 and id3 > 0 and id1 > id2 and id2 > id3:
+                    inv_score += 6
+                    signals.append('기관 매수3일연속증가')
+
+            # ④ 순매수 규모 (과거 평균 대비 상대적 크기) (★★★★)
+            if fc and len(f_vals) >= 10:
+                f_pos_hist = [v for v in f_vals[:-3] if v > 0]
+                if f_pos_hist and f_vals[-1] > 0:
+                    f_mean = sum(f_pos_hist) / len(f_pos_hist)
+                    ratio  = f_vals[-1] / f_mean
+                    if ratio >= 2.0:
+                        inv_score += 14
+                        signals.append(f'외인 역대급매수({ratio:.1f}x)')
+                    elif ratio >= 1.3:
+                        inv_score += 7
+                        signals.append(f'외인 평균초과매수({ratio:.1f}x)')
+            if ic and len(i_vals) >= 10:
+                i_pos_hist = [v for v in i_vals[:-3] if v > 0]
+                if i_pos_hist and i_vals[-1] > 0:
+                    i_mean = sum(i_pos_hist) / len(i_pos_hist)
+                    ratio  = i_vals[-1] / i_mean
+                    if ratio >= 2.0:
+                        inv_score += 11
+                        signals.append(f'기관 역대급매수({ratio:.1f}x)')
+                    elif ratio >= 1.3:
+                        inv_score += 5
+                        signals.append(f'기관 평균초과매수({ratio:.1f}x)')
+
+            # ⑤ 스텔스 매집 (가격 보합 + 지속 순매수) (★★★★)
+            if len(ohlcv) >= 7:
+                p5 = ohlcv['close'].tail(5)
+                p_rng = (float(p5.max()) - float(p5.min())) / max(float(p5.min()), 1) * 100
+                if p_rng < 3.0:
+                    f_pos5 = sum(1 for v in f_vals[-5:] if v > 0) if f_vals else 0
+                    i_pos5 = sum(1 for v in i_vals[-5:] if v > 0) if i_vals else 0
+                    if f_pos5 >= 4:
+                        inv_score += 16
+                        signals.append(f'외인 스텔스매집(보합+{f_pos5}일)')
+                    elif f_pos5 >= 3:
+                        inv_score += 8
+                        signals.append(f'외인 스텔스매집({f_pos5}일)')
+                    if i_pos5 >= 4:
+                        inv_score += 13
+                        signals.append(f'기관 스텔스매집(보합+{i_pos5}일)')
+                    elif i_pos5 >= 3:
+                        inv_score += 6
+                        signals.append(f'기관 스텔스매집({i_pos5}일)')
 
         score += inv_score
 
-        # ── 최소 조건: 오실레이터+수급 모두 신호 있어야 통과 ──────
-        if osc_score == 0 or inv_score == 0:
+        # ── 최소 조건: 수급 우선 — inv_score 20 미만이면 탈락 ──────
+        if osc_score == 0 or inv_score < 20:
             return None
         if score < 25:
             return None
@@ -2076,7 +2174,7 @@ def _check_pre_surge(name, ticker):
             'foreign_streak': fs,
             'inst_streak':    is_,
             'cur_osc':        cur_osc,
-            'sort_key':       score,
+            'sort_key':       inv_score * 2 + osc_score + bb_score,
         }
     except Exception:
         return None

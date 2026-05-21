@@ -111,10 +111,14 @@
         <span class="cond-chip">Stoch 과매도 상향 +8</span>
         <span class="cond-chip">MACD 히스토그램 반전 +12</span>
         <span class="cond-chip">BB 밴드 수축 +8~15</span>
-        <span class="cond-chip">외인 3~8일 초기진입 +18</span>
-        <span class="cond-chip">기관 3~8일 초기진입 +14</span>
-        <span class="cond-chip">외인 매도→매수 전환 +12</span>
-        <span class="cond-chip">기관 매도→매수 전환 +10</span>
+        <span class="cond-chip hard">외인 순매도→매수전환 1일차 +22★</span>
+        <span class="cond-chip hard">기관 순매도→매수전환 1일차 +18★</span>
+        <span class="cond-chip hard">외인+기관 동시전환 보너스 +20★</span>
+        <span class="cond-chip">외인 2~8일 초기진입 +14</span>
+        <span class="cond-chip">기관 2~8일 초기진입 +11</span>
+        <span class="cond-chip">매수규모 가속(50%↑) +10~13</span>
+        <span class="cond-chip">역대급매수(2x↑) +11~14</span>
+        <span class="cond-chip">스텔스매집(보합+4일↑) +13~16</span>
     </div>
 
     <div class="hdr-row">
@@ -171,8 +175,9 @@
                 <div class="stock-tags">
                     {% for sig in r.signals %}
                     <span class="stock-tag
-                        {%- if '반전' in sig or '초기진입' in sig %} green
-                        {%- elif '전환' in sig %} yellow
+                        {%- if '1일차★' in sig or '동시전환' in sig or '스텔스매집' in sig %} green
+                        {%- elif '반전' in sig or '초기진입' in sig %} green
+                        {%- elif '전환' in sig or '가속' in sig or '연속증가' in sig or '역대급' in sig or '초과매수' in sig or '수급동조' in sig or '매수시작' in sig %} yellow
                         {%- elif '수축' in sig %} red
                         {%- endif %}">{{ sig }}</span>
                     {% endfor %}
