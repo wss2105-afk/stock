@@ -1697,6 +1697,18 @@ def ma_bounce_refresh():
     return jsonify({'status': 'scanning'})
 
 
+@app.route('/pre-surge')
+def pre_surge_page():
+    """급등 선취 후보 전용 페이지"""
+    cache = _load_pre_surge_cache()
+    results    = cache.get('results', [])   if cache else []
+    scanned_at = cache.get('updated_at', '') if cache else ''
+    return render_template('pre_surge.html',
+                           results=results,
+                           scanned_at=scanned_at,
+                           scanning=_pre_surge_scanning)
+
+
 @app.route('/api/search-suggest')
 def search_suggest():
     q = request.args.get('q', '').strip()

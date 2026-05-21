@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>급등 선취 후보</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #0d0a1a; color: #e2e8f0; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
+        .topbar { background: #0d0a1a; border-bottom: 1px solid #1e1535; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
+        .topbar a { color: #6d6a7a; text-decoration: none; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .topbar a:hover { color: #a78bfa; }
+        .topbar-title { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: #c4b5fd; }
+        .main { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+        .page-title { font-size: clamp(1.8rem, 6vw, 3rem); font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; color: #fff; margin-bottom: 4px; }
+        .page-sub { font-size: 0.7rem; color: #6d6a7a; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; }
+        .purple-line { width: 40px; height: 2px; background: #7c3aed; margin-bottom: 18px; }
+
+        .score-note { background: #120d24; border: 1px solid rgba(124,58,237,0.25); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 0.75rem; color: #9ca3af; line-height: 1.7; }
+        .score-note strong { color: #a78bfa; }
+
+        .cond-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+        .cond-chip { font-size: 0.62rem; padding: 4px 10px; border: 1px solid rgba(124,58,237,0.35); border-radius: 3px; color: #c4b5fd; letter-spacing: 0.05em; background: rgba(124,58,237,0.08); }
+        .cond-chip.hard { border-color: rgba(251,191,36,0.4); color: #fbbf24; background: rgba(251,191,36,0.06); }
+
+        .hdr-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .scan-info { font-size: 0.68rem; color: #555; letter-spacing: 0.1em; }
+        .scan-btn { padding: 8px 18px; background: #7c3aed; color: #fff; border: none; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; border-radius: 4px; transition: background 0.15s; }
+        .scan-btn:hover { background: #6d28d9; }
+        .scan-btn:disabled { background: #2e1a5a; color: #a78bfa; cursor: not-allowed; }
+
+        .stock-card-wrap { margin-bottom: 2px; }
+        .stock-card { display: grid; grid-template-columns: 44px 1fr auto; align-items: start; gap: 14px; padding: 18px 20px; background: #110d22; text-decoration: none; color: inherit; transition: background 0.15s; border-left: 3px solid transparent; cursor: pointer; }
+        .stock-card:hover { background: #1a1033; border-left-color: #7c3aed; }
+        .rank { font-size: clamp(1.2rem, 4vw, 1.8rem); font-weight: 900; color: #2a1a4a; text-align: center; padding-top: 4px; }
+        .rank.r1 { color: #7c3aed; }
+        .rank.r2 { color: #8b5cf6; }
+        .rank.r3 { color: #a78bfa; }
+
+        .stock-name { font-size: clamp(0.95rem, 2.5vw, 1.08rem); font-weight: 600; color: #e9d5ff; }
+        .stock-ticker { font-size: 0.65rem; color: #4a3d6a; font-family: 'Courier New', monospace; margin-left: 6px; }
+        .stock-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }
+        .stock-tag { font-size: 0.58rem; padding: 2px 7px; border: 1px solid rgba(124,58,237,0.3); color: #c4b5fd; border-radius: 2px; background: rgba(124,58,237,0.08); letter-spacing: 0.04em; }
+        .stock-tag.green  { border-color: rgba(74,222,128,0.35); color: #4ade80; background: rgba(74,222,128,0.07); }
+        .stock-tag.yellow { border-color: rgba(251,191,36,0.35); color: #fbbf24; background: rgba(251,191,36,0.06); }
+        .stock-tag.red    { border-color: rgba(248,113,113,0.35); color: #f87171; background: rgba(248,113,113,0.07); }
+
+        .osc-bar-wrap { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+        .osc-bar { flex: 1; height: 3px; background: #1e1535; border-radius: 2px; overflow: hidden; max-width: 120px; }
+        .osc-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
+        .osc-label { font-size: 0.65rem; font-weight: 700; white-space: nowrap; }
+
+        .inv-line { font-size: 0.65rem; color: #86efac; margin-top: 3px; }
+
+        .right-col { text-align: right; flex-shrink: 0; min-width: 90px; }
+        .stock-price { font-size: clamp(0.9rem, 2.5vw, 1rem); font-weight: 700; color: #e9d5ff; }
+        .score-badge { display: inline-block; margin-top: 4px; font-size: 0.7rem; font-weight: 800; color: #a78bfa; background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.3); padding: 2px 9px; border-radius: 10px; }
+
+        .scanning-banner { background: #120d24; border: 1px solid #7c3aed; border-radius: 8px; padding: 20px 24px; text-align: center; margin-bottom: 24px; }
+        .scanning-banner p { font-size: 0.85rem; color: #a78bfa; margin: 0; }
+        .scanning-dot { display: inline-block; width: 8px; height: 8px; background: #7c3aed; border-radius: 50%; margin-right: 8px; animation: pulse 1.2s ease-in-out infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        .empty-state { text-align: center; padding: 60px 20px; }
+        .empty-state p { font-size: 0.85rem; color: #444; margin-top: 12px; }
+
+        .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:500; align-items:center; justify-content:center; padding:16px; }
+        .modal-overlay.open { display:flex; }
+        .modal-box { background: #120d24; border: 1px solid rgba(124,58,237,0.3); max-width:440px; width:100%; padding:26px 22px; position:relative; max-height:85vh; overflow-y:auto; border-radius: 8px; }
+        .modal-close-btn { position:absolute; top:12px; right:16px; background:none; border:none; color:#555; font-size:1.2rem; cursor:pointer; }
+        .modal-close-btn:hover { color:#fff; }
+
+        .progress-bar-wrap { display:none; margin:10px 0; padding:12px 16px; background:#120d24; border-radius:8px; border:1px solid rgba(124,58,237,0.2); }
+
+        @media (max-width: 576px) {
+            .stock-card { grid-template-columns: 36px 1fr; }
+            .right-col { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <a href="/">← 홈</a>
+    <span class="topbar-title">🎯 급등 선취 후보</span>
+</div>
+
+<div class="main">
+    <div class="page-title">급등 선취 후보</div>
+    <div class="page-sub">Pre-Surge Candidates · Oscillator Bottom + Early Investor Entry</div>
+    <div class="purple-line"></div>
+
+    <div class="score-note">
+        <strong>선취 전략</strong> — 급등이 시작되기 <strong>전</strong>에 잡는 종목입니다.
+        오실레이터 바닥에서 상향 전환 중이면서 외인·기관이 초기 진입하는 종목을 탐지합니다.
+        <strong>RSI 바닥 반전 + Stoch 바닥 반전 + MACD 히스토그램 반전 + BB 밴드 수축 + 외인/기관 초기 매수</strong>
+        신호가 겹칠수록 점수가 높습니다.
+        오실레이터와 수급 신호가 모두 있어야 통과합니다.
+    </div>
+
+    <div class="cond-wrap">
+        <span class="cond-chip hard">오실레이터 신호 필수 ★</span>
+        <span class="cond-chip hard">수급 신호 필수 ★</span>
+        <span class="cond-chip hard">저점 대비 30% 이상 상승 제외 ★</span>
+        <span class="cond-chip hard">거래대금 100억↑ ★</span>
+        <span class="cond-chip">RSI 바닥 반전 +15~20</span>
+        <span class="cond-chip">RSI 과매도 상향 +10</span>
+        <span class="cond-chip">Stoch 바닥 반전 +12~15</span>
+        <span class="cond-chip">Stoch 과매도 상향 +8</span>
+        <span class="cond-chip">MACD 히스토그램 반전 +12</span>
+        <span class="cond-chip">BB 밴드 수축 +8~15</span>
+        <span class="cond-chip">외인 3~8일 초기진입 +18</span>
+        <span class="cond-chip">기관 3~8일 초기진입 +14</span>
+        <span class="cond-chip">외인 매도→매수 전환 +12</span>
+        <span class="cond-chip">기관 매도→매수 전환 +10</span>
+    </div>
+
+    <div class="hdr-row">
+        <div class="scan-info" id="scanInfo">
+            {% if scanned_at %}{{ scanned_at }} 기준{% else %}스캔 데이터 없음{% endif %}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="sendAlert()" id="alertBtn" style="padding:8px 14px;background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.35);font-size:0.7rem;font-weight:700;letter-spacing:0.06em;cursor:pointer;border-radius:4px;">📲 텔레그램</button>
+            <button class="scan-btn" id="scanBtn" onclick="triggerScan()">
+                {% if scanning %}<span class="scanning-dot"></span>스캔 중...{% else %}지금 스캔{% endif %}
+            </button>
+        </div>
+    </div>
+
+    <div class="progress-bar-wrap" id="progressBox">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;color:#8877bb;">
+            <span id="progressLabel">분석 준비 중...</span>
+            <span id="progressPct">0%</span>
+        </div>
+        <div style="background:#1e1535;border-radius:4px;height:6px;overflow:hidden;">
+            <div id="progressBar" style="height:100%;background:#7c3aed;width:0%;transition:width 0.4s;"></div>
+        </div>
+        <div id="progressName" style="margin-top:6px;font-size:12px;color:#4a3d6a;min-height:14px;"></div>
+    </div>
+
+    {% if scanning %}
+    <div class="scanning-banner">
+        <p><span class="scanning-dot"></span>전체 종목 스캔 중 — 약 5~10분 소요</p>
+    </div>
+    {% endif %}
+
+    {% if results %}
+    {% for r in results %}
+    {% set osc = r.cur_osc | default(50) %}
+    {% set fs = r.foreign_streak | default(0) %}
+    {% set is_ = r.inst_streak | default(0) %}
+    <div class="stock-card-wrap">
+        <div class="stock-card"
+             data-ticker="{{ r.ticker }}"
+             data-name="{{ r.name }}"
+             data-score="{{ r.score }}"
+             data-signals='{{ r.signals | tojson }}'
+             data-osc="{{ osc }}"
+             onclick="showModal(this)">
+            <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">
+                {{ loop.index }}
+            </div>
+            <div>
+                <div>
+                    <span class="stock-name">{{ r.name }}</span>
+                    <span class="stock-ticker">{{ r.ticker }}</span>
+                </div>
+                <!-- 신호 태그 -->
+                <div class="stock-tags">
+                    {% for sig in r.signals %}
+                    <span class="stock-tag
+                        {%- if '반전' in sig or '초기진입' in sig %} green
+                        {%- elif '전환' in sig %} yellow
+                        {%- elif '수축' in sig %} red
+                        {%- endif %}">{{ sig }}</span>
+                    {% endfor %}
+                </div>
+                <!-- 오실레이터 바 + 레이블 -->
+                <div class="osc-bar-wrap">
+                    {% if osc <= 30 %}
+                        {% set osc_color = '#4ade80' %}
+                        {% set osc_text  = '과매도 바닥 · 매수 적기' %}
+                    {% elif osc <= 45 %}
+                        {% set osc_color = '#fbbf24' %}
+                        {% set osc_text  = '바닥 탈출 중' %}
+                    {% else %}
+                        {% set osc_color = '#94a3b8' %}
+                        {% set osc_text  = '중립 구간' %}
+                    {% endif %}
+                    <div class="osc-bar">
+                        <div class="osc-bar-fill" style="width:{{ osc }}%;background:{{ osc_color }};"></div>
+                    </div>
+                    <span class="osc-label" style="color:{{ osc_color }};">OSC {{ osc }} · {{ osc_text }}</span>
+                </div>
+                <!-- 외인·기관 -->
+                {% if fs >= 1 or is_ >= 1 %}
+                <div class="inv-line">
+                    💰
+                    {% if fs >= 1 %}외인 {{ fs }}일 연속{% endif %}
+                    {% if fs >= 1 and is_ >= 1 %} | {% endif %}
+                    {% if is_ >= 1 %}기관 {{ is_ }}일 연속{% endif %}
+                    순매수
+                </div>
+                {% endif %}
+            </div>
+            <div class="right-col">
+                <div class="stock-price">{{ r.price }}원</div>
+                <div class="score-badge">{{ r.score }}점</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% elif not scanning %}
+    <div class="empty-state">
+        <div style="font-size:2.5rem;">🎯</div>
+        <p>스캔 결과가 없습니다.<br><b>지금 스캔</b> 버튼을 클릭하세요 (약 5~10분 소요).</p>
+        <p style="font-size:0.72rem;color:#333;margin-top:8px;">
+            종목 캐시가 없으면 홈에서 <b>전체 스캔</b>을 먼저 실행하세요.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- 점수 상세 -->
+    <div style="margin-top:40px;padding:20px;background:#0d0a1a;border:1px solid #1e1535;border-radius:8px;">
+        <div style="font-size:0.6rem;color:#333;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:12px;">조건별 점수 배분</div>
+        <table style="width:100%;font-size:0.73rem;color:#555;border-collapse:collapse;">
+            <tr><td style="padding:5px 0;color:#fbbf24;width:55%;">★ 필수 조건</td><td style="color:#fbbf24;">오실레이터 신호 + 수급 신호 둘 다 있어야 통과 / 저점 대비 30%↑ 제외 / 거래대금 100억↑</td></tr>
+            <tr><td style="padding:5px 0;color:#a78bfa;">RSI 바닥 반전 (30 이하 → 상향)</td><td style="color:#c4b5fd;">+15~20점</td></tr>
+            <tr><td style="padding:5px 0;color:#a78bfa;">RSI 과매도 상향 (35 이하)</td><td style="color:#c4b5fd;">+10점</td></tr>
+            <tr><td style="padding:5px 0;color:#a78bfa;">Stoch 바닥 반전 (20 이하 → 상향)</td><td style="color:#c4b5fd;">+12~15점</td></tr>
+            <tr><td style="padding:5px 0;color:#a78bfa;">Stoch 과매도 상향 (25 이하)</td><td style="color:#c4b5fd;">+8점</td></tr>
+            <tr><td style="padding:5px 0;color:#a78bfa;">MACD 히스토그램 음→상향 반전</td><td style="color:#c4b5fd;">+12점</td></tr>
+            <tr><td style="padding:5px 0;color:#a78bfa;">MACD 히스토그램 마이너스 상향</td><td style="color:#c4b5fd;">+7점</td></tr>
+            <tr><td style="padding:5px 0;color:#a78bfa;">BB 밴드 수축 (폭발 직전)</td><td style="color:#c4b5fd;">+15점</td></tr>
+            <tr><td style="padding:5px 0;color:#a78bfa;">BB 밴드 수축 중</td><td style="color:#c4b5fd;">+8점</td></tr>
+            <tr><td style="padding:5px 0;color:#4ade80;">외인 3~8일 초기 진입</td><td style="color:#86efac;">+18점</td></tr>
+            <tr><td style="padding:5px 0;color:#4ade80;">기관 3~8일 초기 진입</td><td style="color:#86efac;">+14점</td></tr>
+            <tr><td style="padding:5px 0;color:#4ade80;">외인 순매도→매수 전환</td><td style="color:#86efac;">+12점</td></tr>
+            <tr><td style="padding:5px 0;color:#4ade80;">기관 순매도→매수 전환</td><td style="color:#86efac;">+10점</td></tr>
+        </table>
+    </div>
+</div>
+
+<!-- 종목 상세 모달 -->
+<div id="infoModal" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal-box">
+        <button class="modal-close-btn" onclick="closeModal()">✕</button>
+        <div style="font-size:0.62rem;color:#6d6a7a;letter-spacing:0.15em;margin-bottom:2px;" id="modalTicker"></div>
+        <div style="font-size:1.1rem;font-weight:700;color:#e9d5ff;margin-bottom:14px;" id="modalName"></div>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+            <div>
+                <div style="font-size:0.58rem;color:#6d6a7a;letter-spacing:0.1em;text-transform:uppercase;">선취 점수</div>
+                <div style="font-size:2rem;font-weight:900;color:#7c3aed;line-height:1;" id="modalScore">—</div>
+            </div>
+            <div>
+                <div style="font-size:0.58rem;color:#6d6a7a;letter-spacing:0.1em;text-transform:uppercase;">OSC</div>
+                <div style="font-size:1.4rem;font-weight:700;line-height:1;" id="modalOsc">—</div>
+            </div>
+        </div>
+        <div style="font-size:0.58rem;color:#6d6a7a;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">감지 신호</div>
+        <ul id="modalSignals" style="list-style:none;padding:0;margin:0 0 18px;"></ul>
+        <div style="display:flex;gap:8px;">
+            <a id="modalDetailBtn" href="#" style="flex:1;padding:11px 4px;text-align:center;background:#7c3aed;color:#fff;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;display:block;border-radius:3px;">상세 분석</a>
+        </div>
+    </div>
+</div>
+
+<script>
+let _curTicker = '', _curName = '';
+
+function showModal(card) {
+    _curTicker = card.dataset.ticker;
+    _curName   = card.dataset.name;
+    const osc  = parseFloat(card.dataset.osc) || 50;
+    document.getElementById('modalTicker').textContent = _curTicker;
+    document.getElementById('modalName').textContent   = _curName;
+    document.getElementById('modalScore').textContent  = card.dataset.score + '점';
+
+    let oscColor = osc <= 30 ? '#4ade80' : osc <= 45 ? '#fbbf24' : '#94a3b8';
+    let oscLabel = osc <= 30 ? '과매도 바닥' : osc <= 45 ? '바닥 탈출 중' : '중립';
+    document.getElementById('modalOsc').innerHTML =
+        `<span style="color:${oscColor};">${osc} · ${oscLabel}</span>`;
+
+    const sigs = JSON.parse(card.dataset.signals || '[]');
+    document.getElementById('modalSignals').innerHTML = sigs.map(s => {
+        let color = '#c4b5fd';
+        if (s.includes('반전') || s.includes('초기진입')) color = '#4ade80';
+        else if (s.includes('전환')) color = '#fbbf24';
+        else if (s.includes('수축')) color = '#f87171';
+        return `<li style="font-size:0.72rem;color:${color};padding:4px 0;border-bottom:1px solid rgba(124,58,237,0.1);">▸ ${s}</li>`;
+    }).join('');
+
+    document.getElementById('modalDetailBtn').href =
+        '/analyze?query=' + encodeURIComponent(_curTicker) + '&months=3';
+    document.getElementById('infoModal').classList.add('open');
+}
+function closeModal() { document.getElementById('infoModal').classList.remove('open'); }
+
+function triggerScan() {
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = true; btn.textContent = '스캔 시작 중...';
+    fetch('/api/pre-surge-refresh', {method: 'POST'})
+        .then(() => {
+            document.getElementById('progressBox').style.display = 'block';
+            pollProgress();
+        })
+        .catch(() => { btn.disabled = false; btn.textContent = '지금 스캔'; });
+}
+
+function pollProgress() {
+    fetch('/api/scan-progress')
+        .then(r => r.json())
+        .then(d => {
+            const ps = d.pre_surge;
+            if (ps) {
+                const pct = ps.total > 0 ? Math.round(ps.current / ps.total * 100) : 0;
+                document.getElementById('progressPct').textContent = pct + '%';
+                document.getElementById('progressBar').style.width = pct + '%';
+                document.getElementById('progressLabel').textContent = '선취 스캔 중...';
+                document.getElementById('progressName').textContent = ps.name || '';
+                if (pct < 100) { setTimeout(pollProgress, 3000); return; }
+            }
+            // 완료 — 페이지 새로고침
+            setTimeout(() => location.reload(), 1500);
+        })
+        .catch(() => setTimeout(pollProgress, 5000));
+}
+
+function sendAlert() {
+    const btn = document.getElementById('alertBtn');
+    btn.disabled = true; btn.textContent = '발송 중...';
+    fetch('/api/pre-surge-alert')
+        .then(r => r.json())
+        .then(d => {
+            btn.textContent = d.ok ? '✓ 발송완료' : '✗ 실패: ' + (d.error || '');
+            setTimeout(() => { btn.disabled = false; btn.textContent = '📲 텔레그램'; }, 3000);
+        })
+        .catch(() => { btn.disabled = false; btn.textContent = '📲 텔레그램'; });
+}
+</script>
+</body>
+</html>
