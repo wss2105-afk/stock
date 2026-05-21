@@ -554,16 +554,25 @@ def _check_ma_bounce(name, ticker):
         old_vol    = df.iloc[-25:-5]['volume'].mean()
         vol_ratio  = round(recent_vol / old_vol, 1) if old_vol > 0 else 1.0
 
+        investor_df = cached.get('investor_df')
+        fs, is_ = 0, 0
+        if investor_df is not None and not investor_df.empty:
+            fs  = (_count_consecutive_buying(investor_df, '외국인')
+                   or _count_consecutive_buying(investor_df, '외인'))
+            is_ = _count_consecutive_buying(investor_df, '기관')
+
         return {
-            'name':        name,
-            'ticker':      ticker,
-            'price':       f"{int(cur):,}",
-            'rebound_pct': round(rebound_pct, 1),
-            'vol_ratio':   vol_ratio,
-            'touched_mas': touched,
-            'touch_count': len(touched),
-            'sort_key':    len(touched) * 10 + rebound_pct,
-            'type':        'bounce',
+            'name':           name,
+            'ticker':         ticker,
+            'price':          f"{int(cur):,}",
+            'rebound_pct':    round(rebound_pct, 1),
+            'vol_ratio':      vol_ratio,
+            'touched_mas':    touched,
+            'touch_count':    len(touched),
+            'sort_key':       len(touched) * 10 + rebound_pct,
+            'type':           'bounce',
+            'foreign_streak': fs,
+            'inst_streak':    is_,
         }
     except Exception:
         return None

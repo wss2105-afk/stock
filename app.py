@@ -673,12 +673,16 @@ def _find_cross_picks():
     except Exception:
         pass
 
-    # MA반등 +20
+    # MA반등 +20 + 수급 보너스
     try:
         c = _load_surge_cache()
         for r in (c.get('bounce', []) if c else []):
+            bonus, sig, fs, is_ = _investor_bonus(r)
+            _track(r['ticker'], fs, is_)
+            mas = r.get('touched_mas', [])
+            label = '/'.join(mas) if mas else r.get('ma_label', '')
             _add('MA반등', r['ticker'], r['name'],
-                 [f"{r.get('ma_label','')} 반등 (눌림 {r.get('pullback_pct','')}%)"], 20)
+                 [f"{label} 반등 (눌림 {r.get('pullback_pct', '')}%)"] + sig, 20 + bonus)
     except Exception:
         pass
 
@@ -762,9 +766,12 @@ def _find_cross_picks():
     except Exception:
         pass
 
-    # 2개 이상 스캔 등장 + 합산 점수 양수 (과매수는 패널티만, 완전 제외 없음)
+    # 2개 이상 스캔 등장 + 합산 점수 양수 + 수급 최소 조건 + 과매수 완전 제외
     picks = [v for v in ticker_map.values()
-             if len(v['scans']) >= 2 and v['total_score'] > 0]
+             if len(v['scans']) >= 2
+             and v['total_score'] > 0
+             and (v.get('foreign_streak', 0) > 0 or v.get('inst_streak', 0) > 0)
+             and v['ticker'] not in overbought_tickers]
 
     for p in picks:
         p['osc_score']   = osc_score_map.get(p['ticker'])
