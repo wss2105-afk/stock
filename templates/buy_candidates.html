@@ -204,6 +204,7 @@
                 <div class="investor-info">
                     {% if r.foreign_days >= 6 %}외인 {{ r.foreign_days }}/10일{% endif %}
                     {% if r.inst_days >= 6 %} 기관 {{ r.inst_days }}/10일{% endif %}
+                    {% if r.pe_days is defined and r.pe_days >= 4 %}<span style="color:#c084fc;"> 사모 {{ r.pe_days }}/10일</span>{% endif %}
                 </div>
             </div>
         </div>
@@ -231,6 +232,7 @@
             <tr><td style="padding:5px 0;color:#777;">MACD 히스토그램</td><td style="color:#4ade80;">4일 전 대비 개선 (상승 모멘텀)</td></tr>
             <tr><td style="padding:5px 0;color:#777;">거래량</td><td style="color:#4ade80;">최근 5일 평균 > 직전 20일 평균</td></tr>
             <tr><td style="padding:5px 0;color:#777;">수급</td><td style="color:#4ade80;">외국인 AND 기관 각각 최근 10일 중 6일↑ 순매수</td></tr>
+            <tr><td style="padding:5px 0;color:#c084fc;">사모펀드</td><td style="color:#c084fc;">최근 10일 중 4일↑ 순매수 시 +5~12점 추가</td></tr>
             <tr><td style="padding:5px 0;color:#777;">제외</td><td style="color:#f87171;">투자주의·경고·위험·관리종목·불성실공시</td></tr>
         </table>
     </div>

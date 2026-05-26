@@ -160,6 +160,8 @@
             <div class="stock-meta">{{ s.ticker }} · RSI {{ s.rsi }}
                 {% if s.foreign_streak >= 3 %} · <span style="color:#FFC000;">외인 {{ s.foreign_streak }}일↑</span>{% endif %}
                 {% if s.inst_streak >= 3 %} · <span style="color:#29ABE2;">기관 {{ s.inst_streak }}일↑</span>{% endif %}
+                {% if s.pe_streak is defined and s.pe_streak >= 2 %} · <span style="color:#c084fc;">사모 {{ s.pe_streak }}일↑</span>{% endif %}
+                {% if s.pen_streak is defined and s.pen_streak >= 2 %} · <span style="color:#86efac;">연기금 {{ s.pen_streak }}일↑</span>{% endif %}
                 {% if s.joint_star %} · <span style="color:#FFC000;">동시매수 {{ s.joint_days }}/20일</span>{% endif %}
                 {% if s.momentum_tags %} · <span style="color:#a78bfa;">{{ s.momentum_tags[:2]|join(' · ') }}</span>{% endif %}
             </div>
@@ -740,7 +742,7 @@ function showCriteria() {
     <div class="badge badge-score">S</div>
     <div style="flex:1">
       <div class="cond-name">수급 보너스</div>
-      <div class="cond-detail">외인 연속매수 5일↑ +4 / 기관 연속매수 3일↑ +2 / 외인+기관 동시매수 20일 중 절반이상 +4 / 매수세 2배 급증 +3</div>
+      <div class="cond-detail">외인 연속매수 5일↑ +4 / 기관 연속매수 3일↑ +2 / 외인+기관 동시매수 20일 중 절반이상 +4 / 매수세 2배 급증 +3 / <span style="color:#c084fc;">사모펀드 7/10일↑ +4 · 연속매수 3일↑ +2</span> / <span style="color:#86efac;">연기금 7/10일↑ +4 · 연속매수 3일↑ +2</span></div>
     </div>
   </div>
   <div class="row">

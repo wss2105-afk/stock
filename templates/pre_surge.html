@@ -46,6 +46,7 @@
         .stock-tag.green  { border-color: rgba(74,222,128,0.35); color: #4ade80; background: rgba(74,222,128,0.07); }
         .stock-tag.yellow { border-color: rgba(251,191,36,0.35); color: #fbbf24; background: rgba(251,191,36,0.06); }
         .stock-tag.red    { border-color: rgba(248,113,113,0.35); color: #f87171; background: rgba(248,113,113,0.07); }
+        .stock-tag.purple { border-color: rgba(192,132,252,0.4); color: #c084fc; background: rgba(192,132,252,0.09); }
 
         .osc-bar-wrap { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
         .osc-bar { flex: 1; height: 3px; background: #1e1535; border-radius: 2px; overflow: hidden; max-width: 120px; }
@@ -155,6 +156,7 @@
     {% set osc = r.cur_osc | default(50) %}
     {% set fs = r.foreign_streak | default(0) %}
     {% set is_ = r.inst_streak | default(0) %}
+    {% set ps_ = r.pe_streak | default(0) %}
     <div class="stock-card-wrap">
         <div class="stock-card"
              data-ticker="{{ r.ticker }}"
@@ -177,7 +179,8 @@
                     <span class="stock-tag
                         {%- if '1일차★' in sig or '동시전환' in sig or '스텔스매집' in sig %} green
                         {%- elif '반전' in sig or '초기진입' in sig %} green
-                        {%- elif '전환' in sig or '가속' in sig or '연속증가' in sig or '역대급' in sig or '초과매수' in sig or '수급동조' in sig or '매수시작' in sig %} yellow
+                        {%- elif '사모펀드' in sig %} purple
+                    {%- elif '전환' in sig or '가속' in sig or '연속증가' in sig or '역대급' in sig or '초과매수' in sig or '수급동조' in sig or '매수시작' in sig %} yellow
                         {%- elif '수축' in sig %} red
                         {%- endif %}">{{ sig }}</span>
                     {% endfor %}
@@ -200,12 +203,13 @@
                     <span class="osc-label" style="color:{{ osc_color }};">OSC {{ osc }} · {{ osc_text }}</span>
                 </div>
                 <!-- 외인·기관 -->
-                {% if fs >= 1 or is_ >= 1 %}
+                {% if fs >= 1 or is_ >= 1 or ps_ >= 1 %}
                 <div class="inv-line">
                     💰
                     {% if fs >= 1 %}외인 {{ fs }}일 연속{% endif %}
                     {% if fs >= 1 and is_ >= 1 %} | {% endif %}
                     {% if is_ >= 1 %}기관 {{ is_ }}일 연속{% endif %}
+                    {% if ps_ >= 1 %}{% if fs >= 1 or is_ >= 1 %} | {% endif %}<span style="color:#c084fc;">사모 {{ ps_ }}일 연속</span>{% endif %}
                     순매수
                 </div>
                 {% endif %}

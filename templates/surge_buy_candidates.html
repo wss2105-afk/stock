@@ -226,6 +226,7 @@
                     거래대금 {{ r.avg_tv_b | int }}억
                     {% if r.vol_ratio is defined %}&nbsp;·&nbsp; 거래량 {{ r.vol_ratio }}배{% endif %}
                     {% if r.debt_ratio and r.debt_ratio != 'N/A' %}&nbsp;·&nbsp; 부채 {{ r.debt_ratio }}%{% endif %}
+                    {% if r.pe_days is defined and r.pe_days >= 3 %}&nbsp;·&nbsp;<span style="color:#c084fc;">사모 {{ r.pe_days }}/10일{% if r.pe_streak >= 3 %} · {{ r.pe_streak }}일연속{% endif %}</span>{% endif %}
                 </div>
             </div>
             <div class="right-col">
