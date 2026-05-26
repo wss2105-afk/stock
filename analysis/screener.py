@@ -346,6 +346,7 @@ def _check_supply_one(name, ticker, months=3):
         foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
         inst_col = next((c for c in investor_df.columns if '기관' in c
                          and '금융' not in c and '연기금' not in c), None)
+        pe_col = next((c for c in investor_df.columns if '사모' in c), None)
         if not foreign_col or not inst_col:
             return None
 
@@ -434,8 +435,26 @@ def _check_supply_one(name, ticker, months=3):
         # ⑤ 최근 집중도: 비중%÷10점 (최대 10점)
         score_conc     = min(round(recent_weight_pct / 10), 10) if concentration_signal else 0
 
+        # ⑥ 사모펀드 순매수 (최대 15점)
+        pe_days   = 0
+        pe_streak = 0
+        pe_net    = 0
+        pe_signal = False
+        score_pe  = 0
+        if pe_col is not None and len(investor_df) >= 5:
+            last10_pe = investor_df[pe_col].tail(10)
+            pe_days   = int((last10_pe > 0).sum())
+            pe_net    = int(last10_pe.sum())
+            pe_streak = _count_consecutive_buying(investor_df, '사모')
+            if pe_days >= 7:
+                score_pe = 15; pe_signal = True
+            elif pe_days >= 5:
+                score_pe = 10; pe_signal = True
+            elif pe_days >= 3:
+                score_pe = 5
+
         supply_score = (score_streak + score_freq_f + score_freq_i +
-                        score_surge + score_rev_f + score_rev_i + score_conc)
+                        score_surge + score_rev_f + score_rev_i + score_conc + score_pe)
 
         score_breakdown = {
             '수급지속성': score_streak,
@@ -445,6 +464,7 @@ def _check_supply_one(name, ticker, months=3):
             '외인전환':   score_rev_f,
             '기관전환':   score_rev_i,
             '최근집중도': score_conc,
+            '사모펀드':   score_pe,
         }
 
         return {
@@ -458,6 +478,10 @@ def _check_supply_one(name, ticker, months=3):
             'inst_streak': i_streak,
             'foreign_net': f_net,
             'inst_net': i_net,
+            'pe_days':   pe_days,
+            'pe_streak': pe_streak,
+            'pe_net':    pe_net,
+            'pe_signal': pe_signal,
             'meets_a': meets_a,
             'meets_b': meets_b,
             'surge_ratio': surge_ratio,
@@ -1016,6 +1040,23 @@ def _check_buy_candidate(name, ticker):
                                   _count_consecutive_buying(investor_df, '외인'))
                 inst_streak    = _count_consecutive_buying(investor_df, '기관')
 
+        # 사모펀드 순매수 (최대 +12)
+        pe_days = pe_streak = 0
+        if not investor_df.empty:
+            pe_col = next((c for c in investor_df.columns if '사모' in c), None)
+            if pe_col:
+                last10_pe = investor_df[pe_col].tail(10)
+                pe_days   = int((last10_pe > 0).sum())
+                pe_streak = _count_consecutive_buying(investor_df, '사모')
+                if pe_days >= 8:
+                    score += 12; tags.append(f'사모{pe_days}/10일'); reasons.append(f'사모펀드 {pe_days}/10일 매수 (+12)')
+                elif pe_days >= 6:
+                    score += 9;  tags.append(f'사모{pe_days}/10일'); reasons.append(f'사모펀드 {pe_days}/10일 매수 (+9)')
+                elif pe_days >= 4:
+                    score += 5;  reasons.append(f'사모펀드 {pe_days}/10일 매수 (+5)')
+                if pe_streak >= 4 and pe_days < 8:
+                    score += 5;  tags.append(f'사모{pe_streak}일연속'); reasons.append(f'사모펀드 {pe_streak}일 연속매수 (+5)')
+
         # 스텔스 매집 (거래량↓ + 외인/기관 순매수)
         acc_score, acc_tags = _calc_accumulation_score(ohlcv, investor_df)
         if acc_score:
@@ -1048,6 +1089,8 @@ def _check_buy_candidate(name, ticker):
             'inst_streak':    inst_streak,
             'foreign_days':   foreign_days,
             'inst_days':      inst_days,
+            'pe_days':        pe_days,
+            'pe_streak':      pe_streak,
             'debt_ratio':     debt_ratio_raw,
             'avg_tv_b':       round(avg_tv / 1e8, 0),
             'tags':           tags,
@@ -1327,6 +1370,26 @@ def _check_surge_phase1(name, ticker):
         elif joint_d >= 3:
             score += 6; reasons.append(f'외인+기관 동시매수 {joint_d}일 (+6)')
 
+        # 사모펀드 순매수
+        pe_streak_sp = 0
+        pe_days_sp   = 0
+        if not investor_df.empty:
+            pe_col_sp = next((c for c in investor_df.columns if '사모' in c), None)
+            if pe_col_sp:
+                last10_sp = investor_df[pe_col_sp].tail(10)
+                pe_days_sp   = int((last10_sp > 0).sum())
+                pe_streak_sp = _count_consecutive_buying(investor_df, '사모')
+                if pe_days_sp >= 7:
+                    score += 12; tags.append(f'사모{pe_days_sp}/10일'); reasons.append(f'사모펀드 {pe_days_sp}/10일 매수 (+12)')
+                elif pe_days_sp >= 5:
+                    score += 8;  reasons.append(f'사모펀드 {pe_days_sp}/10일 매수 (+8)')
+                elif pe_days_sp >= 3:
+                    score += 4;  reasons.append(f'사모펀드 {pe_days_sp}/10일 매수 (+4)')
+                if pe_streak_sp >= 5:
+                    score += 8;  tags.append(f'사모{pe_streak_sp}일연속'); reasons.append(f'사모펀드 {pe_streak_sp}일 연속매수 (+8)')
+                elif pe_streak_sp >= 3:
+                    score += 5;  reasons.append(f'사모펀드 {pe_streak_sp}일 연속매수 (+5)')
+
         # ── 스텔스 매집 ───────────────────────────────────────
         acc_score, acc_tags = _calc_accumulation_score(ohlcv, investor_df)
         if acc_score:
@@ -1361,6 +1424,7 @@ def _check_surge_phase1(name, ticker):
             'debt_ratio': debt_raw,
             'avg_tv_b': round(avg_tv / 1e8, 0),
             'foreign_streak': frgn, 'inst_streak': inst,
+            'pe_streak': pe_streak_sp, 'pe_days': pe_days_sp,
             '_vol20': float(ohlcv['volume'].tail(20).mean()),
             '_prev_close': float(ohlcv['close'].iloc[-2]) if len(ohlcv) >= 2 else cur,
         }
@@ -1779,6 +1843,36 @@ def scan_top_stocks(top_n=20, months=6, max_workers=8):
             if buying_surge_star:     score += 3; reasons.append("최근 매수세 2배↑ 급증 (+3점)")
             if volume_surge:          score += 2; reasons.append("외인+기관 수급량 1.5배↑ (+2점)")
 
+            # 사모펀드 순매수
+            pe_streak_t = pe_days_t = 0
+            if not investor_df.empty:
+                pe_col_t = next((c for c in investor_df.columns if '사모' in c), None)
+                if pe_col_t:
+                    last10_t   = investor_df[pe_col_t].tail(10)
+                    pe_days_t  = int((last10_t > 0).sum())
+                    pe_streak_t = _count_consecutive_buying(investor_df, '사모')
+                    if pe_days_t >= 7:
+                        score += 4; reasons.append(f"사모펀드 {pe_days_t}/10일 매수 (+4점)")
+                    elif pe_days_t >= 5:
+                        score += 2; reasons.append(f"사모펀드 {pe_days_t}/10일 매수 (+2점)")
+                    if pe_streak_t >= 3:
+                        score += 2; reasons.append(f"사모펀드 {pe_streak_t}일 연속 매수 (+2점)")
+
+            # 연기금 순매수
+            pen_streak = pen_days = 0
+            if not investor_df.empty:
+                pen_col = next((c for c in investor_df.columns if '연기금' in c), None)
+                if pen_col:
+                    last10_pen = investor_df[pen_col].tail(10)
+                    pen_days   = int((last10_pen > 0).sum())
+                    pen_streak = _count_consecutive_buying(investor_df, '연기금')
+                    if pen_days >= 7:
+                        score += 4; reasons.append(f"연기금 {pen_days}/10일 매수 (+4점)")
+                    elif pen_days >= 5:
+                        score += 2; reasons.append(f"연기금 {pen_days}/10일 매수 (+2점)")
+                    if pen_streak >= 3:
+                        score += 2; reasons.append(f"연기금 {pen_streak}일 연속 매수 (+2점)")
+
             score_pct = max(0, min(100, round((score + 14) / 50 * 100)))
             recommendation, rec_color = get_recommendation(score)
 
@@ -1804,6 +1898,8 @@ def scan_top_stocks(top_n=20, months=6, max_workers=8):
                 'buying_surge_star': bool(buying_surge_star),
                 'avg_trading_value_b': round(avg_tv / 1e8, 0),
                 'stoch': stoch_v, 'mfi': mfi_v, 'bb_pct': bb_pct_v,
+                'pe_streak': pe_streak_t, 'pe_days': pe_days_t,
+                'pen_streak': pen_streak, 'pen_days': pen_days,
                 '_investor_df': investor_df,   # Phase3용 임시 보관
             }
         except Exception:
@@ -2038,9 +2134,11 @@ def _check_pre_surge(name, ticker):
             fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
             ic = next((c for c in investor_df.columns if '기관' in c
                        and '금융' not in c and '연기금' not in c), None)
+            pc = next((c for c in investor_df.columns if '사모' in c), None)
 
             f_vals = list(investor_df[fc].tail(20)) if fc else []
             i_vals = list(investor_df[ic].tail(20)) if ic else []
+            p_vals = list(investor_df[pc].tail(20)) if pc else []
 
             # ① 순매도→순매수 전환 첫날 (★★★★★ 가장 선행적)
             f_day1 = False
@@ -2159,6 +2257,61 @@ def _check_pre_surge(name, ticker):
                         inv_score += 6
                         signals.append(f'기관 스텔스매집({i_pos5}일)')
 
+            # ⑥ 사모펀드 — 초기 진입 선행 포착 (비중↑)
+            p_day1 = False
+            ps_    = 0
+            if pc and len(p_vals) >= 6:
+                p_today  = p_vals[-1]
+                p_yest   = p_vals[-2]
+                p_prior5 = sum(p_vals[-6:-1])
+                if p_today > 0 and p_yest <= 0 and p_prior5 < 0:
+                    p_day1 = True
+                    inv_score += 20
+                    signals.append('사모펀드 순매도→매수전환(1일차★)')
+                    if f_day1 or i_day1:
+                        inv_score += 10
+                        signals.append('사모+외인/기관 동시전환(★★)')
+            if not p_day1 and pc:
+                ps_ = _count_consecutive_buying(investor_df, '사모')
+                if 2 <= ps_ <= 8:
+                    inv_score += 16
+                    signals.append(f'사모펀드 {ps_}일 초기진입')
+                elif ps_ == 1:
+                    inv_score += 8
+                    signals.append('사모펀드 매수시작')
+            else:
+                ps_ = 1 if p_day1 else 0
+            if pc and len(p_vals) >= 3:
+                pd1, pd2, pd3 = p_vals[-1], p_vals[-2], p_vals[-3]
+                if pd1 > 0 and pd2 > 0 and pd1 > pd2 * 1.5:
+                    inv_score += 12
+                    signals.append(f'사모펀드 매수가속(+{int((pd1/max(pd2,1)-1)*100)}%)')
+                elif pd1 > 0 and pd2 > 0 and pd3 > 0 and pd1 > pd2 and pd2 > pd3:
+                    inv_score += 7
+                    signals.append('사모펀드 매수3일연속증가')
+            if pc and len(p_vals) >= 10:
+                p_pos_hist = [v for v in p_vals[:-3] if v > 0]
+                if p_pos_hist and p_vals[-1] > 0:
+                    p_mean = sum(p_pos_hist) / len(p_pos_hist)
+                    p_ratio = p_vals[-1] / p_mean
+                    if p_ratio >= 2.0:
+                        inv_score += 13
+                        signals.append(f'사모펀드 역대급매수({p_ratio:.1f}x)')
+                    elif p_ratio >= 1.3:
+                        inv_score += 6
+                        signals.append(f'사모펀드 평균초과매수({p_ratio:.1f}x)')
+            if len(ohlcv) >= 7 and p_vals:
+                _p5c = ohlcv['close'].tail(5)
+                _prng = (float(_p5c.max()) - float(_p5c.min())) / max(float(_p5c.min()), 1) * 100
+                if _prng < 3.0:
+                    p_pos5 = sum(1 for v in p_vals[-5:] if v > 0)
+                    if p_pos5 >= 4:
+                        inv_score += 14
+                        signals.append(f'사모펀드 스텔스매집(보합+{p_pos5}일)')
+                    elif p_pos5 >= 3:
+                        inv_score += 7
+                        signals.append(f'사모펀드 스텔스매집({p_pos5}일)')
+
         score += inv_score
 
         # ── 최소 조건: 수급 우선 — inv_score 20 미만이면 탈락 ──────
@@ -2182,6 +2335,7 @@ def _check_pre_surge(name, ticker):
             'signals':        signals,
             'foreign_streak': fs,
             'inst_streak':    is_,
+            'pe_streak':      ps_,
             'cur_osc':        cur_osc,
             'sort_key':       inv_score * 2 + osc_score + bb_score,
         }
