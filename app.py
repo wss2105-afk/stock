@@ -257,6 +257,7 @@ _SCAN_LABELS = {
     'surge':      'MA반등/급등',
     'buy':        '매수후보(단기)',
     'surge_buy':  '급등주 매수후보',
+    'pre_surge':  '급등 선취 후보',
 }
 _scan_status: dict = {}
 _scan_status_lock = threading.Lock()
@@ -363,6 +364,9 @@ def _auto_build_cache():
         surge_buy = _load_surge_buy_cache()
         if not surge_buy or not surge_buy.get('results'):
             threading.Thread(target=_run_surge_buy_scan, daemon=True).start()
+        pre_surge = _load_pre_surge_cache()
+        if not pre_surge or not pre_surge.get('results'):
+            threading.Thread(target=_run_pre_surge_scan, daemon=True).start()
     except Exception as e:
         print(f'캐시 빌드 오류: {e}')
 
@@ -1023,6 +1027,7 @@ def _run_pre_surge_scan():
     """선취 후보 스캔 → pre_surge_cache.json 저장"""
     global _pre_surge_scanning
     _pre_surge_scanning = True
+    _status_set('pre_surge', 'running')
     try:
         results = scan_pre_surge(top_n=10)
         now_kst = (datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')
@@ -1034,6 +1039,7 @@ def _run_pre_surge_scan():
         print(f'[선취스캔] 오류: {e}')
     finally:
         _pre_surge_scanning = False
+        _status_set('pre_surge', 'done')
 
 
 def _send_pre_surge_alert(results: list):
@@ -1529,7 +1535,15 @@ def scan_all():
     threading.Thread(target=_run_export_scan, daemon=True).start()
     threading.Thread(target=_run_buy_candidate_scan, daemon=True).start()
     threading.Thread(target=_run_surge_buy_scan, daemon=True).start()
+    threading.Thread(target=_run_pre_surge_scan, daemon=True).start()
     return jsonify({'status': 'scanning', 'message': '모든 스캔 시작됨 — 완료까지 30~60분 소요'})
+
+
+@app.route('/api/rebuild-cache', methods=['POST'])
+def rebuild_cache_api():
+    """캐시 만료 시 수동 재빌드 트리거 (약 5분 소요)"""
+    threading.Thread(target=_auto_build_cache, daemon=True).start()
+    return jsonify({'status': 'building', 'message': '캐시 재빌드 시작 — 약 5분 소요 후 스캔 자동 실행됩니다'})
 
 
 @app.route('/api/scan-progress')

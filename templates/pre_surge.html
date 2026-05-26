@@ -319,14 +319,19 @@ function pollProgress() {
     fetch('/api/scan-progress')
         .then(r => r.json())
         .then(d => {
-            const ps = d.pre_surge;
-            if (ps) {
+            const ps = d.items && d.items.find(x => x.key === 'pre_surge');
+            if (ps && ps.status === 'running') {
                 const pct = ps.total > 0 ? Math.round(ps.current / ps.total * 100) : 0;
                 document.getElementById('progressPct').textContent = pct + '%';
                 document.getElementById('progressBar').style.width = pct + '%';
                 document.getElementById('progressLabel').textContent = '선취 스캔 중...';
                 document.getElementById('progressName').textContent = ps.name || '';
-                if (pct < 100) { setTimeout(pollProgress, 3000); return; }
+                setTimeout(pollProgress, 3000);
+                return;
+            }
+            if (ps && ps.status === 'done') {
+                document.getElementById('progressPct').textContent = '100%';
+                document.getElementById('progressBar').style.width = '100%';
             }
             // 완료 — 페이지 새로고침
             setTimeout(() => location.reload(), 1500);

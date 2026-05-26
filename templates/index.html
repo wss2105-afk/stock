@@ -283,6 +283,7 @@
 
     <button class="features-toggle-btn" onclick="openFeaturesModal()">핵심 기능 안내 보기 ↓</button>
     <button id="scanAllBtn" onclick="triggerScanAll()" style="display:block;width:100%;margin-top:10px;padding:10px 0;background:linear-gradient(90deg,#1a1f3c,#2d3a8c);color:#fff;border:1px solid rgba(99,132,255,0.4);border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;letter-spacing:0.08em;">⚡ 전체 스캔 실행</button>
+    <button id="rebuildCacheBtn" onclick="triggerRebuildCache()" style="display:block;width:100%;margin-top:6px;padding:8px 0;background:transparent;color:#64748b;border:1px solid rgba(99,132,255,0.2);border-radius:8px;font-size:0.7rem;font-weight:600;cursor:pointer;letter-spacing:0.06em;">🔄 캐시 재빌드 (만료 시)</button>
 </div>
 
 <!-- 전체 스캔 진행률 오버레이 -->
@@ -590,6 +591,19 @@ function toggleCpOscInterp() {
 
 // ── 전체 스캔 진행률 ──────────────────────────────────────────
 let _scanPollTimer = null;
+
+function triggerRebuildCache() {
+    const btn = document.getElementById('rebuildCacheBtn');
+    btn.disabled = true;
+    btn.textContent = '재빌드 중... (약 5분)';
+    fetch('/api/rebuild-cache', {method: 'POST'})
+        .then(r => r.json())
+        .then(d => {
+            btn.textContent = d.message || '재빌드 시작됨';
+            setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 캐시 재빌드 (만료 시)'; }, 300000);
+        })
+        .catch(() => { btn.disabled = false; btn.textContent = '🔄 캐시 재빌드 (만료 시)'; });
+}
 
 function triggerScanAll() {
     const btn = document.getElementById('scanAllBtn');
