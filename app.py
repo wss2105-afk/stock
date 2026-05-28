@@ -1541,39 +1541,51 @@ def scan_all():
 
 @app.route('/api/krx-test')
 def krx_test():
-    """KRX 인증 + 사모 컬럼 반환 여부 테스트"""
+    """KRX 인증 + 사모 컬럼 반환 여부 테스트 (세션 주입 포함)"""
     from pykrx import stock as _stk
+    from pykrx.website.comm import webio as _webio
     from pykrx.website.comm.auth import build_krx_session
     from datetime import datetime, timedelta
     krx_id = os.getenv('KRX_ID', '')
     krx_pw = os.getenv('KRX_PW', '')
-    # 인증 시도
+    # 인증 후 pykrx 내부 세션에 주입
     auth_ok = False
     auth_msg = ''
     try:
         sess = build_krx_session(krx_id, krx_pw)
-        auth_ok = sess is not None and sess.is_valid()
+        _webio._session = sess
+        auth_ok = sess is not None
         auth_msg = 'success' if auth_ok else 'failed'
     except Exception as e:
         auth_msg = str(e)
-    # 수급 데이터 조회
     end = datetime.today().strftime('%Y%m%d')
     start = (datetime.today() - timedelta(days=20)).strftime('%Y%m%d')
-    cols, has_samo, rows = [], False, 0
-    try:
-        df = _stk.get_market_trading_volume_by_date(start, end, '005930', on='순매수')
-        cols = list(df.columns)
-        has_samo = any('사모' in c for c in cols)
-        rows = len(df)
-    except Exception as e:
-        cols = [str(e)]
+    # on 파라미터 3가지 조합 모두 테스트
+    results = {}
+    for on_val in ['순매수', '매수', None]:
+        key = on_val if on_val else 'default'
+        try:
+            if on_val:
+                df = _stk.get_market_trading_volume_by_date(start, end, '005930', on=on_val)
+            else:
+                df = _stk.get_market_trading_volume_by_date(start, end, '005930')
+            results[key] = {
+                'cols': list(df.columns),
+                'has_samo': any('사모' in c for c in df.columns),
+                'rows': len(df),
+            }
+        except Exception as e:
+            results[key] = {'error': str(e)}
+    # 전체 요약
+    any_samo = any(r.get('has_samo', False) for r in results.values())
+    best = next((k for k, r in results.items() if r.get('has_samo')), None)
     return jsonify({
         'krx_id_set': bool(krx_id),
         'auth': auth_msg,
         'auth_ok': auth_ok,
-        'columns': cols,
-        'has_samo': has_samo,
-        'rows': rows
+        'has_samo_any': any_samo,
+        'best_on': best,
+        'results': results,
     })
 
 

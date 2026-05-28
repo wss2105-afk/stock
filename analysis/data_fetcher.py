@@ -4,6 +4,25 @@ from datetime import datetime, timedelta
 import json
 import os
 
+_krx_auth_done = False
+
+def _ensure_krx_auth():
+    """pykrx 내부 세션을 KRX_ID/KRX_PW로 인증 (최초 1회)"""
+    global _krx_auth_done
+    if _krx_auth_done:
+        return
+    try:
+        krx_id = os.getenv('KRX_ID', '')
+        krx_pw = os.getenv('KRX_PW', '')
+        if not krx_id or not krx_pw:
+            return
+        from pykrx.website.comm import webio
+        from pykrx.website.comm.auth import build_krx_session
+        webio._session = build_krx_session(krx_id, krx_pw)
+        _krx_auth_done = True
+    except Exception:
+        pass
+
 
 _TICKER_DB_PATH     = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
 _ALL_TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_all_tickers.json')
@@ -184,20 +203,26 @@ def get_ohlcv(ticker, months=3):
 
 
 def get_investor_detail(ticker, months=3):
-    """연기금/금융투자 포함 상세 수급 (pykrx → Naver 폴백)"""
+    """연기금/금융투자/사모 포함 상세 수급 (pykrx 인증 세션 → Naver 폴백)"""
+    _ensure_krx_auth()
     start, end = get_date_range(months)
-    # 1차: pykrx (순매수량)
+    # 1차: pykrx — on 없이 호출해야 사모 포함 12컬럼 반환
     try:
-        try:
-            df = stock.get_market_trading_volume_by_date(start, end, ticker, on='순매수')
-        except TypeError:
-            df = stock.get_market_trading_volume_by_date(start, end, ticker)
+        df = stock.get_market_trading_volume_by_date(start, end, ticker)
+        if not df.empty and '사모' in df.columns:
+            df.index = pd.to_datetime(df.index)
+            return df
+    except Exception:
+        pass
+    # 2차: pykrx 순매수 모드 (인증 없어도 5컬럼 반환)
+    try:
+        df = stock.get_market_trading_volume_by_date(start, end, ticker, on='순매수')
         if not df.empty:
             df.index = pd.to_datetime(df.index)
             return df
     except Exception:
         pass
-    # 2차: Naver Finance 스크래핑 (외국인·기관 순매수)
+    # 3차: Naver Finance 스크래핑 (외국인·기관 순매수)
     return _get_investor_naver(ticker, months)
 
 
