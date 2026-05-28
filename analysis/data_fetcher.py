@@ -4,21 +4,6 @@ from datetime import datetime, timedelta
 import json
 import os
 
-_krx_authenticated = False
-
-def _ensure_krx_login():
-    """KRX 로그인 (최초 1회만 실행)"""
-    global _krx_authenticated
-    if _krx_authenticated:
-        return
-    krx_id = os.getenv('KRX_ID')
-    krx_pw = os.getenv('KRX_PW')
-    if krx_id and krx_pw:
-        try:
-            stock.authenticate(krx_id, krx_pw)
-            _krx_authenticated = True
-        except Exception:
-            pass
 
 _TICKER_DB_PATH     = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
 _ALL_TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_all_tickers.json')
@@ -200,7 +185,6 @@ def get_ohlcv(ticker, months=3):
 
 def get_investor_detail(ticker, months=3):
     """연기금/금융투자 포함 상세 수급 (pykrx → Naver 폴백)"""
-    _ensure_krx_login()
     start, end = get_date_range(months)
     # 1차: pykrx (순매수량)
     try:
