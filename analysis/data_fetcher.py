@@ -6,9 +6,11 @@ import os
 
 _krx_authenticated = False
 
-def _krx_login():
-    """백그라운드에서 KRX 로그인 (블로킹 방지)"""
+def _ensure_krx_login():
+    """KRX 로그인 (최초 1회만 실행)"""
     global _krx_authenticated
+    if _krx_authenticated:
+        return
     krx_id = os.getenv('KRX_ID')
     krx_pw = os.getenv('KRX_PW')
     if krx_id and krx_pw:
@@ -17,9 +19,6 @@ def _krx_login():
             _krx_authenticated = True
         except Exception:
             pass
-
-import threading as _threading
-_threading.Thread(target=_krx_login, daemon=True).start()
 
 _TICKER_DB_PATH     = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
 _ALL_TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_all_tickers.json')
@@ -201,6 +200,7 @@ def get_ohlcv(ticker, months=3):
 
 def get_investor_detail(ticker, months=3):
     """연기금/금융투자 포함 상세 수급 (pykrx → Naver 폴백)"""
+    _ensure_krx_login()
     start, end = get_date_range(months)
     # 1차: pykrx (순매수량)
     try:
