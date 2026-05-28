@@ -4,6 +4,15 @@ from datetime import datetime, timedelta
 import json
 import os
 
+# KRX 로그인 (사모펀드 등 상세 수급 데이터 접근용)
+_krx_id = os.getenv('KRX_ID')
+_krx_pw = os.getenv('KRX_PW')
+if _krx_id and _krx_pw:
+    try:
+        stock.authenticate(_krx_id, _krx_pw)
+    except Exception:
+        pass
+
 _TICKER_DB_PATH     = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
 _ALL_TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_all_tickers.json')
 _ticker_db     = None
