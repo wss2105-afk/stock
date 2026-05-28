@@ -1539,6 +1539,29 @@ def scan_all():
     return jsonify({'status': 'scanning', 'message': '모든 스캔 시작됨 — 완료까지 30~60분 소요'})
 
 
+@app.route('/api/debug-investor')
+def debug_investor():
+    """pykrx investor_df 컬럼 및 사모 데이터 진단"""
+    from analysis.data_fetcher import get_investor_detail
+    import os
+    ticker = request.args.get('ticker', '005930')  # 기본: 삼성전자
+    try:
+        df = get_investor_detail(ticker, months=1)
+        cols = list(df.columns) if not df.empty else []
+        has_samo = any('사모' in c for c in cols)
+        krx_id = os.getenv('KRX_ID', '')
+        return jsonify({
+            'ticker': ticker,
+            'columns': cols,
+            'has_samo': has_samo,
+            'rows': len(df),
+            'krx_id_set': bool(krx_id),
+            'last_row': df.tail(1).to_dict() if not df.empty else {}
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+
 @app.route('/api/rebuild-cache', methods=['POST'])
 def rebuild_cache_api():
     """캐시 강제 재빌드 트리거 (기존 캐시·플래그 삭제 후 재수집, 약 5분 소요)"""
