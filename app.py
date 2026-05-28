@@ -1563,9 +1563,8 @@ def krx_test():
     cols, has_samo, rows = [], False, 0
     err_msg = ''
     try:
-        df = _stk.get_market_trading_value_and_volume_on_ticker_by_date(
-            start, end, '005930', '거래량', '순매수', True
-        )
+        from pykrx.website.krx.market.wrap import get_market_trading_value_and_volume_on_ticker_by_date as _detail_fn
+        df = _detail_fn(start, end, '005930', '거래량', '순매수', True)
         cols = list(df.columns)
         has_samo = any('사모' in c for c in cols)
         rows = len(df)

@@ -208,9 +208,8 @@ def get_investor_detail(ticker, months=3):
     start, end = get_date_range(months)
     # 1차: 상세 투자자 API (사모·연기금·금융투자 포함 12컬럼) — 인증 필요
     try:
-        df = stock.get_market_trading_value_and_volume_on_ticker_by_date(
-            start, end, ticker, '거래량', '순매수', True
-        )
+        from pykrx.website.krx.market.wrap import get_market_trading_value_and_volume_on_ticker_by_date as _detail_fn
+        df = _detail_fn(start, end, ticker, '거래량', '순매수', True)
         if not df.empty:
             df.index = pd.to_datetime(df.index)
             return df
