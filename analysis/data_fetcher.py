@@ -4,14 +4,22 @@ from datetime import datetime, timedelta
 import json
 import os
 
-# KRX 로그인 (사모펀드 등 상세 수급 데이터 접근용)
-_krx_id = os.getenv('KRX_ID')
-_krx_pw = os.getenv('KRX_PW')
-if _krx_id and _krx_pw:
-    try:
-        stock.authenticate(_krx_id, _krx_pw)
-    except Exception:
-        pass
+_krx_authenticated = False
+
+def _krx_login():
+    """백그라운드에서 KRX 로그인 (블로킹 방지)"""
+    global _krx_authenticated
+    krx_id = os.getenv('KRX_ID')
+    krx_pw = os.getenv('KRX_PW')
+    if krx_id and krx_pw:
+        try:
+            stock.authenticate(krx_id, krx_pw)
+            _krx_authenticated = True
+        except Exception:
+            pass
+
+import threading as _threading
+_threading.Thread(target=_krx_login, daemon=True).start()
 
 _TICKER_DB_PATH     = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
 _ALL_TICKER_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_all_tickers.json')
