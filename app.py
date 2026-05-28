@@ -1541,7 +1541,21 @@ def scan_all():
 
 @app.route('/api/rebuild-cache', methods=['POST'])
 def rebuild_cache_api():
-    """캐시 만료 시 수동 재빌드 트리거 (약 5분 소요)"""
+    """캐시 강제 재빌드 — 플래그·pkl 삭제 후 재수집 (약 5분 소요)"""
+    import glob as _glob
+    _base = '/data' if os.path.isdir('/data') else os.path.join(os.path.dirname(__file__), 'data')
+    _flag = os.path.join(_base, 'cache_built.txt')
+    _cache_dir = os.path.join(_base, 'cache')
+    try:
+        if os.path.exists(_flag):
+            os.remove(_flag)
+    except Exception:
+        pass
+    try:
+        for f in _glob.glob(os.path.join(_cache_dir, '*.pkl')):
+            os.remove(f)
+    except Exception:
+        pass
     threading.Thread(target=_auto_build_cache, daemon=True).start()
     return jsonify({'status': 'building', 'message': '캐시 재빌드 시작 — 약 5분 소요 후 스캔 자동 실행됩니다'})
 
