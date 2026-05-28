@@ -1560,32 +1560,25 @@ def krx_test():
         auth_msg = str(e)
     end = datetime.today().strftime('%Y%m%d')
     start = (datetime.today() - timedelta(days=20)).strftime('%Y%m%d')
-    # on 파라미터 3가지 조합 모두 테스트
-    results = {}
-    for on_val in ['순매수', '매수', None]:
-        key = on_val if on_val else 'default'
-        try:
-            if on_val:
-                df = _stk.get_market_trading_volume_by_date(start, end, '005930', on=on_val)
-            else:
-                df = _stk.get_market_trading_volume_by_date(start, end, '005930')
-            results[key] = {
-                'cols': list(df.columns),
-                'has_samo': any('사모' in c for c in df.columns),
-                'rows': len(df),
-            }
-        except Exception as e:
-            results[key] = {'error': str(e)}
-    # 전체 요약
-    any_samo = any(r.get('has_samo', False) for r in results.values())
-    best = next((k for k, r in results.items() if r.get('has_samo')), None)
+    cols, has_samo, rows = [], False, 0
+    err_msg = ''
+    try:
+        df = _stk.get_market_trading_value_and_volume_on_ticker_by_date(
+            start, end, '005930', '거래량', '순매수', True
+        )
+        cols = list(df.columns)
+        has_samo = any('사모' in c for c in cols)
+        rows = len(df)
+    except Exception as e:
+        err_msg = str(e)
     return jsonify({
         'krx_id_set': bool(krx_id),
         'auth': auth_msg,
         'auth_ok': auth_ok,
-        'has_samo_any': any_samo,
-        'best_on': best,
-        'results': results,
+        'columns': cols,
+        'has_samo': has_samo,
+        'rows': rows,
+        'error': err_msg,
     })
 
 

@@ -203,18 +203,20 @@ def get_ohlcv(ticker, months=3):
 
 
 def get_investor_detail(ticker, months=3):
-    """연기금/금융투자/사모 포함 상세 수급 (pykrx 인증 세션 → Naver 폴백)"""
+    """사모 포함 12컬럼 상세 수급 (detail_view=True → 5컬럼 → Naver 폴백)"""
     _ensure_krx_auth()
     start, end = get_date_range(months)
-    # 1차: pykrx — on 없이 호출해야 사모 포함 12컬럼 반환
+    # 1차: 상세 투자자 API (사모·연기금·금융투자 포함 12컬럼) — 인증 필요
     try:
-        df = stock.get_market_trading_volume_by_date(start, end, ticker)
-        if not df.empty and '사모' in df.columns:
+        df = stock.get_market_trading_value_and_volume_on_ticker_by_date(
+            start, end, ticker, '거래량', '순매수', True
+        )
+        if not df.empty:
             df.index = pd.to_datetime(df.index)
             return df
     except Exception:
         pass
-    # 2차: pykrx 순매수 모드 (인증 없어도 5컬럼 반환)
+    # 2차: 요약 투자자 API (기관합계·외국인합계 5컬럼)
     try:
         df = stock.get_market_trading_volume_by_date(start, end, ticker, on='순매수')
         if not df.empty:
