@@ -3,31 +3,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 import json
 import os
-import threading as _threading
-
-_krx_authenticated = False
-
-def _ensure_krx_login():
-    """KRX 로그인 — 10초 안에 안 되면 포기 (앱 hang 방지)"""
-    global _krx_authenticated
-    if _krx_authenticated:
-        return
-    krx_id = os.getenv('KRX_ID')
-    krx_pw = os.getenv('KRX_PW')
-    if not (krx_id and krx_pw):
-        return
-    done = []
-    def _auth():
-        try:
-            stock.authenticate(krx_id, krx_pw)
-            done.append(True)
-        except Exception:
-            done.append(False)
-    t = _threading.Thread(target=_auth, daemon=True)
-    t.start()
-    t.join(timeout=10)   # 10초 후 포기 — 메인 스레드 block 없음
-    if done and done[0]:
-        _krx_authenticated = True
 
 
 _TICKER_DB_PATH     = os.path.join(os.path.dirname(__file__), '..', 'data', 'krx_tickers.json')
@@ -210,7 +185,6 @@ def get_ohlcv(ticker, months=3):
 
 def get_investor_detail(ticker, months=3):
     """연기금/금융투자 포함 상세 수급 (pykrx → Naver 폴백)"""
-    _ensure_krx_login()
     start, end = get_date_range(months)
     # 1차: pykrx (순매수량)
     try:
