@@ -1539,6 +1539,44 @@ def scan_all():
     return jsonify({'status': 'scanning', 'message': '모든 스캔 시작됨 — 완료까지 30~60분 소요'})
 
 
+@app.route('/api/krx-test')
+def krx_test():
+    """KRX 인증 + 사모 컬럼 반환 여부 테스트"""
+    from pykrx import stock as _stk
+    from pykrx.website.comm.auth import build_krx_session
+    from datetime import datetime, timedelta
+    krx_id = os.getenv('KRX_ID', '')
+    krx_pw = os.getenv('KRX_PW', '')
+    # 인증 시도
+    auth_ok = False
+    auth_msg = ''
+    try:
+        sess = build_krx_session(krx_id, krx_pw)
+        auth_ok = sess is not None and sess.is_valid()
+        auth_msg = 'success' if auth_ok else 'failed'
+    except Exception as e:
+        auth_msg = str(e)
+    # 수급 데이터 조회
+    end = datetime.today().strftime('%Y%m%d')
+    start = (datetime.today() - timedelta(days=20)).strftime('%Y%m%d')
+    cols, has_samo, rows = [], False, 0
+    try:
+        df = _stk.get_market_trading_volume_by_date(start, end, '005930', on='순매수')
+        cols = list(df.columns)
+        has_samo = any('사모' in c for c in cols)
+        rows = len(df)
+    except Exception as e:
+        cols = [str(e)]
+    return jsonify({
+        'krx_id_set': bool(krx_id),
+        'auth': auth_msg,
+        'auth_ok': auth_ok,
+        'columns': cols,
+        'has_samo': has_samo,
+        'rows': rows
+    })
+
+
 @app.route('/api/rebuild-cache', methods=['POST'])
 def rebuild_cache_api():
     """캐시 강제 재빌드 — 플래그·pkl·스캔결과 전부 삭제 후 재수집 (약 5분 소요)"""
