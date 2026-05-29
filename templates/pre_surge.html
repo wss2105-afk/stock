@@ -6,6 +6,7 @@
     <title>급등 선취 후보</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { background: #0d0a1a; color: #e2e8f0; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; min-height: 100vh; }
@@ -79,6 +80,26 @@
             .stock-card { grid-template-columns: 36px 1fr; }
             .right-col { display: none; }
         }
+
+        /* 차트·오실레이터 모달 */
+        .chart-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:1000; align-items:center; justify-content:center; padding:16px; }
+        .chart-modal.open { display:flex; }
+        .chart-box { background:#0d0d0d; border:1px solid #252525; border-radius:12px; width:100%; max-width:860px; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.7); }
+        .chart-hdr { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #1a1a1a; }
+        .chart-hdr-left .chart-name { font-size:0.92rem; font-weight:700; color:#fff; }
+        .chart-hdr-left .chart-tick { font-size:0.62rem; color:#444; font-family:monospace; margin-left:8px; }
+        .chart-hdr-right { display:flex; gap:10px; align-items:center; }
+        .chart-full-btn { font-size:0.68rem; color:#7D7D7D; text-decoration:none; border:1px solid #2a2a2a; padding:4px 12px; border-radius:3px; transition:color 0.15s; }
+        .chart-full-btn:hover { color:#fff; }
+        .chart-close-btn { background:none; border:none; color:#555; font-size:1.2rem; cursor:pointer; line-height:1; padding:4px; }
+        .chart-close-btn:hover { color:#fff; }
+        #psChartBody { height:360px; }
+        .chart-legend { padding:8px 20px; border-top:1px solid #111; display:flex; gap:18px; flex-wrap:wrap; align-items:center; }
+        .chart-leg-item { font-size:0.6rem; color:#555; }
+        .chart-interp { padding:10px 20px 14px; border-top:1px solid #111; display:none; }
+        .chart-interp-hd { font-size:0.58rem; color:#444; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:6px; }
+        .chart-interp-list { list-style:none; padding:0; margin:0; }
+        .chart-interp-list li { font-size:0.75rem; color:#d1d5db; padding:2px 0; }
     </style>
 </head>
 <body>
@@ -278,13 +299,72 @@
         <div style="font-size:0.58rem;color:#6d6a7a;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">감지 신호</div>
         <ul id="modalSignals" style="list-style:none;padding:0;margin:0 0 18px;"></ul>
         <div style="display:flex;gap:8px;">
+            <button onclick="openPsChart()" style="flex:1;padding:11px 4px;background:#111;color:#94a3b8;border:1px solid #252525;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;cursor:pointer;border-radius:3px;">차트</button>
+            <button onclick="openPsOsc()" style="flex:1;padding:11px 4px;background:#111;color:#94a3b8;border:1px solid #252525;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;cursor:pointer;border-radius:3px;">오실레이터</button>
             <a id="modalDetailBtn" href="#" style="flex:1;padding:11px 4px;text-align:center;background:#7c3aed;color:#fff;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;display:block;border-radius:3px;">상세 분석</a>
+        </div>
+    </div>
+</div>
+
+<!-- 차트 모달 -->
+<div id="psChartModal" class="chart-modal" onclick="if(event.target===this)closePsChart()">
+    <div class="chart-box">
+        <div class="chart-hdr">
+            <div class="chart-hdr-left">
+                <span class="chart-name" id="psChartName"></span>
+                <span class="chart-tick" id="psChartTick"></span>
+            </div>
+            <div class="chart-hdr-right">
+                <a class="chart-full-btn" id="psChartFullLink" href="#">→ 전체 분석</a>
+                <button class="chart-close-btn" onclick="closePsChart()">✕</button>
+            </div>
+        </div>
+        <div id="psChartBody"></div>
+        <div class="chart-legend">
+            <span class="chart-leg-item"><span style="color:#f59e0b;">▬</span> MA20</span>
+            <span class="chart-leg-item"><span style="color:#60a5fa;">▬</span> MA60</span>
+            <span class="chart-leg-item"><span style="color:#22c55e;">╌</span> 지지선</span>
+            <span class="chart-leg-item"><span style="color:#f97316;">╌</span> 저항선</span>
+            <span class="chart-leg-item" style="margin-left:auto;">▲빨강 상승 / ▼파랑 하락</span>
+        </div>
+        <div class="chart-interp" id="psChartInterp">
+            <div class="chart-interp-hd">추세선 해석</div>
+            <ul class="chart-interp-list" id="psChartInterpList"></ul>
+        </div>
+    </div>
+</div>
+
+<!-- 오실레이터 모달 -->
+<div id="psOscModal" class="chart-modal" onclick="if(event.target===this)closePsOsc()">
+    <div class="chart-box" style="max-width:660px;">
+        <div class="chart-hdr">
+            <div>
+                <span class="chart-name" id="psOscName"></span>
+                <span class="chart-tick" id="psOscTick"></span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <span id="psOscPeriod" style="font-size:0.65rem;color:#555;"></span>
+                <button class="chart-close-btn" onclick="closePsOsc()">✕</button>
+            </div>
+        </div>
+        <div style="padding:12px 12px 4px;background:#0a0a0a;">
+            <div style="height:280px;border:1px solid #1a1a1a;padding:8px 8px 4px;">
+                <canvas id="psOscCanvas"></canvas>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#1a1a1a;border-top:1px solid #1a1a1a;">
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">종합</div><div id="psOscComp" style="font-size:1.1rem;font-weight:700;margin-top:3px;color:#FFC000;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">RSI</div><div id="psOscRsi" style="font-size:1rem;font-weight:700;margin-top:3px;color:#94a3b8;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">Stoch</div><div id="psOscStoch" style="font-size:1rem;font-weight:700;margin-top:3px;color:#94a3b8;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">WR+100</div><div id="psOscWr" style="font-size:1rem;font-weight:700;margin-top:3px;color:#94a3b8;">—</div></div>
+            <div style="background:#0d0d0d;padding:8px;text-align:center;"><div style="font-size:0.55rem;color:#555;letter-spacing:0.08em;text-transform:uppercase;">CCI</div><div id="psOscCci" style="font-size:1rem;font-weight:700;margin-top:3px;color:#94a3b8;">—</div></div>
         </div>
     </div>
 </div>
 
 <script>
 let _curTicker = '', _curName = '';
+let _psChartObj = null, _psOscChart = null;
 
 function showModal(card) {
     _curTicker = card.dataset.ticker;
@@ -313,6 +393,147 @@ function showModal(card) {
     document.getElementById('infoModal').classList.add('open');
 }
 function closeModal() { document.getElementById('infoModal').classList.remove('open'); }
+
+function openPsChart() {
+    closeModal();
+    if (_psOscChart) { _psOscChart.destroy(); _psOscChart = null; }
+    document.getElementById('psChartName').textContent = _curName;
+    document.getElementById('psChartTick').textContent = _curTicker;
+    document.getElementById('psChartFullLink').href = '/analyze?query=' + encodeURIComponent(_curTicker) + '&months=3';
+    document.getElementById('psChartBody').innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.8rem;">차트 로딩 중...</div>';
+    document.getElementById('psChartInterp').style.display = 'none';
+    if (_psChartObj) { _psChartObj.remove(); _psChartObj = null; }
+    document.getElementById('psChartModal').classList.add('open');
+    fetch('/api/chart-data/' + _curTicker)
+        .then(r => r.json())
+        .then(data => _psRenderChart(data))
+        .catch(() => {
+            document.getElementById('psChartBody').innerHTML = '<div style="padding:40px;text-align:center;color:#f87171;">데이터를 불러올 수 없습니다</div>';
+        });
+}
+function closePsChart() {
+    document.getElementById('psChartModal').classList.remove('open');
+    if (_psChartObj) { _psChartObj.remove(); _psChartObj = null; }
+}
+function openPsOsc() {
+    closeModal();
+    if (_psOscChart) { _psOscChart.destroy(); _psOscChart = null; }
+    document.getElementById('psOscName').textContent = _curName;
+    document.getElementById('psOscTick').textContent = _curTicker;
+    document.getElementById('psOscPeriod').textContent = '로딩 중…';
+    ['psOscComp','psOscRsi','psOscStoch','psOscWr','psOscCci'].forEach(id => document.getElementById(id).textContent = '—');
+    document.getElementById('psOscModal').classList.add('open');
+    fetch('/api/osc-history/' + _curTicker)
+        .then(r => r.json())
+        .then(d => {
+            if (d.error) { document.getElementById('psOscPeriod').textContent = '데이터 없음'; return; }
+            const dates = d.dates || [];
+            document.getElementById('psOscPeriod').textContent = '최근 ' + dates.length + '일';
+            const last = d.data[d.data.length - 1] || {};
+            const compColor = v => v >= 80 ? '#ef5350' : v >= 60 ? '#FFC000' : v >= 40 ? '#888' : v >= 20 ? '#22c55e' : '#29ABE2';
+            if (last.composite != null) {
+                document.getElementById('psOscComp').textContent = last.composite.toFixed(1);
+                document.getElementById('psOscComp').style.color = compColor(last.composite);
+            }
+            if (last.rsi   != null) document.getElementById('psOscRsi').textContent   = last.rsi.toFixed(1);
+            if (last.stoch != null) document.getElementById('psOscStoch').textContent = last.stoch.toFixed(1);
+            if (last.wr    != null) document.getElementById('psOscWr').textContent    = (last.wr + 100).toFixed(1);
+            if (last.cci   != null) document.getElementById('psOscCci').textContent   = last.cci.toFixed(0);
+            _psBuildOsc(d.data, dates);
+        })
+        .catch(() => { document.getElementById('psOscPeriod').textContent = '로드 실패'; });
+}
+function closePsOsc() {
+    document.getElementById('psOscModal').classList.remove('open');
+    if (_psOscChart) { _psOscChart.destroy(); _psOscChart = null; }
+}
+function _psBuildOsc(data, dates) {
+    const canvas = document.getElementById('psOscCanvas');
+    if (!canvas) return;
+    if (_psOscChart) { _psOscChart.destroy(); _psOscChart = null; }
+    const compVals = data.map(d => d.composite);
+    const borderColors = compVals.map(v =>
+        v == null ? '#888' : v >= 80 ? '#ef5350' : v >= 60 ? '#FFC000' : v >= 40 ? '#888' : v >= 20 ? '#22c55e' : '#29ABE2'
+    );
+    const refPlugin = {
+        id: 'ref', afterDraw(chart) {
+            const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+            [[80,'rgba(239,83,80,0.25)'],[60,'rgba(255,192,0,0.2)'],[40,'rgba(136,136,136,0.15)'],[20,'rgba(34,197,94,0.2)']].forEach(([v,c]) => {
+                const yy = y.getPixelForValue(v);
+                ctx.save(); ctx.strokeStyle=c; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+                ctx.beginPath(); ctx.moveTo(left,yy); ctx.lineTo(right,yy); ctx.stroke(); ctx.restore();
+            });
+        }
+    };
+    _psOscChart = new Chart(canvas.getContext('2d'), {
+        type: 'line', plugins: [refPlugin],
+        data: { labels: dates, datasets: [{
+            label: '종합 오실레이터', data: compVals,
+            borderColor: borderColors,
+            segment: { borderColor: ctx2 => borderColors[ctx2.p1DataIndex] || '#888' },
+            backgroundColor: 'rgba(255,192,0,0.05)',
+            fill: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.3, spanGaps: true,
+        }]},
+        options: {
+            responsive:true, maintainAspectRatio:false, animation:{duration:300},
+            interaction:{mode:'index',intersect:false},
+            scales: {
+                x:{ ticks:{color:'#555',font:{size:8},maxTicksLimit:8,maxRotation:0,callback:(v,i)=>dates[i]?.slice(5)??''}, grid:{display:false} },
+                y:{ min:-2, max:102, ticks:{color:'#444',font:{size:8},stepSize:20,callback:v=>v<0||v>100?'':v}, grid:{color:'rgba(255,255,255,0.04)'} }
+            },
+            plugins: {
+                legend:{ display:false },
+                tooltip:{ enabled:true, backgroundColor:'#1a1a1a', borderColor:'#333', borderWidth:1,
+                    titleColor:'#777', bodyColor:'#fff',
+                    callbacks:{
+                        title:items=>dates[items[0].dataIndex]?.slice(5)??'',
+                        label:item=>' 종합 오실레이터: '+(item.raw != null ? item.raw.toFixed(1) : '—')
+                    }
+                }
+            }
+        }
+    });
+}
+function _psRenderChart(data) {
+    const el = document.getElementById('psChartBody');
+    el.innerHTML = '';
+    _psChartObj = LightweightCharts.createChart(el, {
+        layout: { background: { type: 'solid', color: '#0d0d0d' }, textColor: '#6b7280' },
+        grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
+        crosshair: { mode: 1 },
+        rightPriceScale: { borderColor: '#1f1f1f' },
+        timeScale: { borderColor: '#1f1f1f', timeVisible: false },
+        width: el.clientWidth, height: el.clientHeight || 360,
+    });
+    const cs = _psChartObj.addCandlestickSeries({
+        upColor: '#ef4444', downColor: '#3b82f6',
+        borderUpColor: '#ef4444', borderDownColor: '#3b82f6',
+        wickUpColor: '#ef4444', wickDownColor: '#3b82f6',
+    });
+    cs.setData(data.candles);
+    if (data.volumes && data.volumes.length) {
+        const vs = _psChartObj.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
+        _psChartObj.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+        vs.setData(data.volumes);
+    }
+    const _line = (color, style, w) => _psChartObj.addLineSeries({ color, lineWidth: w||1.5, lineStyle: style||0, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
+    if (data.ma20 && data.ma20.length) _line('#f59e0b').setData(data.ma20);
+    if (data.ma60 && data.ma60.length) _line('#60a5fa').setData(data.ma60);
+    (data.support_lines || (data.support?.length ? [data.support] : [])).forEach((pts, i) => {
+        if (pts?.length) _line('#22c55e', 2, i === 0 ? 1.5 : 1).setData(pts);
+    });
+    (data.resistance_lines || (data.resistance?.length ? [data.resistance] : [])).forEach((pts, i) => {
+        if (pts?.length) _line('#f97316', 2, i === 0 ? 1.5 : 1).setData(pts);
+    });
+    _psChartObj.timeScale().fitContent();
+    new ResizeObserver(() => { if (_psChartObj) _psChartObj.applyOptions({ width: el.clientWidth }); }).observe(el);
+    if (data.interpretation && data.interpretation.length) {
+        document.getElementById('psChartInterpList').innerHTML = data.interpretation.map(t => `<li>${t}</li>`).join('');
+        document.getElementById('psChartInterp').style.display = 'block';
+    }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closePsChart(); closePsOsc(); } });
 
 function triggerScan() {
     const btn = document.getElementById('scanBtn');
