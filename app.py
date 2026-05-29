@@ -1581,6 +1581,27 @@ def krx_test():
     })
 
 
+@app.route('/api/investor-debug/<ticker>')
+def investor_debug(ticker):
+    """특정 종목 investor_df 컬럼·최근 5행 반환 — 사모 수집 여부 확인용"""
+    from analysis.data_fetcher import get_investor_detail
+    df = get_investor_detail(ticker, months=1)
+    if df.empty:
+        return jsonify({'ok': False, 'error': 'empty', 'columns': []})
+    samo_col = next((c for c in df.columns if '사모' in c), None)
+    last5 = {}
+    if samo_col:
+        last5 = {str(k): int(v) for k, v in df[samo_col].tail(5).items()}
+    return jsonify({
+        'ok': True,
+        'columns': list(df.columns),
+        'has_samo': samo_col is not None,
+        'samo_col': samo_col,
+        'samo_last5': last5,
+        'rows': len(df),
+    })
+
+
 @app.route('/api/rebuild-cache', methods=['POST'])
 def rebuild_cache_api():
     """캐시 강제 재빌드 — 플래그·pkl·스캔결과 전부 삭제 후 재수집 (약 5분 소요)"""
