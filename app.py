@@ -1302,6 +1302,9 @@ def analyze():
 
     # 지표 계산
     df = calc_indicators(ohlcv)
+    # MA 차트용: 120일선 표시를 위해 ohlcv_full(6개월) 기준으로 별도 계산
+    _ohlcv_full = ohlcv_full if 'ohlcv_full' in dir() and len(ohlcv_full) > len(ohlcv) else ohlcv
+    df_ma = calc_indicators(_ohlcv_full) if len(_ohlcv_full) > len(ohlcv) else df
     ma_status = get_ma_arrangement(df)
     signals = get_latest_signals(df)
     current_price = int(df['close'].iloc[-1])
@@ -1325,7 +1328,7 @@ def analyze():
 
     # 차트
     main_chart = make_main_chart(df, name, patterns=detected_patterns)
-    ma_chart   = make_ma_chart(df, name)
+    ma_chart   = make_ma_chart(df_ma, name)
     # 캔들차트와 동일한 y축 범위를 매물대에 전달 (최근 40거래일 기준, make_main_chart와 동일)
     _recent     = df.tail(40)
     _c_low      = float(_recent['low'].min())

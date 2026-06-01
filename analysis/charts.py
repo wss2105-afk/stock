@@ -138,7 +138,8 @@ def make_ma_chart(df, name):
     """이동평균선 배열 차트"""
     import pandas as pd
 
-    display_df = df.tail(180) if len(df) > 180 else df
+    # 120일선 + 여유분 포함해서 최대 200거래일 표시
+    display_df = df.tail(200) if len(df) > 200 else df
     last = df.iloc[-1]
     cur = last['close']
 
