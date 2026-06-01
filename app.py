@@ -993,7 +993,7 @@ def _cross_alert_scheduler():
             _alerted_today = set()
             _alerted_date  = today_str
 
-        is_morning = (now_kst.hour == 9  and 0 <= now_kst.minute < 30)
+        is_morning = (now_kst.hour == 9  and 0 <= now_kst.minute < 59)
         is_lunch   = (now_kst.hour == 13 and 30 <= now_kst.minute < 59)
         slot = 'morning' if is_morning else ('lunch' if is_lunch else None)
 
@@ -1006,9 +1006,13 @@ def _cross_alert_scheduler():
                     _send_cross_alert(strong)
                     _alerted_today.add(slot)
                     print(f'[CrossAlert] {slot} 발송 완료 — {len(strong)}종목 (100점↑)')
-                else:
+                elif picks:
+                    # picks는 있지만 100점 미만 → 오늘 조용한 날, 재시도 불필요
                     _alerted_today.add(slot)
                     print(f'[CrossAlert] {slot} — 100점 이상 종목 없음 ({len(picks)}종목 중)')
+                else:
+                    # picks == 0 → 캐시 아직 미빌드, 슬롯 완료 처리 안 함 (10분 후 재시도)
+                    print(f'[CrossAlert] {slot} — 캐시 없음, 10분 후 재시도')
             except Exception as e:
                 print(f'[CrossAlert] 오류: {e}')
 
@@ -1112,18 +1116,22 @@ def _pre_surge_scheduler():
             _pre_surge_alerted_today = set()
             _pre_surge_alerted_date  = today_str
 
-        # 평일 9:30~10:00 또는 13:00~13:30 에 한 번씩 발송
-        is_morning = (now_kst.hour == 9 and 30 <= now_kst.minute < 60)
-        is_lunch   = (now_kst.hour == 13 and 0 <= now_kst.minute < 30)
+        # 평일 9:30~10:30 또는 13:00~14:00 에 한 번씩 발송 (캐시 빌드 대기 여유 포함)
+        is_morning = (now_kst.hour == 9  and 30 <= now_kst.minute < 60) or \
+                     (now_kst.hour == 10 and 0  <= now_kst.minute < 30)
+        is_lunch   = (now_kst.hour == 13 and 0  <= now_kst.minute < 59)
         slot = 'morning' if is_morning else ('lunch' if is_lunch else None)
 
         if slot and slot not in _pre_surge_alerted_today and now_kst.weekday() < 5:
             try:
+                # pkl 캐시가 없으면 스캔 결과 0건 → 빌드 완료 후 자동 재시도됨
                 _run_pre_surge_scan()
                 cache = _load_pre_surge_cache()
                 if cache and cache.get('results'):
                     _send_pre_surge_alert(cache['results'])
                     _pre_surge_alerted_today.add(slot)
+                else:
+                    print(f'[선취스케줄러] {slot} — 결과 없음 (캐시 빌드 중?), 재시도 대기')
             except Exception as e:
                 print(f'[선취스케줄러] 오류: {e}')
 
