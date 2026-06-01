@@ -223,15 +223,19 @@
                     </div>
                     <span class="osc-label" style="color:{{ osc_color }};">OSC {{ osc }} · {{ osc_text }}</span>
                 </div>
-                <!-- 외인·기관 -->
-                {% if fs >= 1 or is_ >= 1 or ps_ >= 1 %}
+                <!-- 외인·기관·사모 수급 -->
+                {% if fs >= 1 or is_ >= 1 %}
                 <div class="inv-line">
                     💰
-                    {% if fs >= 1 %}외인 {{ fs }}일 연속{% endif %}
-                    {% if fs >= 1 and is_ >= 1 %} | {% endif %}
-                    {% if is_ >= 1 %}기관 {{ is_ }}일 연속{% endif %}
-                    {% if ps_ >= 1 %}{% if fs >= 1 or is_ >= 1 %} | {% endif %}<span style="color:#c084fc;">사모 {{ ps_ }}일 연속</span>{% endif %}
-                    순매수
+                    {% if fs >= 1 %}<span style="color:#60a5fa;">외인 {{ fs }}일 연속</span>{% endif %}
+                    {% if fs >= 1 and is_ >= 1 %} &nbsp;|&nbsp; {% endif %}
+                    {% if is_ >= 1 %}<span style="color:#FFC000;">기관 {{ is_ }}일 연속</span>{% endif %}
+                    &nbsp;순매수
+                </div>
+                {% endif %}
+                {% if ps_ >= 1 %}
+                <div class="inv-line" style="margin-top:2px;">
+                    ★ <span style="color:#c084fc;font-weight:700;">사모펀드 {{ ps_ }}일 연속 순매수</span>
                 </div>
                 {% endif %}
             </div>
