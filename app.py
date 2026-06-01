@@ -1592,6 +1592,85 @@ def krx_test():
     })
 
 
+@app.route('/api/investor-table/<ticker>')
+def investor_table_api(ticker):
+    """외인·기관 순매수 상세 표 — 최근 20거래일, 연기금·사모·보험·투신 등 세분화"""
+    try:
+        cached = load_stock_cache(ticker)
+        inv_df = cached['investor_df'] if cached else None
+        if inv_df is None or inv_df.empty:
+            from analysis.data_fetcher import get_investor_detail
+            inv_df = get_investor_detail(ticker, months=2)
+        if inv_df is None or inv_df.empty:
+            return jsonify({'ok': False, 'rows': [], 'columns': []})
+
+        df = inv_df.tail(20).copy()
+
+        COL_ORDER = [
+            ('외국인합계', '외국인', '외인'),
+            ('연기금',),
+            ('사모',),
+            ('보험',),
+            ('투신',),
+            ('금융투자',),
+            ('은행',),
+            ('기타금융',),
+            ('개인',),
+        ]
+        def _find(keywords):
+            for kw in keywords:
+                for c in df.columns:
+                    if kw in str(c):
+                        return c
+            return None
+
+        col_map = []   # (label, col_name)
+        for keywords in COL_ORDER:
+            found = _find(keywords)
+            if found:
+                col_map.append((keywords[0], found))
+
+        # 기관합계 = 세부 합산 or 직접 컬럼
+        inst_cols = [c for lbl, c in col_map if lbl not in ('외국인합계', '외국인', '외인', '개인')]
+        if inst_cols:
+            df['__기관합계__'] = sum(df[c].fillna(0) for c in inst_cols)
+        else:
+            inst_col = _find(('기관합계', '기관'))
+            df['__기관합계__'] = df[inst_col].fillna(0) if inst_col else 0
+
+        col_map_final = []
+        # 외국인 먼저
+        for lbl, c in col_map:
+            if lbl in ('외국인합계', '외국인', '외인'):
+                col_map_final.append(('외국인', c))
+                break
+        # 기관합계
+        col_map_final.append(('기관합계', '__기관합계__'))
+        # 기관 세부
+        for lbl, c in col_map:
+            if lbl not in ('외국인합계', '외국인', '외인', '개인'):
+                col_map_final.append((lbl, c))
+        # 개인
+        for lbl, c in col_map:
+            if lbl == '개인':
+                col_map_final.append((lbl, c))
+
+        rows = []
+        for idx, row in df.iterrows():
+            date_str = str(idx)[:10]
+            cells = {'날짜': date_str}
+            for lbl, c in col_map_final:
+                v = float(row[c]) if c in df.columns else 0.0
+                cells[lbl] = int(v)
+            rows.append(cells)
+
+        rows.reverse()  # 최신 날짜가 위로
+        columns = ['날짜'] + [lbl for lbl, _ in col_map_final]
+        return jsonify({'ok': True, 'rows': rows, 'columns': columns})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e), 'rows': [], 'columns': []})
+
+
 @app.route('/api/investor-debug/<ticker>')
 def investor_debug(ticker):
     """특정 종목 investor_df 컬럼·최근 5행 반환 — 사모 수집 여부 확인용"""
