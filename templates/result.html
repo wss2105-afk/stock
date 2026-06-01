@@ -312,30 +312,6 @@
                 <div class="score-sub">종합 신호 점수</div>
             </div>
 
-            <!-- 이동평균 배열 -->
-            <div class="section-card">
-                <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
-                    이동평균선 배열
-                    <span class="ma-badge {{ ma_type }}">{{ ma_label }}</span>
-                </div>
-
-                <!-- 배열 해석 -->
-                {% set interp_map = {
-                    'bullish':      ('5일 > 20일 > 60일 > 120일 순서로 위에서 아래로 배열된 상태입니다. 단기·중기·장기 모두 상승 방향으로 정렬되어 가장 강한 매수 신호입니다.', '#FFC000'),
-                    'bearish':      ('5일 < 20일 < 60일 < 120일 순서로 완전히 눌린 상태입니다. 모든 이동평균이 하락 방향으로 단기 반등보다 하락 지속 가능성이 높습니다.', '#29ABE2'),
-                    'mild_bullish': ('단기(5·20일)는 정배열이나 중장기(60·120일)가 아직 따라오지 못했습니다. 추세 전환 초기 단계로 추가 상승 시 정배열 완성 기대.', '#f39c12'),
-                    'mild_bearish': ('단기(5·20일)가 역배열로 전환되고 있습니다. 중장기 선이 저항으로 작용할 수 있어 추세 전환에 주의가 필요합니다.', '#29ABE2'),
-                    'neutral':      ('이동평균선들이 엉켜 있어 방향성이 불분명합니다. 뚜렷한 추세가 형성되기 전까지 관망이 유리합니다.', '#555')
-                } %}
-                {% set interp = interp_map.get(ma_type, ('데이터가 부족합니다.', '#555')) %}
-                <div style="border-left:2px solid {{ interp[1] }};padding:8px 12px;margin-bottom:10px;background:rgba(0,0,0,0.2);">
-                    <div style="font-size:0.62rem;color:{{ interp[1] }};letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">배열 해석</div>
-                    <div style="font-size:0.80rem;color:#c8d0dc;line-height:1.7;">{{ interp[0] }}</div>
-                </div>
-
-                <div id="maChart"></div>
-            </div>
-
             <!-- 매수/매도 타이밍 -->
             {% set rsi_v = signals.rsi.value %}
             {% set macd_s = signals.macd.signal %}
@@ -641,6 +617,29 @@
             </div>
             {% endif %}
 
+            <!-- 이동평균선 배열 -->
+            <div class="section-card">
+                <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+                    이동평균선 배열
+                    <span class="ma-badge {{ ma_type }}">{{ ma_label }}</span>
+                </div>
+
+                {% set interp_map = {
+                    'bullish':      ('5일 > 20일 > 60일 > 120일 순서로 위에서 아래로 배열된 상태입니다. 단기·중기·장기 모두 상승 방향으로 정렬되어 가장 강한 매수 신호입니다.', '#FFC000'),
+                    'bearish':      ('5일 < 20일 < 60일 < 120일 순서로 완전히 눌린 상태입니다. 모든 이동평균이 하락 방향으로 단기 반등보다 하락 지속 가능성이 높습니다.', '#29ABE2'),
+                    'mild_bullish': ('단기(5·20일)는 정배열이나 중장기(60·120일)가 아직 따라오지 못했습니다. 추세 전환 초기 단계로 추가 상승 시 정배열 완성 기대.', '#f39c12'),
+                    'mild_bearish': ('단기(5·20일)가 역배열로 전환되고 있습니다. 중장기 선이 저항으로 작용할 수 있어 추세 전환에 주의가 필요합니다.', '#29ABE2'),
+                    'neutral':      ('이동평균선들이 엉켜 있어 방향성이 불분명합니다. 뚜렷한 추세가 형성되기 전까지 관망이 유리합니다.', '#555')
+                } %}
+                {% set interp = interp_map.get(ma_type, ('데이터가 부족합니다.', '#555')) %}
+                <div style="border-left:2px solid {{ interp[1] }};padding:8px 12px;margin-bottom:10px;background:rgba(0,0,0,0.2);">
+                    <div style="font-size:0.62rem;color:{{ interp[1] }};letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">배열 해석</div>
+                    <div style="font-size:0.80rem;color:#c8d0dc;line-height:1.7;">{{ interp[0] }}</div>
+                </div>
+
+                <div id="maChart"></div>
+            </div>
+
             <!-- 수급 차트 -->
             {% if investor_chart %}
             <div class="section-card">
@@ -930,8 +929,10 @@
                       :            {l:72,r:20,t:52,b:18},
             }),
             _plotChart('maChart', _maData, {
-                height: isMobile ? 240 : 360,
-                margin: isMobile ? {l:62,r:64,t:12,b:72} : {l:72,r:72,t:16,b:68},
+                height: isSmall ? 260 : isMobile ? 320 : 480,
+                margin: isSmall  ? {l:56,r:12,t:12,b:68}
+                      : isMobile ? {l:62,r:14,t:14,b:72}
+                      :            {l:72,r:20,t:18,b:72},
             }),
             {% if supply_chart %}
             _plotChart('supplyChart', _supplyData, {
