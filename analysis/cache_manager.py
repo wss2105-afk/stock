@@ -28,7 +28,10 @@ def is_cache_valid(ticker):
     try:
         mtime = os.path.getmtime(path)
         age_hours = (datetime.now() - datetime.fromtimestamp(mtime)).total_seconds() / 3600
-        return age_hours < 30  # Railway UTC 자정 넘어도 전날 캐시 유효 처리
+        # 주말(토·일)에는 금요일 캐시를 월요일 개장 전까지 유효 처리 (최대 72시간)
+        weekday = datetime.now().weekday()  # 0=월 … 5=토 6=일
+        max_age = 72 if weekday in (5, 6) else 30
+        return age_hours < max_age
     except Exception:
         return False
 
