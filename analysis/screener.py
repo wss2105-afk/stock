@@ -72,6 +72,20 @@ _MOMENTUM_KW = [
 ]
 
 
+def _ensure_inst_col(df):
+    """12컬럼 상세 데이터에 기관합계가 없으면 세부 합산으로 추가 (사모·연기금·금투·보험·투신·은행 등)"""
+    if df.empty:
+        return df
+    if any('기관' in c and '금융' not in c and '연기금' not in c for c in df.columns):
+        return df
+    inst_kw = ('금융투자', '보험', '투신', '사모', '은행', '기타금융', '연기금', '기타법인')
+    sub = [c for c in df.columns if any(kw in c for kw in inst_kw)]
+    if sub:
+        df = df.copy()
+        df['기관합계'] = sum(df[c].fillna(0) for c in sub)
+    return df
+
+
 def _count_consecutive_buying(investor_df, col_keyword, days=5):
     """외인 또는 기관의 연속 순매수 일수 계산"""
     if investor_df.empty:
@@ -93,6 +107,7 @@ def _calc_joint_buying(investor_df, days=20, threshold=15):
     """외인+기관 동시 순매수 일수 계산 (최근 days일 중 threshold일 초과 여부)"""
     if investor_df.empty:
         return 0, False
+    investor_df = _ensure_inst_col(investor_df)
     foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
     inst_col = next((c for c in investor_df.columns if '기관' in c
                      and '금융' not in c and '연기금' not in c), None)
@@ -181,6 +196,7 @@ def _calc_accumulation_score(ohlcv, investor_df):
         return 0, []
     vol_declining = recent_vol < prior_vol * 0.85   # 15% 이상 거래량 감소
 
+    investor_df = _ensure_inst_col(investor_df)
     fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
     ic = next((c for c in investor_df.columns if '기관' in c
                and '금융' not in c and '연기금' not in c), None)
@@ -208,6 +224,7 @@ def _calc_buying_surge_star(investor_df, recent_days=10, past_days=20):
     """최근 10거래일 기관+외인 매수세가 직전 20거래일 대비 2배 이상 증가 여부"""
     if investor_df.empty or len(investor_df) < recent_days + past_days:
         return False
+    investor_df = _ensure_inst_col(investor_df)
     foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
     inst_col = next((c for c in investor_df.columns if '기관' in c
                      and '금융' not in c and '연기금' not in c), None)
@@ -225,6 +242,7 @@ def _calc_volume_surge(investor_df, days=20, surge_ratio=1.5):
     """외인+기관 합산 수급량이 평시 대비 surge_ratio배 이상인지 확인"""
     if investor_df.empty:
         return False
+    investor_df = _ensure_inst_col(investor_df)
     foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
     inst_col    = next((c for c in investor_df.columns if '기관' in c
                         and '금융' not in c and '연기금' not in c), None)
@@ -343,6 +361,7 @@ def _check_supply_one(name, ticker, months=3):
         if investor_df.empty or len(investor_df) < 10:
             return None
 
+        investor_df = _ensure_inst_col(investor_df)
         foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
         inst_col = next((c for c in investor_df.columns if '기관' in c
                          and '금융' not in c and '연기금' not in c), None)
@@ -1008,6 +1027,7 @@ def _check_buy_candidate(name, ticker):
         # 수급 — 외인·기관 10일 중 순매수 빈도 (수급을 가장 강한 시그널로 가중)
         foreign_days = inst_days = foreign_streak = inst_streak = 0
         if not investor_df.empty:
+            investor_df = _ensure_inst_col(investor_df)
             fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
             ic = next((c for c in investor_df.columns if '기관' in c
                        and '금융' not in c and '연기금' not in c), None)
@@ -1957,6 +1977,7 @@ def scan_top_stocks(top_n=20, months=6, max_workers=8):
             if last20.empty:
                 phase3.append(r)
                 continue
+            last20 = _ensure_inst_col(last20)
             fc = next((c for c in last20.columns if '외국인' in c or '외인' in c), None)
             ic = next((c for c in last20.columns if '기관' in c
                        and '금융' not in c and '연기금' not in c), None)
@@ -2131,6 +2152,7 @@ def _check_pre_surge(name, ticker):
         is_ = 0
 
         if not investor_df.empty and len(investor_df) >= 5:
+            investor_df = _ensure_inst_col(investor_df)
             fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
             ic = next((c for c in investor_df.columns if '기관' in c
                        and '금융' not in c and '연기금' not in c), None)
