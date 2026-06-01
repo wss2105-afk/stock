@@ -110,8 +110,8 @@ def make_main_chart(df, name, patterns=None):
         fig.add_trace(go.Scatter(x=df.index, y=df[col_name], name=label,
                                  line=dict(color=color, width=1.2)))
 
-    # Y·X축 범위 — 최근 40거래일 기준으로 초기 뷰 설정 (전체 데이터는 유지, 스크롤 가능)
-    recent = df.tail(40)
+    # Y·X축 범위 — 최근 130거래일(6개월) 기준으로 초기 뷰 설정
+    recent = df.tail(min(len(df), 130))
     c_low  = float(recent['low'].min())
     c_high = float(recent['high'].max())
     pad    = (c_high - c_low) * 0.05

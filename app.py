@@ -1150,12 +1150,12 @@ def index():
 def analyze():
     if request.method == 'GET':
         query = request.args.get('query', '').strip()
-        months = int(request.args.get('months', 3))
+        months = int(request.args.get('months', 6))
         if not query:
             return render_template('index.html')
     else:
         query = request.form.get('query', '').strip()
-        months = int(request.form.get('months', 3))
+        months = int(request.form.get('months', 6))
 
     if not query:
         return render_template('index.html', error="종목명 또는 코드를 입력하세요.")
