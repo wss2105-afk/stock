@@ -630,9 +630,9 @@ def _find_cross_picks():
 
         return bonus, signal_reasons, fs, is_
 
-    def _track(ticker, fs, is_):
-        prev = streak_map.get(ticker, {'fs': 0, 'is_': 0})
-        streak_map[ticker] = {'fs': max(prev['fs'], fs), 'is_': max(prev['is_'], is_)}
+    def _track(ticker, fs, is_, ps=0):
+        prev = streak_map.get(ticker, {'fs': 0, 'is_': 0, 'ps': 0})
+        streak_map[ticker] = {'fs': max(prev['fs'], fs), 'is_': max(prev['is_'], is_), 'ps': max(prev['ps'], ps)}
 
     def _base_reasons(r):
         """스캔 원본 이유에서 외인·기관·연속매수 중복 항목 제거 (streak_map으로 통합)"""
@@ -644,7 +644,7 @@ def _find_cross_picks():
         c = _load_recommend_cache()
         for r in (c.get('results', []) if c else []):
             bonus, sig, fs, is_ = _investor_bonus(r)
-            _track(r['ticker'], fs, is_)
+            _track(r['ticker'], fs, is_, r.get('pe_streak', 0) or 0)
             _add('추천종목', r['ticker'], r['name'], _base_reasons(r) + sig, 30 + bonus)
     except Exception:
         pass
@@ -654,7 +654,7 @@ def _find_cross_picks():
         c = _load_supply_cache()
         for r in (c.get('results', []) if c else []):
             bonus, sig, fs, is_ = _investor_bonus(r)
-            _track(r['ticker'], fs, is_)
+            _track(r['ticker'], fs, is_, r.get('pe_streak', 0) or 0)
             _add('수급주도', r['ticker'], r['name'], sig, 25 + bonus)
     except Exception:
         pass
@@ -682,7 +682,7 @@ def _find_cross_picks():
         c = _load_surge_cache()
         for r in (c.get('bounce', []) if c else []):
             bonus, sig, fs, is_ = _investor_bonus(r)
-            _track(r['ticker'], fs, is_)
+            _track(r['ticker'], fs, is_, r.get('pe_streak', 0) or 0)
             mas = r.get('touched_mas', [])
             label = '/'.join(mas) if mas else r.get('ma_label', '')
             _add('MA반등', r['ticker'], r['name'],
@@ -695,7 +695,7 @@ def _find_cross_picks():
         c = _load_buy_candidate_cache()
         for r in (c.get('results', []) if c else []):
             bonus, sig, fs, is_ = _investor_bonus(r)
-            _track(r['ticker'], fs, is_)
+            _track(r['ticker'], fs, is_, r.get('pe_streak', 0) or 0)
             _add('매수후보단기', r['ticker'], r['name'], _base_reasons(r) + sig, 25 + bonus)
     except Exception:
         pass
@@ -705,7 +705,7 @@ def _find_cross_picks():
         c = _load_surge_buy_cache()
         for r in (c.get('results', []) if c else []):
             bonus, sig, fs, is_ = _investor_bonus(r)
-            _track(r['ticker'], fs, is_)
+            _track(r['ticker'], fs, is_, r.get('pe_streak', 0) or 0)
             _add('급등주매수후보', r['ticker'], r['name'], _base_reasons(r) + sig, 35 + bonus)
     except Exception:
         pass
@@ -715,7 +715,7 @@ def _find_cross_picks():
         c = _load_pre_surge_cache()
         for r in (c.get('results', []) if c else []):
             bonus, sig, fs, is_ = _investor_bonus(r)
-            _track(r['ticker'], fs, is_)
+            _track(r['ticker'], fs, is_, r.get('pe_streak', 0) or 0)
             sig_reasons = r.get('signals', [])[:4]
             _add('선취후보', r['ticker'], r['name'], sig_reasons + sig, 30 + bonus)
     except Exception:
@@ -740,6 +740,7 @@ def _find_cross_picks():
         if ticker in ticker_map:
             ticker_map[ticker]['foreign_streak'] = st['fs']
             ticker_map[ticker]['inst_streak']    = st['is_']
+            ticker_map[ticker]['pe_streak']      = st['ps']
 
     # 과매수 제외 세트 + 과매도 상세 점수 수집
     overbought_tickers = set()

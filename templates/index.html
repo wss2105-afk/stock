@@ -694,6 +694,19 @@ function _buildPickRow(p) {
         : '';
     const tn = (p.ticker||'').replace(/'/g,"\\'");
     const nn = (p.name||'').replace(/'/g,"\\'");
+
+    // 외인·기관·사모 수급 표시
+    const fs  = p.foreign_streak || 0;
+    const is_ = p.inst_streak    || 0;
+    const ps  = p.pe_streak      || 0;
+    let invParts = [];
+    if (fs  >= 1) invParts.push(`<span style="color:#60a5fa;font-size:0.62rem;">외인 ${fs}일 연속</span>`);
+    if (is_ >= 1) invParts.push(`<span style="color:#FFC000;font-size:0.62rem;">기관 ${is_}일 연속</span>`);
+    if (ps  >= 1) invParts.push(`<span style="color:#c084fc;font-size:0.62rem;font-weight:700;">★ 사모 ${ps}일 연속</span>`);
+    const invHtml = invParts.length
+        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:1px;">${invParts.join('<span style="color:#333;font-size:0.6rem;">|</span>')}</div>`
+        : '';
+
     return `<div onclick="openCrossPickInfo('${tn}','${nn}','${scans.replace(/'/g,"\\'")}')"
         style="padding:7px 0;border-bottom:1px solid rgba(74,222,128,0.12);display:flex;flex-direction:column;gap:3px;cursor:pointer;transition:background 0.15s;"
         onmouseover="this.style.background='rgba(74,222,128,0.05)'" onmouseout="this.style.background=''">
@@ -704,6 +717,7 @@ function _buildPickRow(p) {
             <span style="color:#a3e635;font-size:0.62rem;font-weight:600;margin-left:auto;">${scans}</span>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:4px;">${reasons}</div>
+        ${invHtml}
     </div>`;
 }
 
