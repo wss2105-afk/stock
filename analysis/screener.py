@@ -107,10 +107,10 @@ def _count_consecutive_buying(investor_df, col_keyword, days=5):
     cols = [c for c in investor_df.columns if col_keyword in c]
     if not cols:
         return 0
-    # 합계 컬럼 우선(외국인합계, 기관합계), 그 다음 기타* 제외, 마지막으로 첫 번째
-    preferred = [c for c in cols if '합계' in c] \
-             or [c for c in cols if '기타' not in c] \
-             or cols
+    # 합계 컬럼 우선(외국인합계·기관합계), 그 다음 기타* 제외, 마지막으로 첫 번째
+    preferred = ([c for c in cols if '합계' in c]
+              or [c for c in cols if '기타' not in c]
+              or cols)
     series = investor_df[preferred[0]].tail(days)
     count = 0
     for v in reversed(series.values):
@@ -127,7 +127,7 @@ def _calc_joint_buying(investor_df, days=20, threshold=15):
         return 0, False
     investor_df = _ensure_foreign_col(investor_df)
     investor_df = _ensure_inst_col(investor_df)
-    foreign_col = next((c for c in investor_df.columns if ('외국인' in c or '외인' in c) and '기타' not in c), None)
+    foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
     inst_col = next((c for c in investor_df.columns if '기관' in c
                      and '금융' not in c and '연기금' not in c), None)
     if not foreign_col or not inst_col:
@@ -217,7 +217,7 @@ def _calc_accumulation_score(ohlcv, investor_df):
 
     investor_df = _ensure_foreign_col(investor_df)
     investor_df = _ensure_inst_col(investor_df)
-    fc = next((c for c in investor_df.columns if ('외국인' in c or '외인' in c) and '기타' not in c), None)
+    fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
     ic = next((c for c in investor_df.columns if '기관' in c
                and '금융' not in c and '연기금' not in c), None)
     if not fc and not ic:
@@ -246,7 +246,7 @@ def _calc_buying_surge_star(investor_df, recent_days=10, past_days=20):
         return False
     investor_df = _ensure_foreign_col(investor_df)
     investor_df = _ensure_inst_col(investor_df)
-    foreign_col = next((c for c in investor_df.columns if ('외국인' in c or '외인' in c) and '기타' not in c), None)
+    foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
     inst_col = next((c for c in investor_df.columns if '기관' in c
                      and '금융' not in c and '연기금' not in c), None)
     if not foreign_col or not inst_col:
@@ -265,7 +265,7 @@ def _calc_volume_surge(investor_df, days=20, surge_ratio=1.5):
         return False
     investor_df = _ensure_foreign_col(investor_df)
     investor_df = _ensure_inst_col(investor_df)
-    foreign_col = next((c for c in investor_df.columns if ('외국인' in c or '외인' in c) and '기타' not in c), None)
+    foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
     inst_col    = next((c for c in investor_df.columns if '기관' in c
                         and '금융' not in c and '연기금' not in c), None)
     if not foreign_col:
@@ -389,8 +389,8 @@ def _check_supply_one(name, ticker, months=3):
             return None
 
         investor_df = _ensure_foreign_col(investor_df)
-    investor_df = _ensure_inst_col(investor_df)
-        foreign_col = next((c for c in investor_df.columns if ('외국인' in c or '외인' in c) and '기타' not in c), None)
+        investor_df = _ensure_inst_col(investor_df)
+        foreign_col = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
         inst_col = next((c for c in investor_df.columns if '기관' in c
                          and '금융' not in c and '연기금' not in c), None)
         pe_col = next((c for c in investor_df.columns if '사모' in c), None)
@@ -1056,8 +1056,8 @@ def _check_buy_candidate(name, ticker):
         foreign_days = inst_days = foreign_streak = inst_streak = 0
         if not investor_df.empty:
             investor_df = _ensure_foreign_col(investor_df)
-    investor_df = _ensure_inst_col(investor_df)
-            fc = next((c for c in investor_df.columns if ('외국인' in c or '외인' in c) and '기타' not in c), None)
+            investor_df = _ensure_inst_col(investor_df)
+            fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
             ic = next((c for c in investor_df.columns if '기관' in c
                        and '금융' not in c and '연기금' not in c), None)
             if fc and ic:
@@ -2008,7 +2008,7 @@ def scan_top_stocks(top_n=20, months=6, max_workers=8):
                 continue
             last20 = _ensure_foreign_col(last20)
             last20 = _ensure_inst_col(last20)
-            fc = next((c for c in last20.columns if ('외국인' in c or '외인' in c) and '기타' not in c), None)
+            fc = next((c for c in last20.columns if '외국인' in c or '외인' in c), None)
             ic = next((c for c in last20.columns if '기관' in c
                        and '금융' not in c and '연기금' not in c), None)
             f_net = float(last20[fc].sum()) if fc else 0
@@ -2183,8 +2183,8 @@ def _check_pre_surge(name, ticker):
 
         if not investor_df.empty and len(investor_df) >= 5:
             investor_df = _ensure_foreign_col(investor_df)
-    investor_df = _ensure_inst_col(investor_df)
-            fc = next((c for c in investor_df.columns if ('외국인' in c or '외인' in c) and '기타' not in c), None)
+            investor_df = _ensure_inst_col(investor_df)
+            fc = next((c for c in investor_df.columns if '외국인' in c or '외인' in c), None)
             ic = next((c for c in investor_df.columns if '기관' in c
                        and '금융' not in c and '연기금' not in c), None)
             pc = next((c for c in investor_df.columns if '사모' in c), None)
