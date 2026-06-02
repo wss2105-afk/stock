@@ -1615,6 +1615,7 @@ def investor_table_api(ticker):
             ('금융투자',),
             ('은행',),
             ('기타금융',),
+            ('기타법인',),
             ('개인',),
         ]
         def _find(keywords):
