@@ -357,7 +357,12 @@ def _analyze_one(name, ticker, months=6):
 def _check_supply_one(name, ticker, months=3):
     """수급 조건 전용 경량 스캔 (가격·오실레이터 생략)"""
     try:
-        investor_df = get_investor_detail(ticker, months)
+        # PKL 캐시(12컬럼 정확 데이터) 우선, 없으면 live 호출
+        cached = load_stock_cache(ticker)
+        if cached and not cached['investor_df'].empty:
+            investor_df = cached['investor_df']
+        else:
+            investor_df = get_investor_detail(ticker, months)
         if investor_df.empty or len(investor_df) < 10:
             return None
 
