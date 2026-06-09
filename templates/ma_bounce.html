@@ -83,6 +83,14 @@
     <div class="page-title">이동평균선 반등 분석</div>
     <div class="page-sub">10/20/60/120일선 바닥 터치 후 반등 종목 · 5일선 상승 타기 종목 — 볼륨 캐시 즉시 로드</div>
 
+    {% if cache_days_old >= 1 %}
+    <div style="background:{% if cache_days_old >= 3 %}rgba(239,68,68,0.1){% else %}rgba(245,158,11,0.1){% endif %};border:1px solid {% if cache_days_old >= 3 %}rgba(239,68,68,0.4){% else %}rgba(245,158,11,0.4){% endif %};padding:10px 16px;margin-bottom:14px;font-size:0.68rem;color:{% if cache_days_old >= 3 %}#f87171{% else %}#fbbf24{% endif %};letter-spacing:0.06em;">
+        ⚠ 종목 데이터가 <strong>{{ cache_days_old }}일 전</strong> 기준입니다. 결과가 부정확하거나 0건일 수 있습니다.
+        {% if bounce_list|length == 0 and riding_list|length == 0 %}
+        결과가 없다면 먼저 <a href="/" style="color:inherit;text-decoration:underline;">홈 → 캐시 재빌드</a>를 실행한 뒤 다시 스캔해 주세요.
+        {% endif %}
+    </div>
+    {% endif %}
     <div class="meta-bar">
         {% if scanned_at %}
         <div class="meta-item">스캔 일시 <span>{{ scanned_at }}</span></div>

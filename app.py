@@ -1424,10 +1424,18 @@ def buy_candidates():
     cache = _load_buy_candidate_cache()
     results    = cache.get('results', []) if cache else []
     scanned_at = cache.get('scanned_at', '') if cache else ''
+    build_status = get_build_status()
+    cache_days_old = 0
+    if build_status:
+        try:
+            cache_days_old = (datetime.today() - datetime.strptime(build_status['date'], '%Y-%m-%d')).days
+        except Exception:
+            pass
     return render_template('buy_candidates.html',
                            results=results,
                            scanned_at=scanned_at,
-                           scanning=_buy_candidate_scanning)
+                           scanning=_buy_candidate_scanning,
+                           cache_days_old=cache_days_old)
 
 
 @app.route('/export-surge')
@@ -1906,12 +1914,20 @@ def ma_bounce_page():
     scanned_at = cache.get('scanned_at', '') if cache else ''
     bounce_list  = [r for r in bounce if r.get('type', 'bounce') != 'riding']
     riding_list  = [r for r in bounce if r.get('type') == 'riding']
+    build_status = get_build_status()
+    cache_days_old = 0
+    if build_status:
+        try:
+            cache_days_old = (datetime.today() - datetime.strptime(build_status['date'], '%Y-%m-%d')).days
+        except Exception:
+            pass
     return render_template('ma_bounce.html',
                            bounce_list=bounce_list,
                            riding_list=riding_list,
                            scanned_at=scanned_at,
                            total=len(bounce),
-                           scanning=_surge_scanning)
+                           scanning=_surge_scanning,
+                           cache_days_old=cache_days_old)
 
 
 @app.route('/api/ma-bounce-refresh', methods=['POST'])
