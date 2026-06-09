@@ -1904,7 +1904,7 @@ def ma_bounce_page():
     cache = _load_surge_cache()
     bounce = cache.get('bounce', []) if cache else []
     scanned_at = cache.get('scanned_at', '') if cache else ''
-    bounce_list  = [r for r in bounce if r.get('type') == 'bounce']
+    bounce_list  = [r for r in bounce if r.get('type', 'bounce') != 'riding']
     riding_list  = [r for r in bounce if r.get('type') == 'riding']
     return render_template('ma_bounce.html',
                            bounce_list=bounce_list,
