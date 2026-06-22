@@ -2383,13 +2383,13 @@ def _check_pre_surge(name, ticker):
         _ps_diag('scored')           # 채점 단계까지 도달 (사전필터 통과)
         if osc_score > 0:
             _ps_diag('osc_pass')     # 오실레이터 바닥 반등 신호 있음
-        if inv_score >= 15:
-            _ps_diag('inv_pass')     # 수급 점수 15 이상
+        if inv_score >= 20:
+            _ps_diag('inv_pass')     # 수급 점수 20 이상
 
-        # ── 최소 조건: 수급 우선 (완화: inv 20→15, 총점 25→20) ──────
-        if osc_score == 0 or inv_score < 15:
+        # ── 최소 조건: 수급 우선 — inv_score 20 미만이면 탈락 ──────
+        if osc_score == 0 or inv_score < 20:
             return None
-        if score < 20:
+        if score < 25:
             return None
         _ps_diag('final_pass')       # 최종 선취후보 통과
 

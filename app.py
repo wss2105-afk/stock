@@ -346,15 +346,22 @@ threading.Thread(target=_export_scan_scheduler, daemon=True).start()
 
 
 def _auto_build_cache():
-    """매일 캐시가 없으면 350종목 전체 데이터 사전 수집"""
-    if not is_build_needed():
-        return
-    today = datetime.today().strftime('%Y-%m-%d')
-    print(f'[{today}] 전체 종목 캐시 빌드 시작...')
+    """매일 캐시가 없으면 350종목 전체 데이터 사전 수집.
+    빌드 여부와 무관하게, 스캔 결과가 비어 있으면 스캔을 트리거한다 —
+    재빌드 직후 컨테이너가 재시작되면 '빌드 완료'로 보고 스캔이 누락되는 문제 방지."""
+    import time as _t
+    _t.sleep(8)  # 모듈 전체 로드 완료 보장 (_run_*_scan 정의 이후 실행)
+    if is_build_needed():
+        today = datetime.today().strftime('%Y-%m-%d')
+        print(f'[{today}] 전체 종목 캐시 빌드 시작...')
+        try:
+            count, errors = build_all_cache(max_workers=6)
+            print(f'[{today}] 캐시 완료: {count}건 성공, {errors}건 실패')
+        except Exception as e:
+            print(f'캐시 빌드 오류: {e}')
+            return
+    # 결과 캐시가 비었으면(또는 0건) 스캔 트리거 — 빌드를 새로 했든 안 했든 항상 점검
     try:
-        count, errors = build_all_cache(max_workers=6)
-        print(f'[{today}] 캐시 완료: {count}건 성공, {errors}건 실패')
-        # 캐시 빌드 완료 후 결과 없거나 0건이면 즉시 스캔 트리거
         surge = _load_surge_cache()
         if not surge or (not surge.get('bounce') and not surge.get('results')):
             threading.Thread(target=_run_surge_scan, daemon=True).start()
@@ -368,7 +375,7 @@ def _auto_build_cache():
         if not pre_surge or not pre_surge.get('results'):
             threading.Thread(target=_run_pre_surge_scan, daemon=True).start()
     except Exception as e:
-        print(f'캐시 빌드 오류: {e}')
+        print(f'스캔 트리거 오류: {e}')
 
 threading.Thread(target=_auto_build_cache, daemon=True).start()
 
