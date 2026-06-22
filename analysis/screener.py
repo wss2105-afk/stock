@@ -30,6 +30,18 @@ def get_scan_progress() -> dict:
     with _scan_prog_lock:
         return _copy.deepcopy(_scan_prog)
 
+# ── 선취후보 진단 카운터 (게이트별 통과 종목 수) ──────────────────
+_pre_surge_diag: dict = {}
+_pre_surge_diag_lock = _threading.Lock()
+
+def _ps_diag_reset():
+    with _pre_surge_diag_lock:
+        _pre_surge_diag.clear()
+
+def _ps_diag(gate: str):
+    with _pre_surge_diag_lock:
+        _pre_surge_diag[gate] = _pre_surge_diag.get(gate, 0) + 1
+
 _NAVER_HDR = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
 # ETF·리츠·인덱스 펀드 이름 패턴 (수급주도·추천 스캔에서 제외)
@@ -2367,11 +2379,19 @@ def _check_pre_surge(name, ticker):
 
         score += inv_score
 
-        # ── 최소 조건: 수급 우선 — inv_score 20 미만이면 탈락 ──────
-        if osc_score == 0 or inv_score < 20:
+        # ── 진단: 게이트별 도달/통과 종목 수 집계 ──────────────────
+        _ps_diag('scored')           # 채점 단계까지 도달 (사전필터 통과)
+        if osc_score > 0:
+            _ps_diag('osc_pass')     # 오실레이터 바닥 반등 신호 있음
+        if inv_score >= 15:
+            _ps_diag('inv_pass')     # 수급 점수 15 이상
+
+        # ── 최소 조건: 수급 우선 (완화: inv 20→15, 총점 25→20) ──────
+        if osc_score == 0 or inv_score < 15:
             return None
-        if score < 25:
+        if score < 20:
             return None
+        _ps_diag('final_pass')       # 최종 선취후보 통과
 
         # ── 복합 오실레이터 현재값 ────────────────────────────────
         osc_parts = []
@@ -2404,6 +2424,7 @@ def scan_pre_surge(top_n=10, max_workers=8):
     ticker_list = [(n, t) for n, t in tickers.items() if not _is_etf(n)]
 
     _prog_init('pre_surge', len(ticker_list))
+    _ps_diag_reset()
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_check_pre_surge, n, t): (n, t) for n, t in ticker_list}
@@ -2414,6 +2435,13 @@ def scan_pre_surge(top_n=10, max_workers=8):
             if r:
                 results.append(r)
 
+    with _pre_surge_diag_lock:
+        _d = dict(_pre_surge_diag)
     print(f'[선취스캔] 통과: {len(results)}개')
+    print(f'[선취스캔][진단] 채점도달={_d.get("scored",0)} '
+          f'오실통과={_d.get("osc_pass",0)} '
+          f'수급통과={_d.get("inv_pass",0)} '
+          f'최종통과={_d.get("final_pass",0)} '
+          f'(대상종목={len(ticker_list)})')
     results.sort(key=lambda x: x['sort_key'], reverse=True)
     return results[:top_n]

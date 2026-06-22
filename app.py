@@ -373,6 +373,67 @@ def _auto_build_cache():
 threading.Thread(target=_auto_build_cache, daemon=True).start()
 
 
+# ── 매주 일요일 새벽 전체 캐시 클린 리셋 (안전장치) ─────────────────
+_SUNDAY_RESET_PATH = os.path.join(_DATA_DIR, 'sunday_reset.txt')
+
+
+def _sunday_cache_reset():
+    """매주 일요일 새벽 3시(KST) 캐시(pkl·플래그·스캔결과)를 전부 비우고 재빌드"""
+    import time as _time
+    import glob as _glob
+    while True:
+        now_kst = datetime.utcnow() + timedelta(hours=9)
+        # 일요일(weekday==6), 03:00~03:59 사이
+        if now_kst.weekday() == 6 and now_kst.hour == 3:
+            this_week = now_kst.strftime('%Y-W%W')
+            last = ''
+            if os.path.exists(_SUNDAY_RESET_PATH):
+                with open(_SUNDAY_RESET_PATH) as f:
+                    last = f.read().strip()
+            if last != this_week:
+                try:
+                    # 빌드 플래그 삭제
+                    _flag = os.path.join(_DATA_DIR, 'cache_built.txt')
+                    if os.path.exists(_flag):
+                        os.remove(_flag)
+                    # pkl 캐시 삭제
+                    for _f in _glob.glob(os.path.join(_DATA_DIR, 'cache', '*.pkl')):
+                        try:
+                            os.remove(_f)
+                        except Exception:
+                            pass
+                    # 스캔 결과 JSON 삭제
+                    for _json in ['surge_cache.json', 'buy_candidate_cache.json',
+                                  'surge_buy_cache.json', 'pre_surge_cache.json',
+                                  'recommend_cache.json']:
+                        _jp = os.path.join(_DATA_DIR, _json)
+                        try:
+                            if os.path.exists(_jp):
+                                os.remove(_jp)
+                        except Exception:
+                            pass
+                    with open(_SUNDAY_RESET_PATH, 'w') as f:
+                        f.write(this_week)
+                    print(f'[{this_week}] 일요일 캐시 클린 리셋 — 재빌드 시작')
+                    _auto_build_cache()  # 플래그가 없어졌으므로 전체 재빌드 + 스캔 트리거
+                except Exception as e:
+                    print(f'일요일 캐시 리셋 오류: {e}')
+            # 이번 시간대 처리 완료 — 70분 대기
+            _time.sleep(4200)
+        else:
+            # 다음 일요일 03시까지 남은 초 계산
+            days_until_sun = (6 - now_kst.weekday()) % 7
+            if days_until_sun == 0 and now_kst.hour >= 4:
+                days_until_sun = 7
+            next_sun = (now_kst + timedelta(days=days_until_sun)).replace(
+                hour=3, minute=0, second=0, microsecond=0)
+            sleep_sec = max(60, (next_sun - now_kst).total_seconds())
+            _time.sleep(min(sleep_sec, 3600))  # 최대 1시간 단위로 재확인
+
+
+threading.Thread(target=_sunday_cache_reset, daemon=True).start()
+
+
 # ── 추천 종목 TOP 20 일일 캐시 ───────────────────────────────────
 def _load_recommend_cache():
     if not os.path.exists(_RECOMMEND_CACHE_PATH):
