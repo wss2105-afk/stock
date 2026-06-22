@@ -380,6 +380,36 @@ def _auto_build_cache():
 threading.Thread(target=_auto_build_cache, daemon=True).start()
 
 
+# ── 캐시 클린 리셋 공통 함수 ──────────────────────────────────────
+def _clean_cache_files():
+    """캐시 pkl·빌드플래그·스캔결과 JSON을 전부 삭제 (클린 리셋의 공통 동작).
+    일요일 정기 리셋, 헬스체크 자동복구, 수동 rebuild API가 모두 이 함수를 사용."""
+    import glob as _glob
+    # 빌드 플래그 삭제
+    _flag = os.path.join(_DATA_DIR, 'cache_built.txt')
+    try:
+        if os.path.exists(_flag):
+            os.remove(_flag)
+    except Exception:
+        pass
+    # pkl 캐시 삭제
+    for _f in _glob.glob(os.path.join(_DATA_DIR, 'cache', '*.pkl')):
+        try:
+            os.remove(_f)
+        except Exception:
+            pass
+    # 스캔 결과 JSON 삭제
+    for _json in ['surge_cache.json', 'buy_candidate_cache.json',
+                  'surge_buy_cache.json', 'pre_surge_cache.json',
+                  'recommend_cache.json']:
+        _jp = os.path.join(_DATA_DIR, _json)
+        try:
+            if os.path.exists(_jp):
+                os.remove(_jp)
+        except Exception:
+            pass
+
+
 # ── 매주 일요일 새벽 전체 캐시 클린 리셋 (안전장치) ─────────────────
 _SUNDAY_RESET_PATH = os.path.join(_DATA_DIR, 'sunday_reset.txt')
 
@@ -387,7 +417,6 @@ _SUNDAY_RESET_PATH = os.path.join(_DATA_DIR, 'sunday_reset.txt')
 def _sunday_cache_reset():
     """매주 일요일 새벽 3시(KST) 캐시(pkl·플래그·스캔결과)를 전부 비우고 재빌드"""
     import time as _time
-    import glob as _glob
     while True:
         now_kst = datetime.utcnow() + timedelta(hours=9)
         # 일요일(weekday==6), 03:00~03:59 사이
@@ -399,26 +428,7 @@ def _sunday_cache_reset():
                     last = f.read().strip()
             if last != this_week:
                 try:
-                    # 빌드 플래그 삭제
-                    _flag = os.path.join(_DATA_DIR, 'cache_built.txt')
-                    if os.path.exists(_flag):
-                        os.remove(_flag)
-                    # pkl 캐시 삭제
-                    for _f in _glob.glob(os.path.join(_DATA_DIR, 'cache', '*.pkl')):
-                        try:
-                            os.remove(_f)
-                        except Exception:
-                            pass
-                    # 스캔 결과 JSON 삭제
-                    for _json in ['surge_cache.json', 'buy_candidate_cache.json',
-                                  'surge_buy_cache.json', 'pre_surge_cache.json',
-                                  'recommend_cache.json']:
-                        _jp = os.path.join(_DATA_DIR, _json)
-                        try:
-                            if os.path.exists(_jp):
-                                os.remove(_jp)
-                        except Exception:
-                            pass
+                    _clean_cache_files()
                     with open(_SUNDAY_RESET_PATH, 'w') as f:
                         f.write(this_week)
                     print(f'[{this_week}] 일요일 캐시 클린 리셋 — 재빌드 시작')
@@ -439,6 +449,52 @@ def _sunday_cache_reset():
 
 
 threading.Thread(target=_sunday_cache_reset, daemon=True).start()
+
+
+# ── 매일 데이터 건강검진 + 자동 복구 (헬스체크) ────────────────────
+_HEALTH_RETRY_PATH = os.path.join(_DATA_DIR, 'health_retry.txt')
+
+
+def _cache_health_check():
+    """매일 평일 오전 11시(KST), 수급 의존 스캔 3종(선취·급등주매수·매수후보)이
+    모두 0건이면 '데이터 불량' 신호로 보고 그날 1회만 자동 클린 리셋+재빌드한다.
+    정상인 날에는 아무 작업도 하지 않는다 (불필요한 리셋·빈 화면 방지)."""
+    import time as _time
+    while True:
+        now_kst = datetime.utcnow() + timedelta(hours=9)
+        today = now_kst.strftime('%Y-%m-%d')
+        # 평일(월~금) 오전 11시 — 아침 빌드+스캔이 끝났을 시간
+        if now_kst.weekday() < 5 and now_kst.hour == 11:
+            last = ''
+            if os.path.exists(_HEALTH_RETRY_PATH):
+                with open(_HEALTH_RETRY_PATH) as f:
+                    last = f.read().strip()
+            # 오늘 아직 점검 안 했고, 빌드는 끝난 상태일 때만
+            if last != today and not is_build_needed():
+                try:
+                    def _empty(c):
+                        return not c or not c.get('results')
+                    pre = _load_pre_surge_cache()
+                    sb  = _load_surge_buy_cache()
+                    bc  = _load_buy_candidate_cache()
+                    if _empty(pre) and _empty(sb) and _empty(bc):
+                        # 수급 스캔 3종 모두 0건 → 데이터 불량 의심 → 자동 클린 리셋
+                        print(f'[{today}] 헬스체크: 수급스캔 3종 모두 0건 → 자동 클린 리셋+재빌드')
+                        _clean_cache_files()
+                        _auto_build_cache()
+                    else:
+                        print(f'[{today}] 헬스체크: 정상 (수급스캔 결과 있음)')
+                    # 결과와 무관하게 오늘은 점검 완료로 기록 (하루 1회만)
+                    with open(_HEALTH_RETRY_PATH, 'w') as f:
+                        f.write(today)
+                except Exception as e:
+                    print(f'헬스체크 오류: {e}')
+            _time.sleep(4200)  # 70분 대기 후 다음 루프
+        else:
+            _time.sleep(1800)  # 30분마다 시간 확인
+
+
+threading.Thread(target=_cache_health_check, daemon=True).start()
 
 
 # ── 추천 종목 TOP 20 일일 캐시 ───────────────────────────────────
@@ -1774,27 +1830,7 @@ def investor_debug(ticker):
 @app.route('/api/rebuild-cache', methods=['POST'])
 def rebuild_cache_api():
     """캐시 강제 재빌드 — 플래그·pkl·스캔결과 전부 삭제 후 재수집 (약 5분 소요)"""
-    import glob as _glob
-    _base = '/data' if os.path.isdir('/data') else os.path.join(os.path.dirname(__file__), 'data')
-    # 빌드 플래그 + pkl 캐시 삭제
-    for _p in [os.path.join(_base, 'cache_built.txt')]:
-        try:
-            if os.path.exists(_p): os.remove(_p)
-        except Exception:
-            pass
-    try:
-        for f in _glob.glob(os.path.join(_base, 'cache', '*.pkl')):
-            os.remove(f)
-    except Exception:
-        pass
-    # 스캔 결과 JSON 삭제 → _auto_build_cache가 재스캔 트리거하도록
-    for _json in ['surge_cache.json', 'buy_candidate_cache.json',
-                  'surge_buy_cache.json', 'pre_surge_cache.json', 'recommend_cache.json']:
-        try:
-            _jp = os.path.join(_base, _json)
-            if os.path.exists(_jp): os.remove(_jp)
-        except Exception:
-            pass
+    _clean_cache_files()  # 플래그·pkl·스캔결과 JSON 삭제 (공통 함수)
     threading.Thread(target=_auto_build_cache, daemon=True).start()
     return jsonify({'status': 'building', 'message': '캐시 재빌드 시작 — 약 5분 소요 후 스캔 자동 실행됩니다'})
 
